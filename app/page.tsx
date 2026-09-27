@@ -37,7 +37,7 @@ const shuffle = (arr) => {
 const DEFAULT_SETTINGS = { captionSeconds: 45, voteSeconds: 20, mediaPerPlayer: 1 };
 const MAX_FILE_MB = 25;
 // Incrémenter à chaque mise à jour livrée du jeu.
-const APP_VERSION = 'v6';
+const APP_VERSION = 'v7';
 
 const VersionBadge = () => (
   <div className="fixed bottom-2 right-3 text-[10px] text-gray-600 font-mono select-none pointer-events-none z-50">
@@ -94,6 +94,14 @@ export default function CaptionBattle() {
   const [medias, setMedias] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState(null);
+  const [debugLog, setDebugLog] = useState([]);
+  const fileInputRef = useRef(null);
+
+  const pushDebug = (msg) => {
+    const line = `${new Date().toLocaleTimeString()} — ${msg}`;
+    console.log('[upload]', msg);
+    setDebugLog((prev) => [...prev.slice(-5), line]);
+  };
   const [roundQueue, setRoundQueue] = useState([]); // liste d'ids de médias, 1 par round
   const [currentRoundIndex, setCurrentRoundIndex] = useState(0);
   const [phaseStartedAt, setPhaseStartedAt] = useState(null);
@@ -337,12 +345,12 @@ export default function CaptionBattle() {
   const startUploadPhase = () => goToState('upload');
 
   const handleFileUpload = async (e) => {
-    console.log('[upload] onChange déclenché', e.target.files);
+    pushDebug('onChange input fichier déclenché');
     const inputEl = e.target;
     const file = inputEl.files && inputEl.files[0];
     setUploadError(null);
     if (!file) {
-      console.log('[upload] aucun fichier sélectionné');
+      pushDebug('aucun fichier dans la sélection');
       return;
     }
 
@@ -351,27 +359,27 @@ export default function CaptionBattle() {
     // onChange lui-même ne se déclenche pas (souci de rendu, pas réseau).
     setUploading(true);
     try {
-      console.log('[upload] fichier reçu', file.name, file.size, file.type);
+      pushDebug(`fichier reçu : ${file.name} (${Math.round(file.size / 1024)}ko, ${file.type || 'type inconnu'})`);
 
       if (file.size > MAX_FILE_MB * 1024 * 1024) {
         throw new Error(`Ce fichier dépasse ${MAX_FILE_MB}Mo, choisis-en un plus léger.`);
       }
       if (!room?.code) {
-        throw new Error("Code de room manquant côté client (rejoins ou recrée une partie).");
+        throw new Error('Code de room manquant côté client (rejoins ou recrée une partie).');
       }
 
       const fileExt = file.name.split('.').pop();
       const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
       const filePath = `${room.code}/${fileName}`;
 
-      console.log('[upload] envoi vers Supabase Storage...', filePath);
+      pushDebug(`envoi vers Supabase Storage : ${filePath}`);
       const { error } = await withTimeout(
         supabase.storage.from('game-media').upload(filePath, file),
         20000,
         'Le serveur Supabase ne répond pas (délai dépassé). Vérifie ta connexion et la configuration Supabase.'
       );
       if (error) throw error;
-      console.log('[upload] envoi réussi');
+      pushDebug('upload réussi ✅');
 
       const { data: { publicUrl } } = supabase.storage.from('game-media').getPublicUrl(filePath);
 
@@ -382,7 +390,7 @@ export default function CaptionBattle() {
       // On affiche le message d'erreur réel de Supabase dans l'UI (un alert()
       // navigateur peut être bloqué/silencieux selon le contexte et donner
       // l'impression que "rien ne se passe").
-      console.error('[upload] échec :', error);
+      pushDebug(`ÉCHEC : ${error?.message || error}`);
       const raw = error?.message || String(error);
       let hint = '';
       if (/bucket.*not.*found/i.test(raw)) {
@@ -791,7 +799,14 @@ export default function CaptionBattle() {
             />
           ) : (
             <div className="space-y-4">
-              <label className="relative flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-gray-600 hover:border-purple-500 hover:bg-purple-900/10 rounded-xl cursor-pointer transition group">
+              <button
+                type="button"
+                onClick={() => {
+                  pushDebug('bouton "uploader" cliqué');
+                  fileInputRef.current?.click();
+                }}
+                className="relative flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-gray-600 hover:border-purple-500 hover:bg-purple-900/10 rounded-xl cursor-pointer transition group"
+              >
                 <div className="flex gap-4 text-gray-400 group-hover:text-purple-400 mb-3">
                   <ImageIcon size={32} />
                   <Video size={32} />
@@ -799,8 +814,22 @@ export default function CaptionBattle() {
                 </div>
                 <span className="font-bold">Cliquer pour uploader un fichier ({myUploadCount}/{settings.mediaPerPlayer})</span>
                 <span className="text-xs text-gray-500 mt-2">JPG, PNG, GIF, MP4, MP3</span>
-                <input type="file" className="hidden" accept="image/*,video/mp4,audio/*" onChange={handleFileUpload} />
-              </label>
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                accept="image/*,video/mp4,audio/*"
+                onChange={handleFileUpload}
+              />
+            </div>
+          )}
+
+          {debugLog.length > 0 && (
+            <div className="mt-4 text-left bg-black/60 border border-gray-800 rounded-lg p-3 font-mono text-[11px] text-gray-400 space-y-1 max-h-32 overflow-y-auto">
+              {debugLog.map((line, i) => (
+                <div key={i}>{line}</div>
+              ))}
             </div>
           )}
 
