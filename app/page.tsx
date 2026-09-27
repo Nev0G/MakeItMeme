@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { Play, Image as ImageIcon, Video, Music, Link as LinkIcon, Send, Trophy, Users, Loader2, Check, ThumbsUp } from 'lucide-react';
+import { Play, Image as ImageIcon, Video, Music, Send, Trophy, Users, Loader2, Crown, ThumbsUp, SkipForward, Settings } from 'lucide-react';
 
 // ==========================================
 // 1. CONFIGURATION SUPABASE
@@ -12,6 +12,17 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publish
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const makeId = (prefix) => `${prefix}_${Math.random().toString(36).slice(2, 11)}`;
+
+const shuffle = (arr) => {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+};
+
+const DEFAULT_SETTINGS = { captionSeconds: 45, voteSeconds: 20, mediaPerPlayer: 1 };
 
 // ==========================================
 // COMPOSANT LECTEUR MULTIMÉDIA UNIVERSEL
@@ -41,6 +52,12 @@ const Waiting = ({ label, sub }) => (
   </div>
 );
 
+const CountdownBadge = ({ seconds }) => (
+  <div className={`bg-gray-900 px-4 py-2 rounded-full font-bold font-mono border ${seconds <= 5 ? 'border-red-500 text-red-400' : 'border-gray-800'}`}>
+    ⏳ {seconds}s
+  </div>
+);
+
 // ==========================================
 // APPLICATION PRINCIPALE
 // ==========================================
@@ -49,19 +66,28 @@ export default function CaptionBattle() {
   const [player, setPlayer] = useState({ id: null, name: '' });
   const [room, setRoom] = useState(null);
   const [joinCode, setJoinCode] = useState('');
-  const [joinError, setJoinError] = useState('');
   const [players, setPlayers] = useState([]);
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
 
   const [medias, setMedias] = useState([]);
   const [uploading, setUploading] = useState(false);
-  const [assignments, setAssignments] = useState({});
-  const [captions, setCaptions] = useState([]);
+  const [roundQueue, setRoundQueue] = useState([]); // liste d'ids de médias, 1 par round
+  const [currentRoundIndex, setCurrentRoundIndex] = useState(0);
+  const [phaseStartedAt, setPhaseStartedAt] = useState(null);
+  const [now, setNow] = useState(Date.now());
+
+  const [captions, setCaptions] = useState([]); // {media_id, author_id, author_name, text}
   const [myCaption, setMyCaption] = useState('');
-  const [votes, setVotes] = useState([]);
+  const [votes, setVotes] = useState([]); // {media_id, voter_id, caption_author_id}
   const [cumulativeScores, setCumulativeScores] = useState({});
 
   const channelRef = useRef(null);
-  const processedResultsRef = useRef(false);
+  const processedRoundRef = useRef(-1);
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -73,9 +99,7 @@ export default function CaptionBattle() {
   // CONNEXION AU CHANNEL DE LA ROOM (presence + broadcast)
   // ==========================================
   const connectToRoom = (code, playerId, playerName, isCreator) => {
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-    }
+    if (channelRef.current) supabase.removeChannel(channelRef.current);
 
     const channel = supabase.channel(`room:${code}`, {
       config: { presence: { key: playerId } },
@@ -85,55 +109,55 @@ export default function CaptionBattle() {
       const state = channel.presenceState();
       const list = Object.values(state)
         .flat()
-        .map((p) => ({
-          id: p.player_id,
-          name: p.player_name,
-          is_creator: p.is_creator,
-          joined_at: p.joined_at,
-        }))
+        .map((p) => ({ id: p.player_id, name: p.player_name, is_creator: p.is_creator, joined_at: p.joined_at }))
         .sort((a, b) => a.joined_at - b.joined_at);
       setPlayers(list);
     });
 
     channel.on('broadcast', { event: 'game_update' }, ({ payload }) => {
       if (payload?.newState) setGameState(payload.newState);
+      if (typeof payload?.roundIndex === 'number') setCurrentRoundIndex(payload.roundIndex);
+      if (payload?.phaseStartedAt) setPhaseStartedAt(payload.phaseStartedAt);
     });
+
+    channel.on('broadcast', { event: 'settings_update' }, ({ payload }) => setSettings(payload.settings));
 
     channel.on('broadcast', { event: 'media_added' }, ({ payload }) => {
       setMedias((prev) => (prev.some((m) => m.id === payload.media.id) ? prev : [...prev, payload.media]));
     });
 
-    channel.on('broadcast', { event: 'assignments' }, ({ payload }) => {
-      setAssignments(payload.assignments || {});
-    });
+    channel.on('broadcast', { event: 'round_queue' }, ({ payload }) => setRoundQueue(payload.queue || []));
 
     channel.on('broadcast', { event: 'caption_submitted' }, ({ payload }) => {
       setCaptions((prev) =>
-        prev.some((c) => c.media_id === payload.caption.media_id) ? prev : [...prev, payload.caption]
+        prev.some((c) => c.media_id === payload.caption.media_id && c.author_id === payload.caption.author_id)
+          ? prev
+          : [...prev, payload.caption]
       );
     });
 
     channel.on('broadcast', { event: 'vote_cast' }, ({ payload }) => {
-      setVotes((prev) => [...prev.filter((v) => v.voter_id !== payload.vote.voter_id), payload.vote]);
+      setVotes((prev) => [
+        ...prev.filter((v) => !(v.voter_id === payload.vote.voter_id && v.media_id === payload.vote.media_id)),
+        payload.vote,
+      ]);
     });
 
-    channel.on('broadcast', { event: 'new_round' }, () => {
+    channel.on('broadcast', { event: 'new_game' }, () => {
       setMedias([]);
-      setAssignments({});
+      setRoundQueue([]);
+      setCurrentRoundIndex(0);
       setCaptions([]);
       setVotes([]);
       setMyCaption('');
+      setCumulativeScores({});
+      setPhaseStartedAt(null);
       setGameState('upload');
     });
 
     channel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
-        await channel.track({
-          player_id: playerId,
-          player_name: playerName,
-          is_creator: isCreator,
-          joined_at: Date.now(),
-        });
+        await channel.track({ player_id: playerId, player_name: playerName, is_creator: isCreator, joined_at: Date.now() });
       }
     });
 
@@ -144,7 +168,6 @@ export default function CaptionBattle() {
     if (!player.name.trim()) return;
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     const newPlayerId = makeId('p');
-
     setPlayer((p) => ({ ...p, id: newPlayerId }));
     setRoom({ code });
     connectToRoom(code, newPlayerId, player.name.trim(), true);
@@ -154,9 +177,7 @@ export default function CaptionBattle() {
   const joinRoom = () => {
     const code = joinCode.trim().toUpperCase();
     if (!code || !player.name.trim()) return;
-    setJoinError('');
     const newPlayerId = makeId('p');
-
     setPlayer((p) => ({ ...p, id: newPlayerId }));
     setRoom({ code });
     connectToRoom(code, newPlayerId, player.name.trim(), false);
@@ -165,19 +186,29 @@ export default function CaptionBattle() {
 
   const hostId = useMemo(() => {
     const creator = players.find((p) => p.is_creator);
-    if (creator) return creator.id;
-    return players[0]?.id ?? null;
+    return creator ? creator.id : players[0]?.id ?? null;
   }, [players]);
   const isHost = player.id !== null && player.id === hostId;
 
-  const broadcast = (event, payload) => {
-    channelRef.current?.send({ type: 'broadcast', event, payload });
+  const broadcast = (event, payload) => channelRef.current?.send({ type: 'broadcast', event, payload });
+
+  const updateSettings = (patch) => {
+    const next = { ...settings, ...patch };
+    setSettings(next);
+    broadcast('settings_update', { settings: next });
   };
 
-  const startGame = () => {
-    broadcast('game_update', { newState: 'upload' });
-    setGameState('upload');
+  const goToState = (newState, extra = {}) => {
+    broadcast('game_update', { newState, ...extra });
+    setGameState(newState);
+    if (typeof extra.roundIndex === 'number') setCurrentRoundIndex(extra.roundIndex);
+    if (extra.phaseStartedAt) setPhaseStartedAt(extra.phaseStartedAt);
   };
+
+  // ==========================================
+  // UPLOAD
+  // ==========================================
+  const startUploadPhase = () => goToState('upload');
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
@@ -194,13 +225,7 @@ export default function CaptionBattle() {
 
       const { data: { publicUrl } } = supabase.storage.from('game-media').getPublicUrl(filePath);
 
-      const media = {
-        id: makeId('m'),
-        url: publicUrl,
-        type: file.type,
-        owner_id: player.id,
-        owner_name: player.name,
-      };
+      const media = { id: makeId('m'), url: publicUrl, type: file.type, owner_id: player.id, owner_name: player.name };
       setMedias((prev) => [...prev, media]);
       broadcast('media_added', { media });
     } catch (error) {
@@ -211,83 +236,75 @@ export default function CaptionBattle() {
     }
   };
 
-  const iUploaded = medias.some((m) => m.owner_id === player.id);
-  const uploadedCount = medias.length;
+  const myUploadCount = medias.filter((m) => m.owner_id === player.id).length;
+  const iUploaded = myUploadCount >= settings.mediaPerPlayer;
+  const everyoneUploaded =
+    players.length > 0 &&
+    players.every((p) => medias.filter((m) => m.owner_id === p.id).length >= settings.mediaPerPlayer);
 
-  const launchCaptioning = () => {
-    const n = players.length;
-    if (n < 2) return;
-    const assign = {};
-    players.forEach((p, i) => {
-      const targetPlayer = players[(i + 1) % n];
-      const targetMedia = medias.find((m) => m.owner_id === targetPlayer.id);
-      if (targetMedia) assign[p.id] = targetMedia.id;
-    });
-    broadcast('assignments', { assignments: assign });
-    setAssignments(assign);
-    broadcast('game_update', { newState: 'caption' });
-    setGameState('caption');
+  const launchGame = () => {
+    const queue = shuffle(medias.map((m) => m.id));
+    broadcast('round_queue', { queue });
+    setRoundQueue(queue);
+    goToState('caption', { roundIndex: 0, phaseStartedAt: Date.now() });
   };
 
-  // Le host lance le captioning dès que tout le monde a uploadé
-  const everyoneUploaded = players.length > 0 && players.every((p) => medias.some((m) => m.owner_id === p.id));
-
-  const myMediaToCaption = medias.find((m) => m.id === assignments[player.id]);
-  const iSubmittedCaption = captions.some((c) => c.author_id === player.id);
+  // ==========================================
+  // ROUND EN COURS
+  // ==========================================
+  const currentMediaId = roundQueue[currentRoundIndex];
+  const currentMedia = medias.find((m) => m.id === currentMediaId);
+  const captionsForRound = captions.filter((c) => c.media_id === currentMediaId);
+  const votesForRound = votes.filter((v) => v.media_id === currentMediaId);
+  const isMyMedia = currentMedia && currentMedia.owner_id === player.id;
+  const iSubmittedCaption = captionsForRound.some((c) => c.author_id === player.id);
+  const expectedCaptioners = Math.max(0, players.length - 1); // tout le monde sauf le posteur
 
   const submitCaption = () => {
-    if (!myCaption.trim() || !myMediaToCaption) return;
-    const caption = {
-      media_id: myMediaToCaption.id,
-      author_id: player.id,
-      author_name: player.name,
-      text: myCaption.trim(),
-    };
+    if (!myCaption.trim() || !currentMedia) return;
+    const caption = { media_id: currentMedia.id, author_id: player.id, author_name: player.name, text: myCaption.trim() };
     setCaptions((prev) => [...prev, caption]);
     broadcast('caption_submitted', { caption });
     setMyCaption('');
   };
 
-  // Le host fait avancer vers le vote quand tout le monde a légendé
   useEffect(() => {
-    if (isHost && gameState === 'caption' && players.length > 0 && captions.length >= players.length) {
-      broadcast('game_update', { newState: 'vote' });
-      setGameState('vote');
+    if (isHost && gameState === 'caption' && currentMedia && expectedCaptioners > 0 && captionsForRound.length >= expectedCaptioners) {
+      goToState('vote', { phaseStartedAt: Date.now() });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [captions, isHost, gameState, players.length]);
+  }, [captions, isHost, gameState, currentMediaId]);
 
-  const myVote = votes.find((v) => v.voter_id === player.id);
+  // Joueurs qui ont au moins une légende éligible à voter (≠ la leur)
+  const eligibleVoters = players.filter((p) => captionsForRound.some((c) => c.author_id !== p.id));
+  const myVoteForRound = votesForRound.find((v) => v.voter_id === player.id);
 
-  const castVote = (mediaId) => {
-    const vote = { media_id: mediaId, voter_id: player.id };
-    setVotes((prev) => [...prev.filter((v) => v.voter_id !== player.id), vote]);
+  const castVote = (authorId) => {
+    if (!currentMedia) return;
+    const vote = { media_id: currentMedia.id, voter_id: player.id, caption_author_id: authorId };
+    setVotes((prev) => [...prev.filter((v) => !(v.voter_id === player.id && v.media_id === currentMedia.id)), vote]);
     broadcast('vote_cast', { vote });
   };
 
-  // Le host fait avancer vers les résultats quand tout le monde a voté
   useEffect(() => {
-    if (isHost && gameState === 'vote' && players.length > 0 && votes.length >= players.length) {
-      broadcast('game_update', { newState: 'results' });
-      setGameState('results');
+    if (isHost && gameState === 'vote' && currentMedia && eligibleVoters.length > 0 && votesForRound.length >= eligibleVoters.length) {
+      goToState('round_result', { phaseStartedAt: Date.now() });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [votes, isHost, gameState, players.length]);
+  }, [votes, isHost, gameState, currentMediaId]);
 
   const roundScoreboard = useMemo(() => {
     const tally = {};
-    votes.forEach((v) => {
-      const caption = captions.find((c) => c.media_id === v.media_id);
-      if (caption) tally[caption.author_id] = (tally[caption.author_id] || 0) + 1;
+    votesForRound.forEach((v) => {
+      tally[v.caption_author_id] = (tally[v.caption_author_id] || 0) + 1;
     });
-    return players
-      .map((p) => ({ ...p, roundPoints: tally[p.id] || 0 }))
-      .sort((a, b) => b.roundPoints - a.roundPoints);
-  }, [votes, captions, players]);
+    return players.map((p) => ({ ...p, roundPoints: tally[p.id] || 0 })).sort((a, b) => b.roundPoints - a.roundPoints);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [votes, players, currentMediaId]);
 
   useEffect(() => {
-    if (gameState === 'results' && !processedResultsRef.current) {
-      processedResultsRef.current = true;
+    if (gameState === 'round_result' && processedRoundRef.current !== currentRoundIndex) {
+      processedRoundRef.current = currentRoundIndex;
       setCumulativeScores((prev) => {
         const next = { ...prev };
         roundScoreboard.forEach((p) => {
@@ -296,19 +313,76 @@ export default function CaptionBattle() {
         return next;
       });
     }
-    if (gameState !== 'results') processedResultsRef.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameState]);
+  }, [gameState, currentRoundIndex]);
 
-  const newRound = () => {
-    broadcast('new_round', {});
+  const hasNextRound = currentRoundIndex + 1 < roundQueue.length;
+  const nextRound = () => {
+    if (hasNextRound) {
+      goToState('caption', { roundIndex: currentRoundIndex + 1, phaseStartedAt: Date.now() });
+    } else {
+      goToState('final_results', {});
+    }
+  };
+
+  const newGame = () => {
+    broadcast('new_game', {});
     setMedias([]);
-    setAssignments({});
+    setRoundQueue([]);
+    setCurrentRoundIndex(0);
     setCaptions([]);
     setVotes([]);
     setMyCaption('');
+    setCumulativeScores({});
+    setPhaseStartedAt(null);
     setGameState('upload');
   };
+
+  const secondsLeftFor = (totalSeconds) => {
+    if (!phaseStartedAt) return totalSeconds;
+    return Math.max(0, totalSeconds - Math.floor((now - phaseStartedAt) / 1000));
+  };
+
+  // ==========================================
+  // CLASSEMENT (panneau latéral)
+  // ==========================================
+  const renderScoreboard = () => (
+    <div className="w-full md:w-64 shrink-0 bg-gray-900 rounded-2xl border border-gray-800 p-4 h-fit">
+      <h3 className="flex items-center gap-2 text-gray-400 font-bold mb-1 uppercase text-xs">
+        <Trophy size={14} /> Classement
+      </h3>
+      {roundQueue.length > 0 && (
+        <p className="text-xs text-gray-500 mb-3">
+          Round {Math.min(currentRoundIndex + 1, roundQueue.length)}/{roundQueue.length}
+        </p>
+      )}
+      <div className="space-y-2">
+        {[...players]
+          .sort((a, b) => (cumulativeScores[b.id] || 0) - (cumulativeScores[a.id] || 0))
+          .map((p, i) => (
+            <div
+              key={p.id}
+              className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm ${
+                p.id === player.id ? 'bg-purple-900/40 border border-purple-600' : 'bg-gray-800'
+              }`}
+            >
+              <span className="font-bold truncate flex items-center gap-1">
+                {i === 0 && (cumulativeScores[p.id] || 0) > 0 && <Crown size={14} className="text-yellow-400" />}
+                {p.name}
+              </span>
+              <span className="font-black text-purple-300">{cumulativeScores[p.id] || 0}</span>
+            </div>
+          ))}
+      </div>
+    </div>
+  );
+
+  const GameLayout = ({ children }) => (
+    <div className="min-h-screen bg-gray-950 text-white flex flex-col md:flex-row gap-4 p-4">
+      <div className="flex-1 flex flex-col max-w-2xl mx-auto md:mx-0 w-full">{children}</div>
+      {renderScoreboard()}
+    </div>
+  );
 
   // ==========================================
   // ÉCRANS
@@ -359,7 +433,6 @@ export default function CaptionBattle() {
                 Rejoindre
               </button>
             </div>
-            {joinError && <p className="text-red-400 text-sm text-center">{joinError}</p>}
           </div>
         </div>
       </div>
@@ -367,6 +440,11 @@ export default function CaptionBattle() {
   }
 
   if (gameState === 'lobby') {
+    const settingOptions = {
+      captionSeconds: [20, 30, 45, 60, 90],
+      voteSeconds: [10, 15, 20, 30],
+      mediaPerPlayer: [1, 2, 3],
+    };
     return (
       <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center p-4">
         <div className="bg-gray-900 p-8 rounded-2xl w-full max-w-lg shadow-2xl border border-gray-800 text-center">
@@ -389,13 +467,60 @@ export default function CaptionBattle() {
             </div>
           </div>
 
+          <div className="text-left mb-8 bg-gray-950 border border-gray-800 rounded-xl p-4">
+            <h3 className="flex items-center gap-2 text-gray-400 font-bold mb-4 uppercase text-sm">
+              <Settings size={16} /> Paramètres de la partie
+            </h3>
+            <div className="grid grid-cols-3 gap-3 text-sm">
+              <div>
+                <label className="block text-gray-500 mb-1 text-xs">Temps légende</label>
+                <select
+                  disabled={!isHost}
+                  value={settings.captionSeconds}
+                  onChange={(e) => updateSettings({ captionSeconds: Number(e.target.value) })}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 font-bold disabled:opacity-60"
+                >
+                  {settingOptions.captionSeconds.map((s) => (
+                    <option key={s} value={s}>{s}s</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-gray-500 mb-1 text-xs">Temps de vote</label>
+                <select
+                  disabled={!isHost}
+                  value={settings.voteSeconds}
+                  onChange={(e) => updateSettings({ voteSeconds: Number(e.target.value) })}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 font-bold disabled:opacity-60"
+                >
+                  {settingOptions.voteSeconds.map((s) => (
+                    <option key={s} value={s}>{s}s</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-gray-500 mb-1 text-xs">Memes/joueur</label>
+                <select
+                  disabled={!isHost}
+                  value={settings.mediaPerPlayer}
+                  onChange={(e) => updateSettings({ mediaPerPlayer: Number(e.target.value) })}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 font-bold disabled:opacity-60"
+                >
+                  {settingOptions.mediaPerPlayer.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
           {isHost ? (
             <button
-              onClick={startGame}
+              onClick={startUploadPhase}
               disabled={players.length < 2}
               className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-black py-4 px-6 rounded-lg text-lg transition shadow-lg shadow-purple-500/20"
             >
-              {players.length < 2 ? 'En attente d\'au moins 2 joueurs...' : 'Lancer le jeu !'}
+              {players.length < 2 ? "En attente d'au moins 2 joueurs..." : 'Lancer le jeu !'}
             </button>
           ) : (
             <div className="flex items-center justify-center gap-3 text-gray-400 animate-pulse">
@@ -409,17 +534,19 @@ export default function CaptionBattle() {
 
   if (gameState === 'upload') {
     return (
-      <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center p-4">
-        <div className="bg-gray-900 p-8 rounded-2xl w-full max-w-lg shadow-2xl border border-gray-800 text-center">
+      <GameLayout>
+        <div className="bg-gray-900 p-8 rounded-2xl w-full shadow-2xl border border-gray-800 text-center flex-1 flex flex-col justify-center">
           <h2 className="text-3xl font-black mb-2">Choisis ton arme</h2>
-          <p className="text-gray-400 mb-8">Upload une image, un GIF, une vidéo ou un audio. Les autres devront y ajouter une légende !</p>
+          <p className="text-gray-400 mb-8">
+            Upload {settings.mediaPerPlayer > 1 ? `${settings.mediaPerPlayer} médias` : 'un média'} (image, GIF, vidéo ou audio). Chacun sera captionné par les autres !
+          </p>
 
           {uploading ? (
             <Waiting label="Upload vers Supabase en cours..." />
           ) : iUploaded ? (
             <Waiting
-              label={`En attente des autres joueurs... (${uploadedCount}/${players.length})`}
-              sub="Ton média a bien été envoyé."
+              label={`En attente des autres joueurs... (${medias.length} médias reçus)`}
+              sub={`Tu as envoyé ${myUploadCount}/${settings.mediaPerPlayer} média(s).`}
             />
           ) : (
             <div className="space-y-4">
@@ -429,7 +556,7 @@ export default function CaptionBattle() {
                   <Video size={32} />
                   <Music size={32} />
                 </div>
-                <span className="font-bold">Cliquer pour uploader un fichier</span>
+                <span className="font-bold">Cliquer pour uploader un fichier ({myUploadCount}/{settings.mediaPerPlayer})</span>
                 <span className="text-xs text-gray-500 mt-2">JPG, PNG, GIF, MP4, MP3</span>
                 <input type="file" className="hidden" accept="image/*,video/mp4,audio/*" onChange={handleFileUpload} />
               </label>
@@ -438,134 +565,209 @@ export default function CaptionBattle() {
 
           {isHost && !uploading && (
             <button
-              onClick={launchCaptioning}
+              onClick={launchGame}
               disabled={!everyoneUploaded}
               className="mt-6 w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white font-black py-4 px-6 rounded-lg text-lg transition"
             >
-              {everyoneUploaded ? 'Lancer le captioning !' : `En attente des uploads (${uploadedCount}/${players.length})`}
+              {everyoneUploaded ? `Lancer les ${medias.length} rounds !` : `En attente des uploads (${medias.length}/${players.length * settings.mediaPerPlayer})`}
             </button>
           )}
         </div>
-      </div>
+      </GameLayout>
     );
   }
 
   if (gameState === 'caption') {
+    if (!currentMedia) {
+      return (
+        <GameLayout>
+          <Waiting label="Préparation du round..." />
+        </GameLayout>
+      );
+    }
     return (
-      <div className="min-h-screen bg-gray-950 text-white flex flex-col p-4">
-        <div className="max-w-2xl w-full mx-auto flex flex-col flex-1">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-black text-purple-400">À toi de jouer !</h2>
-          </div>
-
-          {!myMediaToCaption ? (
-            <Waiting label="Préparation de ton média à légender..." />
-          ) : iSubmittedCaption ? (
-            <Waiting
-              label={`En attente des autres joueurs... (${captions.length}/${players.length})`}
-              sub="Ta légende a bien été envoyée."
-            />
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center">
-              <p className="text-gray-400 mb-3 text-sm">
-                Média envoyé par <span className="text-purple-400 font-bold">{myMediaToCaption.owner_name}</span>
-              </p>
-              <div className="w-full bg-gray-900 p-4 rounded-2xl border border-gray-800 mb-6 shadow-2xl">
-                <MediaPlayer src={myMediaToCaption.url} type={myMediaToCaption.type} />
-              </div>
-
-              <div className="w-full relative">
-                <input
-                  type="text"
-                  placeholder="Écris la meilleure légende possible..."
-                  value={myCaption}
-                  onChange={(e) => setMyCaption(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && submitCaption()}
-                  className="w-full p-5 pl-6 pr-16 bg-gray-800 border-2 border-gray-700 rounded-xl text-white font-bold text-lg focus:border-purple-500 focus:outline-none transition shadow-lg"
-                />
-                <button
-                  onClick={submitCaption}
-                  disabled={!myCaption.trim()}
-                  className="absolute right-3 top-3 bottom-3 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 rounded-lg px-4 flex items-center justify-center transition"
-                >
-                  <Send size={20} />
-                </button>
-              </div>
-            </div>
-          )}
+      <GameLayout>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-black text-purple-400">
+            Round {currentRoundIndex + 1}/{roundQueue.length}
+          </h2>
+          <CountdownBadge seconds={secondsLeftFor(settings.captionSeconds)} />
         </div>
-      </div>
+
+        {isMyMedia ? (
+          <Waiting
+            label="C'est ton meme ! Les autres légendent..."
+            sub={`${captionsForRound.length}/${expectedCaptioners} légendes reçues.`}
+          />
+        ) : iSubmittedCaption ? (
+          <Waiting
+            label={`En attente des autres joueurs... (${captionsForRound.length}/${expectedCaptioners})`}
+            sub="Ta légende a bien été envoyée."
+          />
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center">
+            <p className="text-gray-400 mb-3 text-sm">
+              Média envoyé par <span className="text-purple-400 font-bold">{currentMedia.owner_name}</span>
+            </p>
+            <div className="w-full bg-gray-900 p-4 rounded-2xl border border-gray-800 mb-6 shadow-2xl">
+              <MediaPlayer src={currentMedia.url} type={currentMedia.type} />
+            </div>
+
+            <div className="w-full relative">
+              <input
+                type="text"
+                placeholder="Écris la meilleure légende possible..."
+                value={myCaption}
+                onChange={(e) => setMyCaption(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && submitCaption()}
+                className="w-full p-5 pl-6 pr-16 bg-gray-800 border-2 border-gray-700 rounded-xl text-white font-bold text-lg focus:border-purple-500 focus:outline-none transition shadow-lg"
+              />
+              <button
+                onClick={submitCaption}
+                disabled={!myCaption.trim()}
+                className="absolute right-3 top-3 bottom-3 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 rounded-lg px-4 flex items-center justify-center transition"
+              >
+                <Send size={20} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {isHost && (
+          <button
+            onClick={() => goToState('vote', { phaseStartedAt: Date.now() })}
+            className="mt-6 w-full flex items-center justify-center gap-2 text-gray-500 hover:text-gray-300 text-sm font-bold py-2 transition"
+          >
+            <SkipForward size={16} /> Passer au vote quand même
+          </button>
+        )}
+      </GameLayout>
     );
   }
 
   if (gameState === 'vote') {
-    const entries = medias
-      .map((m) => ({ media: m, caption: captions.find((c) => c.media_id === m.id) }))
-      .filter((e) => e.caption);
+    if (!currentMedia) {
+      return (
+        <GameLayout>
+          <Waiting label="Chargement du vote..." />
+        </GameLayout>
+      );
+    }
+    const canIVote = captionsForRound.some((c) => c.author_id !== player.id);
 
     return (
-      <div className="min-h-screen bg-gray-950 text-white flex flex-col p-4">
-        <div className="max-w-2xl w-full mx-auto flex flex-col flex-1">
-          <h2 className="text-2xl font-black text-purple-400 mb-6 text-center">Vote pour la meilleure légende !</h2>
-
-          {myVote ? (
-            <Waiting label={`En attente des autres votes... (${votes.length}/${players.length})`} />
-          ) : (
-            <div className="space-y-6">
-              {entries.map((entry) => {
-                const isOwnCaption = entry.caption.author_id === player.id;
-                return (
-                  <div key={entry.media.id} className="bg-gray-900 p-4 rounded-2xl border border-gray-800 shadow-xl">
-                    <MediaPlayer src={entry.media.url} type={entry.media.type} />
-                    <p className="text-xl font-bold text-center my-4">"{entry.caption.text}"</p>
-                    <button
-                      onClick={() => castVote(entry.media.id)}
-                      disabled={isOwnCaption}
-                      className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-30 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition"
-                    >
-                      <ThumbsUp size={18} /> {isOwnCaption ? "C'est ta légende" : 'Voter pour celle-ci'}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+      <GameLayout>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-black text-purple-400">Vote — Round {currentRoundIndex + 1}/{roundQueue.length}</h2>
+          <CountdownBadge seconds={secondsLeftFor(settings.voteSeconds)} />
         </div>
-      </div>
+
+        <div className="w-full bg-gray-900 p-4 rounded-2xl border border-gray-800 mb-6 shadow-2xl">
+          <MediaPlayer src={currentMedia.url} type={currentMedia.type} />
+        </div>
+
+        {!canIVote ? (
+          <Waiting label="Aucune légende à voter pour toi ce round." sub="En attente des autres..." />
+        ) : myVoteForRound ? (
+          <Waiting label={`En attente des autres votes... (${votesForRound.length}/${eligibleVoters.length})`} />
+        ) : (
+          <div className="space-y-3">
+            {captionsForRound
+              .filter((c) => c.author_id !== player.id)
+              .map((c) => (
+                <button
+                  key={c.author_id}
+                  onClick={() => castVote(c.author_id)}
+                  className="w-full text-left bg-gray-800 hover:bg-purple-900/40 hover:border-purple-500 border border-gray-700 rounded-xl p-4 transition flex items-center justify-between gap-3"
+                >
+                  <span className="font-bold text-lg">"{c.text}"</span>
+                  <ThumbsUp size={20} className="text-purple-400 shrink-0" />
+                </button>
+              ))}
+          </div>
+        )}
+
+        {isHost && (
+          <button
+            onClick={() => goToState('round_result', { phaseStartedAt: Date.now() })}
+            className="mt-6 w-full flex items-center justify-center gap-2 text-gray-500 hover:text-gray-300 text-sm font-bold py-2 transition"
+          >
+            <SkipForward size={16} /> Passer aux résultats quand même
+          </button>
+        )}
+      </GameLayout>
     );
   }
 
-  // gameState === 'results'
+  if (gameState === 'round_result') {
+    return (
+      <GameLayout>
+        <div className="flex flex-col items-center text-center">
+          <Trophy size={48} className="text-yellow-400 mb-4" />
+          <h2 className="text-2xl font-black mb-1">Résultats — Round {currentRoundIndex + 1}/{roundQueue.length}</h2>
+          {currentMedia && (
+            <div className="w-full bg-gray-900 p-4 rounded-2xl border border-gray-800 my-4 shadow-2xl">
+              <MediaPlayer src={currentMedia.url} type={currentMedia.type} />
+            </div>
+          )}
+          <div className="w-full space-y-2 mb-6">
+            {captionsForRound
+              .map((c) => ({ ...c, points: votesForRound.filter((v) => v.caption_author_id === c.author_id).length }))
+              .sort((a, b) => b.points - a.points)
+              .map((c) => (
+                <div key={c.author_id} className="flex items-center justify-between bg-gray-800 rounded-lg px-4 py-3">
+                  <div className="text-left">
+                    <p className="font-bold">"{c.text}"</p>
+                    <p className="text-xs text-gray-500">par {c.author_name}</p>
+                  </div>
+                  <span className="font-black text-purple-300 shrink-0 ml-3">+{c.points}</span>
+                </div>
+              ))}
+          </div>
+
+          {isHost ? (
+            <button onClick={nextRound} className="bg-purple-600 hover:bg-purple-500 font-bold py-3 px-8 rounded-full">
+              {hasNextRound ? 'Round suivant' : 'Voir le classement final'}
+            </button>
+          ) : (
+            <div className="flex items-center justify-center gap-3 text-gray-400 animate-pulse">
+              <Loader2 className="animate-spin" /> En attente du Host...
+            </div>
+          )}
+        </div>
+      </GameLayout>
+    );
+  }
+
+  // gameState === 'final_results'
+  const finalRanking = [...players].sort((a, b) => (cumulativeScores[b.id] || 0) - (cumulativeScores[a.id] || 0));
   return (
     <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center p-4">
       <Trophy size={64} className="text-yellow-400 mb-6 animate-bounce" />
-      <h2 className="text-3xl font-black mb-8">Résultats du round !</h2>
+      <h2 className="text-3xl font-black mb-8">Classement final !</h2>
 
       <div className="bg-gray-900 p-6 rounded-2xl w-full max-w-md shadow-2xl border border-gray-800 mb-8">
-        {roundScoreboard.map((p, i) => (
+        {finalRanking.map((p, i) => (
           <div
             key={p.id}
             className={`flex items-center justify-between py-3 px-4 rounded-lg mb-2 ${i === 0 ? 'bg-purple-900/40 border border-purple-500' : 'bg-gray-800'}`}
           >
             <div className="flex items-center gap-3">
-              {i === 0 && <Check size={18} className="text-yellow-400" />}
+              {i === 0 && <Crown size={18} className="text-yellow-400" />}
               <span className="font-bold">{p.name}</span>
             </div>
-            <div className="text-right">
-              <div className="font-black text-purple-300">+{p.roundPoints} ce round</div>
-              <div className="text-xs text-gray-500">{cumulativeScores[p.id] || 0} pts au total</div>
-            </div>
+            <div className="font-black text-purple-300">{cumulativeScores[p.id] || 0} pts</div>
           </div>
         ))}
       </div>
 
       {isHost ? (
-        <button onClick={newRound} className="bg-purple-600 hover:bg-purple-500 font-bold py-3 px-8 rounded-full">
-          Nouveau Round
+        <button onClick={newGame} className="bg-purple-600 hover:bg-purple-500 font-bold py-3 px-8 rounded-full">
+          Nouvelle partie
         </button>
       ) : (
         <div className="flex items-center justify-center gap-3 text-gray-400 animate-pulse">
-          <Loader2 className="animate-spin" /> En attente du Host pour le prochain round...
+          <Loader2 className="animate-spin" /> En attente du Host...
         </div>
       )}
     </div>
