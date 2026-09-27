@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import {
   Play, Image as ImageIcon, Video, Music, Send, Trophy, Users, Loader2,
   Crown, ThumbsUp, SkipForward, Settings, Copy, LogOut, Check, Download,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react';
 
 // ==========================================
@@ -25,6 +26,113 @@ const withTimeout = (promise, ms, message) =>
 
 const makeId = (prefix) => `${prefix}_${Math.random().toString(36).slice(2, 11)}`;
 
+// ==========================================
+// COMPOSITION DU TEXTE SUR L'IMAGE (canvas)
+// ==========================================
+const MEME_STYLES = [
+  { id: 'bottom-gradient', label: 'Dégradé (bas)' },
+  { id: 'impact-top', label: 'Impact classique (haut)' },
+  { id: 'banner-bottom', label: 'Bandeau plein (bas)' },
+];
+
+const loadImageEl = (url) =>
+  new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("Impossible de charger l'image (CORS ?)."));
+    img.src = url;
+  });
+
+const wrapCanvasText = (ctx, text, maxWidth) => {
+  const words = text.split(' ');
+  const lines = [];
+  let line = '';
+  for (const word of words) {
+    const test = line ? `${line} ${word}` : word;
+    if (ctx.measureText(test).width > maxWidth && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = test;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+};
+
+const composeMemeImage = async (url, text, style = 'bottom-gradient') => {
+  const img = await loadImageEl(url);
+  const maxDim = 1080;
+  const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(img.width * scale);
+  canvas.height = Math.round(img.height * scale);
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+  const fontSize = Math.max(20, Math.round(canvas.width / 16));
+  const displayText = style === 'impact-top' ? text.toUpperCase() : text;
+  ctx.font = `900 ${fontSize}px Arial, Helvetica, sans-serif`;
+  ctx.textAlign = 'center';
+  const lines = wrapCanvasText(ctx, displayText, canvas.width - 40);
+  const lineHeight = fontSize * 1.2;
+
+  if (style === 'impact-top') {
+    ctx.fillStyle = 'white';
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = fontSize / 8;
+    ctx.textBaseline = 'alphabetic';
+    let y = 20 + fontSize;
+    lines.forEach((line) => {
+      ctx.strokeText(line, canvas.width / 2, y);
+      ctx.fillText(line, canvas.width / 2, y);
+      y += lineHeight;
+    });
+  } else if (style === 'banner-bottom') {
+    const bandHeight = lines.length * lineHeight + 30;
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, canvas.height - bandHeight, canvas.width, bandHeight);
+    ctx.fillStyle = 'white';
+    ctx.textBaseline = 'alphabetic';
+    let y = canvas.height - bandHeight + lineHeight;
+    lines.forEach((line) => {
+      ctx.fillText(line, canvas.width / 2, y);
+      y += lineHeight;
+    });
+  } else {
+    const bandHeight = lines.length * lineHeight + 50;
+    const gradient = ctx.createLinearGradient(0, canvas.height - bandHeight, 0, canvas.height);
+    gradient.addColorStop(0, 'rgba(0,0,0,0)');
+    gradient.addColorStop(1, 'rgba(0,0,0,0.88)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, canvas.height - bandHeight, canvas.width, bandHeight);
+    ctx.fillStyle = 'white';
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = fontSize / 10;
+    ctx.textBaseline = 'alphabetic';
+    let y = canvas.height - 20 - (lines.length - 1) * lineHeight;
+    lines.forEach((line) => {
+      ctx.strokeText(line, canvas.width / 2, y);
+      ctx.fillText(line, canvas.width / 2, y);
+      y += lineHeight;
+    });
+  }
+
+  return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+};
+
+const triggerBlobDownload = (blob, filename) => {
+  const blobUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = blobUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(blobUrl);
+};
+
 const shuffle = (arr) => {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -39,7 +147,7 @@ const MAX_FILE_MB = 25;
 const MAX_NAME_LEN = 20;
 const MAX_CAPTION_LEN = 140;
 // Incrémenter à chaque mise à jour livrée du jeu.
-const APP_VERSION = 'v11';
+const APP_VERSION = 'v12';
 
 const PLAYER_COLORS = ['#a855f7', '#ec4899', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#f43f5e'];
 const colorForPlayer = (id) => {
@@ -115,41 +223,94 @@ const MediaWithDownload = ({ media, onDownload }) => (
 // un vrai meme. N'affiche l'image qu'une fois par carte (donc uniquement
 // pertinent pour des images ; vidéo/audio utilisent CaptionChoiceCard pour
 // éviter de dupliquer un lecteur audio/vidéo par carte).
-const MemeVoteCard = ({ media, caption, isMine, isSelected, disabled, shortcut, onVote, onDownload }) => (
+const MemeVoteCard = ({ media, caption, isMine, isSelected, disabled, onVote, onDownloadStyle }) => {
+  const [menuOpen, setMenuOpen] = useState(false);
+  return (
+    <div
+      className={`relative rounded-2xl overflow-hidden border-2 transition shadow-xl bg-gray-900 flex flex-col ${
+        isSelected ? 'border-purple-500 ring-2 ring-purple-500' : isMine ? 'border-gray-700' : 'border-gray-800'
+      }`}
+    >
+      {isMine && (
+        <span className="absolute top-2 left-2 z-10 text-[10px] font-bold bg-gray-800/90 text-gray-300 px-2 py-1 rounded-full">
+          C'est la tienne
+        </span>
+      )}
+      <div className="absolute top-2 right-2 z-20">
+        <DownloadButton onClick={() => setMenuOpen((v) => !v)} />
+        {menuOpen && (
+          <>
+            <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+            <div className="absolute right-0 mt-1 z-20 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl overflow-hidden w-48 text-xs">
+              {MEME_STYLES.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onDownloadStyle(s.id);
+                  }}
+                  className="w-full text-left px-3 py-2.5 text-gray-200 hover:bg-purple-900/40 transition"
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="relative">
+        <img src={media.url} alt="" className="w-full h-64 sm:h-72 object-cover" />
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/80 to-transparent p-4 pt-10">
+          <p
+            className="text-white font-black text-xl leading-tight"
+            style={{ textShadow: '1.5px 1.5px 0 #000, -1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000' }}
+          >
+            "{caption}"
+          </p>
+        </div>
+      </div>
+
+      <button
+        onClick={onVote}
+        disabled={disabled}
+        className={`w-full py-3 flex items-center justify-center gap-2 font-bold transition ${
+          disabled ? 'bg-gray-800 text-gray-500 cursor-default' : 'bg-purple-600 hover:bg-purple-500 text-white'
+        }`}
+      >
+        {isSelected ? (
+          <>
+            <Check size={18} /> Ton vote
+          </>
+        ) : isMine ? (
+          'Pas votable'
+        ) : (
+          <>
+            <ThumbsUp size={18} /> Voter pour celle-ci
+          </>
+        )}
+      </button>
+    </div>
+  );
+};
+
+// Carte texte pour le vote (utilisée quand le média est une vidéo/audio, pour
+// ne pas dupliquer le lecteur — et donc le son — une fois par légende).
+const CaptionChoiceCard = ({ caption, isMine, isSelected, disabled, onVote }) => (
   <div
-    className={`relative rounded-2xl overflow-hidden border-2 transition shadow-xl bg-gray-900 flex flex-col ${
-      isSelected ? 'border-purple-500 ring-2 ring-purple-500' : isMine ? 'border-gray-700' : 'border-gray-800 hover:border-purple-500'
+    className={`rounded-2xl border-2 p-8 flex flex-col items-center justify-center gap-4 min-h-[180px] ${
+      isSelected ? 'border-purple-500 bg-purple-900/30' : isMine ? 'border-gray-700 bg-gray-900' : 'border-gray-700 bg-gray-800'
     }`}
   >
     {isMine && (
-      <span className="absolute top-2 left-2 z-10 text-[10px] font-bold bg-gray-800/90 text-gray-300 px-2 py-1 rounded-full">
-        C'est la tienne
-      </span>
+      <span className="text-[10px] font-bold bg-gray-700 text-gray-300 px-2 py-1 rounded-full">C'EST LA TIENNE</span>
     )}
-    {!isMine && shortcut && !disabled && (
-      <span className="absolute top-2 left-2 z-10 text-xs font-black bg-purple-600 text-white w-6 h-6 flex items-center justify-center rounded-full">
-        {shortcut}
-      </span>
-    )}
-    <DownloadButton onClick={() => onDownload(media)} className="absolute top-2 right-2 z-10" />
-
-    <div className="relative">
-      <img src={media.url} alt="" className="w-full h-56 object-cover" />
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/80 to-transparent p-4 pt-10">
-        <p
-          className="text-white font-black text-lg leading-tight"
-          style={{ textShadow: '1.5px 1.5px 0 #000, -1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000' }}
-        >
-          "{caption}"
-        </p>
-      </div>
-    </div>
-
+    <p className="font-black text-2xl text-center">"{caption}"</p>
     <button
       onClick={onVote}
       disabled={disabled}
-      className={`w-full py-3 flex items-center justify-center gap-2 font-bold transition ${
-        disabled ? 'bg-gray-800 text-gray-500 cursor-default' : 'bg-purple-600 hover:bg-purple-500 text-white'
+      className={`px-6 py-3 rounded-lg font-bold flex items-center gap-2 transition ${
+        disabled ? 'bg-gray-700 text-gray-500 cursor-default' : 'bg-purple-600 hover:bg-purple-500 text-white'
       }`}
     >
       {isSelected ? (
@@ -160,41 +321,49 @@ const MemeVoteCard = ({ media, caption, isMine, isSelected, disabled, shortcut, 
         'Pas votable'
       ) : (
         <>
-          <ThumbsUp size={18} /> Voter {shortcut ? `(${shortcut})` : ''}
+          <ThumbsUp size={18} /> Voter pour celle-ci
         </>
       )}
     </button>
   </div>
 );
 
-// Carte texte pour le vote (utilisée quand le média est une vidéo/audio, pour
-// ne pas dupliquer le lecteur — et donc le son — une fois par légende).
-const CaptionChoiceCard = ({ caption, isMine, isSelected, disabled, shortcut, onVote }) => (
-  <button
-    onClick={onVote}
-    disabled={disabled}
-    className={`text-left rounded-xl p-4 border-2 transition flex items-center justify-between gap-3 ${
-      isSelected
-        ? 'border-purple-500 bg-purple-900/30'
-        : isMine
-        ? 'border-gray-700 bg-gray-900 cursor-default'
-        : 'border-gray-700 bg-gray-800 hover:border-purple-500 hover:bg-purple-900/20'
-    }`}
-  >
-    <span className="font-bold text-lg">
-      {isMine && (
-        <span className="text-[10px] font-bold bg-gray-700 text-gray-300 px-2 py-1 rounded-full mr-2 align-middle">
-          TIENNE
-        </span>
-      )}
-      "{caption}"
-    </span>
-    {isSelected ? (
-      <Check size={20} className="text-purple-400 shrink-0" />
-    ) : (
-      !isMine && !disabled && <span className="text-xs text-gray-500 shrink-0 font-mono">{shortcut}</span>
+// Carrousel générique : une carte à la fois, navigation flèches + points +
+// clavier (gérée par le composant parent). "cards" est un tableau de noeuds JSX déjà construits.
+const Carousel = ({ index, count, onPrev, onNext, onJump, children }) => (
+  <div className="w-full">
+    <div className="flex items-center gap-3">
+      <button
+        onClick={onPrev}
+        disabled={count <= 1}
+        className="shrink-0 bg-gray-800 hover:bg-gray-700 disabled:opacity-30 text-white p-3 rounded-full transition"
+        aria-label="Précédent"
+      >
+        <ChevronLeft size={22} />
+      </button>
+      <div className="flex-1 min-w-0">{children}</div>
+      <button
+        onClick={onNext}
+        disabled={count <= 1}
+        className="shrink-0 bg-gray-800 hover:bg-gray-700 disabled:opacity-30 text-white p-3 rounded-full transition"
+        aria-label="Suivant"
+      >
+        <ChevronRight size={22} />
+      </button>
+    </div>
+    {count > 1 && (
+      <div className="flex items-center justify-center gap-2 mt-4">
+        {Array.from({ length: count }).map((_, i) => (
+          <button
+            key={i}
+            onClick={() => onJump(i)}
+            className={`h-2 rounded-full transition-all ${i === index ? 'w-6 bg-purple-500' : 'w-2 bg-gray-700 hover:bg-gray-600'}`}
+            aria-label={`Aller à la carte ${i + 1}`}
+          />
+        ))}
+      </div>
     )}
-  </button>
+  </div>
 );
 
 // ==========================================
@@ -627,37 +796,52 @@ export default function CaptionBattle() {
     [captionsForRound.map((c) => c.author_id).join(','), currentMediaId]
   );
 
-  // Raccourcis clavier 1-9 pour voter rapidement pendant la phase de vote
+  // Carrousel de vote : une légende candidate à la fois
+  const [voteSlide, setVoteSlide] = useState(0);
   useEffect(() => {
-    if (gameState !== 'vote' || myVoteForRound) return;
-    const votable = shuffledCaptionsForRound.filter((c) => c.author_id !== player.id);
+    setVoteSlide(0);
+  }, [currentMediaId]);
+  const voteCardCount = shuffledCaptionsForRound.length;
+  const goPrevSlide = () => setVoteSlide((s) => (voteCardCount ? (s - 1 + voteCardCount) % voteCardCount : 0));
+  const goNextSlide = () => setVoteSlide((s) => (voteCardCount ? (s + 1) % voteCardCount : 0));
+
+  // Navigation clavier pendant le vote : flèches pour parcourir, Entrée pour voter la carte affichée
+  useEffect(() => {
+    if (gameState !== 'vote') return;
     const handler = (e) => {
-      const n = parseInt(e.key, 10);
-      if (!n || n < 1) return;
-      const target = votable[n - 1];
-      if (target) castVote(target.author_id);
+      if (e.key === 'ArrowLeft') goPrevSlide();
+      else if (e.key === 'ArrowRight') goNextSlide();
+      else if (e.key === 'Enter') {
+        const target = shuffledCaptionsForRound[voteSlide];
+        if (target && target.author_id !== player.id && !myVoteForRound) castVote(target.author_id);
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameState, myVoteForRound, shuffledCaptionsForRound, player.id]);
+  }, [gameState, voteSlide, shuffledCaptionsForRound, myVoteForRound, player.id, voteCardCount]);
 
   const downloadMedia = async (media) => {
     try {
       const res = await fetch(media.url);
       const blob = await res.blob();
-      const blobUrl = URL.createObjectURL(blob);
       const ext = (media.url.split('.').pop() || 'jpg').split('?')[0];
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = `caption-battle-${media.id}.${ext}`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(blobUrl);
+      triggerBlobDownload(blob, `caption-battle-${media.id}.${ext}`);
     } catch (err) {
       console.error('Téléchargement impossible, ouverture dans un nouvel onglet :', err);
       window.open(media.url, '_blank');
+    }
+  };
+
+  // Télécharge le meme avec le texte incrusté directement dans l'image (canvas)
+  const downloadComposedMeme = async (media, text, style) => {
+    try {
+      const blob = await composeMemeImage(media.url, text, style);
+      if (!blob) throw new Error('Génération du canvas impossible.');
+      triggerBlobDownload(blob, `meme-${media.id}-${style}.png`);
+    } catch (err) {
+      console.error('Composition impossible, téléchargement brut à la place :', err);
+      downloadMedia(media);
     }
   };
 
@@ -1105,7 +1289,8 @@ export default function CaptionBattle() {
     }
     const canIVote = captionsForRound.some((c) => c.author_id !== player.id);
     const useMemeCards = isImageMedia(currentMedia);
-    let voteIdx = 0;
+    const boundedSlide = voteCardCount ? Math.min(voteSlide, voteCardCount - 1) : 0;
+    const activeCaption = shuffledCaptionsForRound[boundedSlide];
 
     return (
       renderGameLayout(<>
@@ -1124,47 +1309,45 @@ export default function CaptionBattle() {
           <Waiting label="Aucune légende à voter pour toi ce round." sub="En attente des autres..." />
         ) : (
           <>
-            {myVoteForRound && (
-              <p className="text-center text-sm text-gray-500 mb-3">
-                Vote enregistré — en attente des autres... ({votesForRound.length}/{eligibleVoters.length})
-              </p>
-            )}
-            {!myVoteForRound && !useMemeCards && (
-              <p className="text-center text-xs text-gray-600 mb-3">Astuce : les touches 1-9 votent directement.</p>
-            )}
-
-            <div className={useMemeCards ? 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4' : 'space-y-3'}>
-              {shuffledCaptionsForRound.map((c) => {
-                const isMine = c.author_id === player.id;
-                const isSelected = myVoteForRound?.caption_author_id === c.author_id;
-                const disabled = isMine || !!myVoteForRound;
-                const shortcut = isMine ? null : ++voteIdx;
-
-                return useMemeCards ? (
-                  <MemeVoteCard
-                    key={c.author_id}
-                    media={currentMedia}
-                    caption={c.text}
-                    isMine={isMine}
-                    isSelected={isSelected}
-                    disabled={disabled}
-                    shortcut={shortcut}
-                    onVote={() => castVote(c.author_id)}
-                    onDownload={downloadMedia}
-                  />
-                ) : (
-                  <CaptionChoiceCard
-                    key={c.author_id}
-                    caption={c.text}
-                    isMine={isMine}
-                    isSelected={isSelected}
-                    disabled={disabled}
-                    shortcut={shortcut}
-                    onVote={() => castVote(c.author_id)}
-                  />
-                );
-              })}
+            <div className="flex items-center justify-between mb-3 text-sm">
+              <span className="text-gray-500 font-mono">{boundedSlide + 1}/{voteCardCount}</span>
+              {myVoteForRound ? (
+                <span className="text-gray-500">
+                  Vote enregistré — en attente des autres ({votesForRound.length}/{eligibleVoters.length})
+                </span>
+              ) : (
+                <span className="text-gray-600 text-xs hidden sm:inline">← → pour naviguer, Entrée pour voter</span>
+              )}
             </div>
+
+            {activeCaption && (
+              <Carousel index={boundedSlide} count={voteCardCount} onPrev={goPrevSlide} onNext={goNextSlide} onJump={setVoteSlide}>
+                {(() => {
+                  const isMine = activeCaption.author_id === player.id;
+                  const isSelected = myVoteForRound?.caption_author_id === activeCaption.author_id;
+                  const disabled = isMine || !!myVoteForRound;
+                  return useMemeCards ? (
+                    <MemeVoteCard
+                      media={currentMedia}
+                      caption={activeCaption.text}
+                      isMine={isMine}
+                      isSelected={isSelected}
+                      disabled={disabled}
+                      onVote={() => castVote(activeCaption.author_id)}
+                      onDownloadStyle={(style) => downloadComposedMeme(currentMedia, activeCaption.text, style)}
+                    />
+                  ) : (
+                    <CaptionChoiceCard
+                      caption={activeCaption.text}
+                      isMine={isMine}
+                      isSelected={isSelected}
+                      disabled={disabled}
+                      onVote={() => castVote(activeCaption.author_id)}
+                    />
+                  );
+                })()}
+              </Carousel>
+            )}
           </>
         )}
 
@@ -1196,14 +1379,25 @@ export default function CaptionBattle() {
               .map((c) => ({ ...c, points: votesForRound.filter((v) => v.caption_author_id === c.author_id).length }))
               .sort((a, b) => b.points - a.points)
               .map((c) => (
-                <div key={c.author_id} className="flex items-center justify-between bg-gray-800 rounded-lg px-4 py-3">
-                  <div className="text-left">
-                    <p className="font-bold">"{c.text}"</p>
+                <div key={c.author_id} className="flex items-center justify-between bg-gray-800 rounded-lg px-4 py-3 gap-3">
+                  <div className="text-left min-w-0">
+                    <p className="font-bold truncate">"{c.text}"</p>
                     <p className="text-xs text-gray-500 flex items-center gap-1">
                       <PlayerDot id={c.author_id} /> par {c.author_name}
                     </p>
                   </div>
-                  <span className="font-black text-purple-300 shrink-0 ml-3">+{c.points}</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {currentMedia && isImageMedia(currentMedia) && (
+                      <button
+                        onClick={() => downloadComposedMeme(currentMedia, c.text, 'bottom-gradient')}
+                        title="Télécharger avec la légende incrustée"
+                        className="text-gray-500 hover:text-white transition p-1.5"
+                      >
+                        <Download size={16} />
+                      </button>
+                    )}
+                    <span className="font-black text-purple-300">+{c.points}</span>
+                  </div>
                 </div>
               ))}
             {captionsForRound.length === 0 && <p className="text-gray-500 text-sm">Aucune légende n'a été soumise ce round.</p>}
