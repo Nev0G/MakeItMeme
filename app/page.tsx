@@ -27,6 +27,14 @@ const shuffle = (arr) => {
 
 const DEFAULT_SETTINGS = { captionSeconds: 45, voteSeconds: 20, mediaPerPlayer: 1 };
 const MAX_FILE_MB = 25;
+// Incrémenter à chaque mise à jour livrée du jeu.
+const APP_VERSION = 'v4';
+
+const VersionBadge = () => (
+  <div className="fixed bottom-2 right-3 text-[10px] text-gray-600 font-mono select-none pointer-events-none z-50">
+    {APP_VERSION}
+  </div>
+);
 
 // ==========================================
 // COMPOSANT LECTEUR MULTIMÉDIA UNIVERSEL
@@ -76,6 +84,7 @@ export default function CaptionBattle() {
 
   const [medias, setMedias] = useState([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState(null);
   const [roundQueue, setRoundQueue] = useState([]); // liste d'ids de médias, 1 par round
   const [currentRoundIndex, setCurrentRoundIndex] = useState(0);
   const [phaseStartedAt, setPhaseStartedAt] = useState(null);
@@ -223,6 +232,7 @@ export default function CaptionBattle() {
   const resetGameStateLocal = () => {
     setPlayers([]);
     setMedias([]);
+    setUploadError(null);
     setRoundQueue([]);
     setCurrentRoundIndex(0);
     setCaptions([]);
@@ -320,9 +330,10 @@ export default function CaptionBattle() {
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    setUploadError(null);
 
     if (file.size > MAX_FILE_MB * 1024 * 1024) {
-      alert(`Ce fichier dépasse ${MAX_FILE_MB}Mo, choisis-en un plus léger.`);
+      setUploadError(`Ce fichier dépasse ${MAX_FILE_MB}Mo, choisis-en un plus léger.`);
       e.target.value = '';
       return;
     }
@@ -342,8 +353,20 @@ export default function CaptionBattle() {
       setMedias((prev) => [...prev, media]);
       broadcast('media_added', { media });
     } catch (error) {
-      console.error("Erreur d'upload :", error.message);
-      alert("Erreur lors de l'envoi du fichier. Vérifie que le bucket 'game-media' existe et est public sur Supabase.");
+      // On affiche le message d'erreur réel de Supabase dans l'UI (un alert()
+      // navigateur peut être bloqué/silencieux selon le contexte et donner
+      // l'impression que "rien ne se passe").
+      console.error("Erreur d'upload :", error);
+      const raw = error?.message || String(error);
+      let hint = '';
+      if (/bucket.*not.*found/i.test(raw)) {
+        hint = " Le bucket Supabase Storage 'game-media' n'existe pas.";
+      } else if (/row-level security|permission|not authorized|unauthorized/i.test(raw)) {
+        hint = " Les règles (RLS) du bucket 'game-media' bloquent l'upload anonyme — autorise INSERT pour le rôle 'anon'.";
+      } else if (/payload.*too.*large|exceeded.*size/i.test(raw)) {
+        hint = ' Le fichier dépasse la limite de taille configurée côté Supabase.';
+      }
+      setUploadError(`Échec de l'upload : ${raw}.${hint}`);
     } finally {
       setUploading(false);
       e.target.value = '';
@@ -527,6 +550,7 @@ export default function CaptionBattle() {
 
   const GameLayout = ({ children }) => (
     <div className="min-h-screen bg-gray-950 text-white flex flex-col md:flex-row gap-4 p-4">
+      <VersionBadge />
       <div className="flex-1 flex flex-col max-w-2xl mx-auto md:mx-0 w-full">
         {renderTopBar()}
         {children}
@@ -541,6 +565,7 @@ export default function CaptionBattle() {
   if (gameState === 'home') {
     return (
       <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center p-4">
+        <VersionBadge />
         <h1 className="text-6xl font-black mb-2 bg-gradient-to-r from-purple-500 to-pink-500 bg-clip-text text-transparent transform -rotate-2">
           CAPTION BATTLE
         </h1>
@@ -599,6 +624,7 @@ export default function CaptionBattle() {
     };
     return (
       <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center p-4">
+        <VersionBadge />
         <div className="bg-gray-900 p-8 rounded-2xl w-full max-w-lg shadow-2xl border border-gray-800 text-center">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-2xl font-bold">Code de la Room</h2>
@@ -706,6 +732,15 @@ export default function CaptionBattle() {
           <p className="text-gray-400 mb-8">
             Upload {settings.mediaPerPlayer > 1 ? `${settings.mediaPerPlayer} médias` : 'un média'} (image, GIF, vidéo ou audio, {MAX_FILE_MB}Mo max). Chacun sera captionné par les autres !
           </p>
+
+          {uploadError && (
+            <div className="mb-4 text-left bg-red-950/50 border border-red-800 text-red-300 text-sm rounded-lg p-4">
+              <p className="font-bold mb-1">⚠️ {uploadError}</p>
+              <button onClick={() => setUploadError(null)} className="text-red-400 hover:text-red-200 underline text-xs">
+                Fermer
+              </button>
+            </div>
+          )}
 
           {uploading ? (
             <Waiting label="Upload vers Supabase en cours..." />
@@ -910,6 +945,7 @@ export default function CaptionBattle() {
   const finalRanking = [...players].sort((a, b) => (cumulativeScores[b.id] || 0) - (cumulativeScores[a.id] || 0));
   return (
     <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center p-4">
+      <VersionBadge />
       <Trophy size={64} className="text-yellow-400 mb-6 animate-bounce" />
       <h2 className="text-3xl font-black mb-8">Classement final !</h2>
 
