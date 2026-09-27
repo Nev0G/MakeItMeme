@@ -1,14 +1,15 @@
-
+'use client';
 
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { Play, Image as ImageIcon, Video, Music, Link as LinkIcon, Send, Trophy, Users, Loader2 } from 'lucide-react';
 
+
 // ==========================================
 // 1. CONFIGURATION SUPABASE
 // ==========================================
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ton-projet.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'ta-cle-publique';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://hidtcsztkjpqngwlrzqy.supabase.co';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_CREIog57Ep_e7sUZ0rx-VA_8ooqaGTJ';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // ==========================================
