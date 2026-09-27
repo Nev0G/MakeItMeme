@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import {
   Play, Image as ImageIcon, Video, Music, Send, Trophy, Users, Loader2,
   Crown, ThumbsUp, SkipForward, Settings, Copy, LogOut, Check, Download,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, Link as LinkIcon,
 } from 'lucide-react';
 
 // ==========================================
@@ -61,17 +61,10 @@ const wrapCanvasText = (ctx, text, maxWidth) => {
   return lines;
 };
 
-const composeMemeImage = async (url, text, style = 'bottom-gradient') => {
-  const img = await loadImageEl(url);
-  const maxDim = 1080;
-  const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.round(img.width * scale);
-  canvas.height = Math.round(img.height * scale);
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-  const fontSize = Math.max(20, Math.round(canvas.width / 16));
+// Dessine le texte de légende sur un contexte canvas déjà rempli avec une
+// image/frame — partagé entre la composition d'image et celle de vidéo.
+const drawCaptionOnCanvas = (ctx, canvas, text, style) => {
+  const fontSize = Math.max(16, Math.round(canvas.width / 16));
   const displayText = style === 'impact-top' ? text.toUpperCase() : text;
   ctx.font = `900 ${fontSize}px Arial, Helvetica, sans-serif`;
   ctx.textAlign = 'center';
@@ -118,8 +111,127 @@ const composeMemeImage = async (url, text, style = 'bottom-gradient') => {
       y += lineHeight;
     });
   }
+};
 
+const composeMemeImage = async (url, text, style = 'bottom-gradient') => {
+  const img = await loadImageEl(url);
+  const maxDim = 1080;
+  const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(img.width * scale);
+  canvas.height = Math.round(img.height * scale);
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  drawCaptionOnCanvas(ctx, canvas, text, style);
   return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+};
+
+// Incruste la légende sur chaque frame d'une vidéo en la "filmant" en temps
+// réel via canvas.captureStream() + MediaRecorder (pas de transcodage côté
+// serveur : ça prend donc la durée de la vidéo, d'où le suivi de progression).
+// Fonctionne dans les navigateurs basés Chromium ; retombe sur le fichier brut
+// en cas d'échec (Safari plus ancien, CORS bloqué, etc.).
+const composeMemeVideo = (url, text, style, onProgress) =>
+  new Promise((resolve, reject) => {
+    if (typeof MediaRecorder === 'undefined') {
+      reject(new Error("Cette fonctionnalité n'est pas supportée par ce navigateur."));
+      return;
+    }
+    const video = document.createElement('video');
+    video.crossOrigin = 'anonymous';
+    video.src = url;
+    video.muted = false;
+    video.playsInline = true;
+    video.preload = 'auto';
+
+    let rafId = null;
+    let finished = false;
+    const cleanup = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      video.pause();
+      video.remove();
+    };
+
+    video.onerror = () => reject(new Error('Impossible de charger la vidéo (CORS ?).'));
+
+    video.onloadedmetadata = () => {
+      const maxDim = 720;
+      const scale = Math.min(1, maxDim / Math.max(video.videoWidth, video.videoHeight));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(video.videoWidth * scale) || 480;
+      canvas.height = Math.round(video.videoHeight * scale) || 270;
+      const ctx = canvas.getContext('2d');
+
+      let stream;
+      try {
+        stream = canvas.captureStream(30);
+        const rawStream = video.captureStream ? video.captureStream() : video.mozCaptureStream ? video.mozCaptureStream() : null;
+        if (rawStream) rawStream.getAudioTracks().forEach((t) => stream.addTrack(t));
+      } catch (err) {
+        reject(err);
+        return;
+      }
+
+      const mimeCandidates = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+      const mimeType = mimeCandidates.find((m) => MediaRecorder.isTypeSupported(m)) || 'video/webm';
+      let recorder;
+      try {
+        recorder = new MediaRecorder(stream, { mimeType });
+      } catch (err) {
+        reject(err);
+        return;
+      }
+      const chunks = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) chunks.push(e.data);
+      };
+      recorder.onerror = (e) => {
+        cleanup();
+        reject(e.error || new Error('Erreur MediaRecorder'));
+      };
+      recorder.onstop = () => {
+        cleanup();
+        if (!finished) resolve(new Blob(chunks, { type: mimeType }));
+      };
+
+      const drawFrame = () => {
+        if (video.paused || video.ended) return;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        drawCaptionOnCanvas(ctx, canvas, text, style);
+        if (onProgress && video.duration) onProgress(Math.min(1, video.currentTime / video.duration));
+        rafId = requestAnimationFrame(drawFrame);
+      };
+
+      video.onended = () => {
+        finished = true;
+        if (recorder.state !== 'inactive') recorder.stop();
+      };
+
+      video
+        .play()
+        .then(() => {
+          recorder.start();
+          drawFrame();
+        })
+        .catch(reject);
+    };
+  });
+
+// Convertit un lien de partage Google Drive en URL directement chargeable
+// (image ou vidéo). Les autres URLs sont retournées telles quelles.
+const extractDriveFileId = (url) => {
+  const patterns = [/\/file\/d\/([a-zA-Z0-9_-]+)/, /[?&]id=([a-zA-Z0-9_-]+)/];
+  for (const re of patterns) {
+    const m = url.match(re);
+    if (m) return m[1];
+  }
+  return null;
+};
+
+const resolveExternalMediaUrl = (rawUrl) => {
+  const driveId = extractDriveFileId(rawUrl);
+  if (driveId) return `https://drive.google.com/uc?export=download&id=${driveId}`;
+  return rawUrl;
 };
 
 const triggerBlobDownload = (blob, filename) => {
@@ -200,7 +312,7 @@ const MAX_FILE_MB = 25;
 const MAX_NAME_LEN = 20;
 const MAX_CAPTION_LEN = 140;
 // Incrémenter à chaque mise à jour livrée du jeu.
-const APP_VERSION = 'v13';
+const APP_VERSION = 'v14';
 
 const PLAYER_COLORS = ['#a855f7', '#ec4899', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#f43f5e'];
 const colorForPlayer = (id) => {
@@ -286,6 +398,7 @@ const CountdownBadge = ({ seconds }) => (
 );
 
 const isImageMedia = (media) => !media?.type || (!media.type.includes('video') && !media.type.includes('audio'));
+const isVideoMedia = (media) => !!media?.type && media.type.includes('video');
 
 const DownloadButton = ({ onClick, className = '' }) => (
   <button
@@ -381,37 +494,64 @@ const MemeVoteCard = ({ media, caption, isMine, isSelected, disabled, onVote, on
 
 // Carte texte pour le vote (utilisée quand le média est une vidéo/audio, pour
 // ne pas dupliquer le lecteur — et donc le son — une fois par légende).
-const CaptionChoiceCard = ({ caption, isMine, isSelected, disabled, onVote }) => (
-  <div
-    className={`rounded-2xl border-2 p-8 flex flex-col items-center justify-center gap-4 min-h-[180px] ${
-      isSelected ? 'border-purple-500 bg-purple-900/30' : isMine ? 'border-gray-700 bg-gray-900' : 'border-gray-700 bg-gray-800'
-    }`}
-  >
-    {isMine && (
-      <span className="text-[10px] font-bold bg-gray-700 text-gray-300 px-2 py-1 rounded-full">C'EST LA TIENNE</span>
-    )}
-    <p className="font-black text-2xl text-center">"{caption}"</p>
-    <button
-      onClick={onVote}
-      disabled={disabled}
-      className={`px-6 py-3 rounded-lg font-bold flex items-center gap-2 transition active:scale-95 ${
-        disabled ? 'bg-gray-700 text-gray-500 cursor-default' : 'bg-purple-600 hover:bg-purple-500 text-white'
+const CaptionChoiceCard = ({ caption, isMine, isSelected, disabled, onVote, showDownload, onDownloadStyle }) => {
+  const [menuOpen, setMenuOpen] = useState(false);
+  return (
+    <div
+      className={`relative rounded-2xl border-2 p-8 flex flex-col items-center justify-center gap-4 min-h-[180px] ${
+        isSelected ? 'border-purple-500 bg-purple-900/30' : isMine ? 'border-gray-700 bg-gray-900' : 'border-gray-700 bg-gray-800'
       }`}
     >
-      {isSelected ? (
-        <>
-          <Check size={18} /> Ton vote
-        </>
-      ) : isMine ? (
-        'Pas votable'
-      ) : (
-        <>
-          <ThumbsUp size={18} /> Voter pour celle-ci
-        </>
+      {showDownload && (
+        <div className="absolute top-3 right-3 z-20">
+          <DownloadButton onClick={() => setMenuOpen((v) => !v)} />
+          {menuOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+              <div className="absolute right-0 mt-1 z-20 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl overflow-hidden w-48 text-xs">
+                {MEME_STYLES.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onDownloadStyle(s.id);
+                    }}
+                    className="w-full text-left px-3 py-2.5 text-gray-200 hover:bg-purple-900/40 transition"
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       )}
-    </button>
-  </div>
-);
+      {isMine && (
+        <span className="text-[10px] font-bold bg-gray-700 text-gray-300 px-2 py-1 rounded-full">C'EST LA TIENNE</span>
+      )}
+      <p className="font-black text-2xl text-center">"{caption}"</p>
+      <button
+        onClick={onVote}
+        disabled={disabled}
+        className={`px-6 py-3 rounded-lg font-bold flex items-center gap-2 transition active:scale-95 ${
+          disabled ? 'bg-gray-700 text-gray-500 cursor-default' : 'bg-purple-600 hover:bg-purple-500 text-white'
+        }`}
+      >
+        {isSelected ? (
+          <>
+            <Check size={18} /> Ton vote
+          </>
+        ) : isMine ? (
+          'Pas votable'
+        ) : (
+          <>
+            <ThumbsUp size={18} /> Voter pour celle-ci
+          </>
+        )}
+      </button>
+    </div>
+  );
+};
 
 // Carrousel générique : une carte à la fois, navigation flèches + points +
 // clavier (gérée par le composant parent). "cards" est un tableau de noeuds JSX déjà construits.
@@ -789,6 +929,35 @@ export default function CaptionBattle() {
     }
   };
 
+  const [externalUrl, setExternalUrl] = useState('');
+  const [externalType, setExternalType] = useState('image');
+
+  const submitExternalMedia = () => {
+    const raw = externalUrl.trim();
+    if (!raw) return;
+    setUploadError(null);
+    let parsed;
+    try {
+      parsed = new URL(raw).toString();
+    } catch {
+      setUploadError('Ce lien ne semble pas valide.');
+      return;
+    }
+    const resolvedUrl = resolveExternalMediaUrl(parsed);
+    const typeMap = { image: 'image/jpeg', video: 'video/mp4', audio: 'audio/mpeg' };
+    const media = {
+      id: makeId('m'),
+      url: resolvedUrl,
+      type: typeMap[externalType],
+      owner_id: player.id,
+      owner_name: player.name,
+      owner_avatar: player.avatar,
+    };
+    setMedias((prev) => [...prev, media]);
+    broadcast('media_added', { media });
+    setExternalUrl('');
+  };
+
   const myUploadCount = medias.filter((m) => m.owner_id === player.id).length;
   const iUploaded = myUploadCount >= settings.mediaPerPlayer;
   const everyoneUploaded =
@@ -918,8 +1087,29 @@ export default function CaptionBattle() {
     }
   };
 
-  // Télécharge le meme avec le texte incrusté directement dans l'image (canvas)
+  const [videoComposeProgress, setVideoComposeProgress] = useState(null); // 0..1 ou null
+
+  // Télécharge le meme avec le texte incrusté directement dans le média (canvas).
+  // Images : composition instantanée. Vidéos : "filmées" en temps réel avec la
+  // légende incrustée (donc ça prend la durée de la vidéo) puis ré-encodées en .webm.
   const downloadComposedMeme = async (media, text, style) => {
+    if (isVideoMedia(media)) {
+      setVideoComposeProgress(0);
+      try {
+        const blob = await composeMemeVideo(media.url, text, style, (ratio) => setVideoComposeProgress(ratio));
+        if (!blob || blob.size === 0) throw new Error('Génération de la vidéo impossible.');
+        triggerBlobDownload(blob, `meme-${media.id}-${style}.webm`);
+      } catch (err) {
+        console.error('Composition vidéo impossible, téléchargement brut à la place :', err);
+        alert(
+          "Impossible d'incruster la légende sur cette vidéo dans ce navigateur (fonctionnalité expérimentale, marche mieux sur Chrome/Edge desktop). Téléchargement du fichier original à la place."
+        );
+        downloadMedia(media);
+      } finally {
+        setVideoComposeProgress(null);
+      }
+      return;
+    }
     try {
       const blob = await composeMemeImage(media.url, text, style);
       if (!blob) throw new Error('Génération du canvas impossible.');
@@ -1000,65 +1190,79 @@ export default function CaptionBattle() {
   }, [gameState]);
 
   // ==========================================
-  // CLASSEMENT (panneau latéral)
+  // SIDEBAR PERSISTANTE (façon Discord : room + liste des joueurs en direct)
   // ==========================================
-  const renderScoreboard = () => (
-    <div className="w-full md:w-64 shrink-0 bg-gray-900 rounded-2xl border border-gray-800 p-4 h-fit">
-      <h3 className="flex items-center gap-2 text-gray-400 font-bold mb-1 uppercase text-xs">
-        <Trophy size={14} /> Classement
-      </h3>
+  const renderSidebar = () => (
+    <div className="w-full md:w-72 shrink-0 bg-gray-900 rounded-2xl border border-gray-800 p-4 flex flex-col md:h-[calc(100vh-2rem)] md:sticky md:top-4">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-gray-500 font-mono text-xs uppercase tracking-wide"># room-{room?.code}</span>
+        <button onClick={copyCode} title="Copier le lien d'invitation" className="text-gray-500 hover:text-white transition">
+          {copied ? <Check size={14} /> : <Copy size={14} />}
+        </button>
+      </div>
       {roundQueue.length > 0 && (
-        <p className="text-xs text-gray-500 mb-3">
+        <p className="text-xs text-gray-600 mb-1">
           Round {Math.min(currentRoundIndex + 1, roundQueue.length)}/{roundQueue.length}
         </p>
       )}
-      <div className="space-y-2">
+
+      <div className="h-px bg-gray-800 my-3" />
+
+      <h3 className="flex items-center gap-2 text-gray-500 font-bold mb-3 uppercase text-[11px] tracking-wide shrink-0">
+        <Users size={13} /> En ligne — {players.length}
+      </h3>
+      <div className="space-y-1 md:flex-1 md:overflow-y-auto -mx-1 px-1">
         {[...players]
           .sort((a, b) => (cumulativeScores[b.id] || 0) - (cumulativeScores[a.id] || 0))
           .map((p, i) => (
             <div
               key={p.id}
-              className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm ${
-                p.id === player.id ? 'bg-purple-900/40 border border-purple-600' : 'bg-gray-800'
+              className={`flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm transition ${
+                p.id === player.id ? 'bg-purple-900/40 border border-purple-600/60' : 'hover:bg-gray-800/70'
               }`}
             >
-              <span className="font-bold truncate flex items-center gap-1.5">
-                <PlayerDot id={p.id} avatar={p.avatar} />
-                {i === 0 && (cumulativeScores[p.id] || 0) > 0 && <Crown size={14} className="text-yellow-400" />}
-                {p.name}
-              </span>
-              <span className="font-black text-purple-300">{cumulativeScores[p.id] || 0}</span>
+              <PlayerDot id={p.id} avatar={p.avatar} size="md" />
+              <span className="font-bold truncate flex-1">{p.name}</span>
+              {i === 0 && (cumulativeScores[p.id] || 0) > 0 && <Crown size={13} className="text-yellow-400 shrink-0" />}
+              {p.id === hostId && (
+                <span className="text-[9px] font-bold text-purple-400 bg-purple-900/40 px-1.5 py-0.5 rounded shrink-0">HOST</span>
+              )}
+              <span className="font-black text-purple-300 text-xs shrink-0 w-6 text-right">{cumulativeScores[p.id] || 0}</span>
             </div>
           ))}
       </div>
-    </div>
-  );
 
-  const renderTopBar = () => (
-    <div className="flex items-center justify-between mb-3 text-sm">
-      <span className="text-gray-500 font-mono">Room {room?.code}</span>
-      <button onClick={leaveRoom} className="flex items-center gap-1 text-gray-500 hover:text-red-400 font-bold transition">
-        <LogOut size={14} /> Quitter
+      <div className="h-px bg-gray-800 my-3 shrink-0" />
+      <button
+        onClick={leaveRoom}
+        className="flex items-center gap-2 text-gray-500 hover:text-red-400 text-sm font-bold transition py-1 shrink-0 active:scale-95"
+      >
+        <LogOut size={14} /> Quitter la room
       </button>
     </div>
   );
 
-  // IMPORTANT : ceci est une fonction ordinaire, pas un composant utilisé via
-  // renderGameLayout (fonction, pas composant JSX <GameLayout>). Un composant défini À L'INTÉRIEUR du rendu d'un autre
-  // composant change de "type" (nouvelle identité de fonction) à chaque
-  // re-render — et comme le chrono déclenche un re-render toutes les
-  // secondes, React démontait/remontait tout ce qu'il y avait dedans (y
-  // compris l'input fichier) en boucle, ce qui perdait silencieusement la
-  // sélection de fichier de l'utilisateur si elle prenait plus d'une seconde.
-  const renderGameLayout = (children) => (
+  // Fonction ordinaire (pas un composant <Tag>) — voir la note plus haut sur le
+  // bug de remontage : la même règle s'applique ici.
+  const renderAppShell = (mainContent) => (
     <div className="min-h-screen bg-gray-950/95 text-white relative z-10 flex justify-center p-4">
       <VersionBadge />
-      <div className="w-full max-w-5xl flex flex-col md:flex-row gap-4">
-        <div className="flex-1 flex flex-col w-full md:max-w-2xl">
-          {renderTopBar()}
-          {children}
+      {videoComposeProgress !== null && (
+        <div className="fixed inset-0 z-[999] bg-black/80 flex flex-col items-center justify-center gap-4 p-4">
+          <Loader2 size={40} className="text-purple-400 animate-spin" />
+          <p className="font-bold">Génération de la vidéo avec la légende incrustée...</p>
+          <div className="w-64 h-2 bg-gray-800 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-purple-500 transition-all"
+              style={{ width: `${Math.round(videoComposeProgress * 100)}%` }}
+            />
+          </div>
+          <p className="text-xs text-gray-500">Ça prend la durée de la vidéo, patience 🙏</p>
         </div>
-        {renderScoreboard()}
+      )}
+      <div className="w-full max-w-6xl flex flex-col md:flex-row gap-4">
+        {renderSidebar()}
+        <div className="flex-1 min-w-0 flex flex-col">{mainContent}</div>
       </div>
     </div>
   );
@@ -1150,117 +1354,94 @@ export default function CaptionBattle() {
       voteSeconds: [10, 15, 20, 30],
       mediaPerPlayer: [1, 2, 3],
     };
-    return (
-      <div className="min-h-screen bg-gray-950/95 text-white relative z-10 flex flex-col items-center justify-center p-4">
-        <VersionBadge />
-        <div className="bg-gray-900 p-8 rounded-2xl w-full max-w-lg shadow-2xl border border-gray-800 text-center">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="font-heading text-2xl font-bold">Code de la Room</h2>
-            <button onClick={leaveRoom} className="flex items-center gap-1 text-gray-500 hover:text-red-400 text-sm font-bold transition">
-              <LogOut size={14} /> Quitter
-            </button>
+    return renderAppShell(
+      <div className="bg-gray-900 p-8 rounded-2xl w-full max-w-lg mx-auto shadow-2xl border border-gray-800 text-center">
+        <h2 className="font-heading text-2xl font-bold mb-2">Code de la Room</h2>
+        <div className="relative mb-8">
+          <div className="text-6xl font-black font-mono tracking-widest text-purple-400 bg-gray-950 py-4 rounded-xl border border-gray-800">
+            {room?.code}
           </div>
-          <div className="relative mb-8">
-            <div className="text-6xl font-black font-mono tracking-widest text-purple-400 bg-gray-950 py-4 rounded-xl border border-gray-800">
-              {room?.code}
-            </div>
-            <button
-              onClick={copyCode}
-              className="absolute right-3 bottom-3 flex items-center gap-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold px-3 py-2 rounded-lg transition active:scale-95"
-            >
-              {copied ? <Check size={14} /> : <Copy size={14} />}
-              {copied ? 'Lien copié !' : "Copier l'invitation"}
-            </button>
-          </div>
-
-          <div className="text-left mb-8">
-            <h3 className="flex items-center gap-2 text-gray-400 font-bold mb-4 uppercase text-sm">
-              <Users size={18} /> Joueurs dans le lobby ({players.length}/8)
-            </h3>
-            <div className="grid grid-cols-2 gap-3">
-              {players.map((p) => (
-                <div key={p.id} className="bg-gray-800 py-3 px-4 rounded-lg font-bold flex items-center gap-3">
-                  <PlayerDot id={p.id} avatar={p.avatar} />
-                  <span className="truncate">{p.name}</span>
-                  {p.id === hostId && <span className="text-xs text-purple-400 bg-purple-900/30 px-2 py-1 rounded shrink-0">HOST</span>}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="text-left mb-8 bg-gray-950 border border-gray-800 rounded-xl p-4">
-            <h3 className="flex items-center gap-2 text-gray-400 font-bold mb-1 uppercase text-sm">
-              <Settings size={16} /> Paramètres de la partie
-            </h3>
-            {players.length > 0 && (
-              <p className="text-xs text-gray-500 mb-3">
-                → {players.length * settings.mediaPerPlayer} round{players.length * settings.mediaPerPlayer > 1 ? 's' : ''} au total
-              </p>
-            )}
-            <div className="grid grid-cols-3 gap-3 text-sm">
-              <div>
-                <label className="block text-gray-500 mb-1 text-xs">Temps légende</label>
-                <select
-                  disabled={!isHost}
-                  value={settings.captionSeconds}
-                  onChange={(e) => updateSettings({ captionSeconds: Number(e.target.value) })}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 font-bold disabled:opacity-60"
-                >
-                  {settingOptions.captionSeconds.map((s) => (
-                    <option key={s} value={s}>{s}s</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-gray-500 mb-1 text-xs">Temps de vote</label>
-                <select
-                  disabled={!isHost}
-                  value={settings.voteSeconds}
-                  onChange={(e) => updateSettings({ voteSeconds: Number(e.target.value) })}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 font-bold disabled:opacity-60"
-                >
-                  {settingOptions.voteSeconds.map((s) => (
-                    <option key={s} value={s}>{s}s</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-gray-500 mb-1 text-xs">Memes/joueur</label>
-                <select
-                  disabled={!isHost}
-                  value={settings.mediaPerPlayer}
-                  onChange={(e) => updateSettings({ mediaPerPlayer: Number(e.target.value) })}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 font-bold disabled:opacity-60"
-                >
-                  {settingOptions.mediaPerPlayer.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {isHost ? (
-            <button
-              onClick={startUploadPhase}
-              disabled={players.length < 2}
-              className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-black py-4 px-6 rounded-lg text-lg transition shadow-lg shadow-purple-500/20"
-            >
-              {players.length < 2 ? "En attente d'au moins 2 joueurs..." : 'Lancer le jeu !'}
-            </button>
-          ) : (
-            <div className="flex items-center justify-center gap-3 text-gray-400 animate-pulse">
-              <Loader2 className="animate-spin" /> En attente du Host...
-            </div>
-          )}
+          <button
+            onClick={copyCode}
+            className="absolute right-3 bottom-3 flex items-center gap-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold px-3 py-2 rounded-lg transition active:scale-95"
+          >
+            {copied ? <Check size={14} /> : <Copy size={14} />}
+            {copied ? 'Lien copié !' : "Copier l'invitation"}
+          </button>
         </div>
+
+        <div className="text-left mb-8 bg-gray-950 border border-gray-800 rounded-xl p-4">
+          <h3 className="flex items-center gap-2 text-gray-400 font-bold mb-1 uppercase text-sm">
+            <Settings size={16} /> Paramètres de la partie
+          </h3>
+          {players.length > 0 && (
+            <p className="text-xs text-gray-500 mb-3">
+              → {players.length * settings.mediaPerPlayer} round{players.length * settings.mediaPerPlayer > 1 ? 's' : ''} au total
+            </p>
+          )}
+          <div className="grid grid-cols-3 gap-3 text-sm">
+            <div>
+              <label className="block text-gray-500 mb-1 text-xs">Temps légende</label>
+              <select
+                disabled={!isHost}
+                value={settings.captionSeconds}
+                onChange={(e) => updateSettings({ captionSeconds: Number(e.target.value) })}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 font-bold disabled:opacity-60"
+              >
+                {settingOptions.captionSeconds.map((s) => (
+                  <option key={s} value={s}>{s}s</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-gray-500 mb-1 text-xs">Temps de vote</label>
+              <select
+                disabled={!isHost}
+                value={settings.voteSeconds}
+                onChange={(e) => updateSettings({ voteSeconds: Number(e.target.value) })}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 font-bold disabled:opacity-60"
+              >
+                {settingOptions.voteSeconds.map((s) => (
+                  <option key={s} value={s}>{s}s</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-gray-500 mb-1 text-xs">Memes/joueur</label>
+              <select
+                disabled={!isHost}
+                value={settings.mediaPerPlayer}
+                onChange={(e) => updateSettings({ mediaPerPlayer: Number(e.target.value) })}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 font-bold disabled:opacity-60"
+              >
+                {settingOptions.mediaPerPlayer.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {isHost ? (
+          <button
+            onClick={startUploadPhase}
+            disabled={players.length < 2}
+            className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-50 active:scale-95 text-white font-black py-4 px-6 rounded-lg text-lg transition shadow-lg shadow-purple-500/20"
+          >
+            {players.length < 2 ? "En attente d'au moins 2 joueurs..." : 'Lancer le jeu !'}
+          </button>
+        ) : (
+          <div className="flex items-center justify-center gap-3 text-gray-400 animate-pulse">
+            <Loader2 className="animate-spin" /> En attente du Host...
+          </div>
+        )}
       </div>
     );
   }
 
   if (gameState === 'upload') {
     return (
-      renderGameLayout(<>
+      renderAppShell(<>
         <div className="bg-gray-900 p-8 rounded-2xl w-full shadow-2xl border border-gray-800 text-center flex-1 flex flex-col justify-center">
           <h2 className="font-heading text-3xl font-bold mb-2">Choisis ton arme</h2>
           <p className="text-gray-400 mb-8">
@@ -1320,6 +1501,54 @@ export default function CaptionBattle() {
                   onChange={handleFileUpload}
                 />
               </label>
+
+              <div className="relative flex py-1 items-center">
+                <div className="flex-grow border-t border-gray-800"></div>
+                <span className="flex-shrink-0 mx-4 text-gray-600 font-bold text-xs">OU PAR LIEN</span>
+                <div className="flex-grow border-t border-gray-800"></div>
+              </div>
+
+              <div className="bg-gray-950 border border-gray-800 rounded-xl p-3 text-left">
+                <div className="flex gap-2 mb-2">
+                  {[
+                    { id: 'image', label: '🖼️ Image' },
+                    { id: 'video', label: '🎬 Vidéo' },
+                    { id: 'audio', label: '🎵 Audio' },
+                  ].map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => setExternalType(t.id)}
+                      className={`flex-1 text-xs font-bold py-2 rounded-lg transition ${
+                        externalType === t.id ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    placeholder="Colle un lien (image/vidéo direct, ou partage Google Drive public)"
+                    value={externalUrl}
+                    onChange={(e) => setExternalUrl(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && submitExternalMedia()}
+                    className="flex-1 min-w-0 p-3 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-600 focus:border-purple-500 focus:outline-none"
+                  />
+                  <button
+                    onClick={submitExternalMedia}
+                    disabled={!externalUrl.trim()}
+                    className="bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-white px-4 rounded-lg transition active:scale-95"
+                  >
+                    <LinkIcon size={18} />
+                  </button>
+                </div>
+                <p className="text-[11px] text-gray-600 mt-2">
+                  Pour un lien Google Drive : le fichier doit être partagé en "Tout le monde avec le lien". Note :
+                  l'incrustation de légende au téléchargement peut ne pas marcher sur des liens externes (restrictions
+                  du site source) — le fichier brut sera proposé à la place dans ce cas.
+                </p>
+              </div>
             </div>
           )}
 
@@ -1340,13 +1569,13 @@ export default function CaptionBattle() {
   if (gameState === 'caption') {
     if (!currentMedia) {
       return (
-        renderGameLayout(<>
+        renderAppShell(<>
           <Waiting label="Préparation du round..." />
         </>)
       );
     }
     return (
-      renderGameLayout(<>
+      renderAppShell(<>
         <div className="flex justify-between items-center mb-6">
           <h2 className="font-heading text-2xl font-bold text-purple-400">
             Round {currentRoundIndex + 1}/{roundQueue.length}
@@ -1414,7 +1643,7 @@ export default function CaptionBattle() {
   if (gameState === 'vote') {
     if (!currentMedia) {
       return (
-        renderGameLayout(<>
+        renderAppShell(<>
           <Waiting label="Chargement du vote..." />
         </>)
       );
@@ -1425,7 +1654,7 @@ export default function CaptionBattle() {
     const activeCaption = shuffledCaptionsForRound[boundedSlide];
 
     return (
-      renderGameLayout(<>
+      renderAppShell(<>
         <div className="flex justify-between items-center mb-4">
           <h2 className="font-heading text-2xl font-bold text-purple-400">Vote — Round {currentRoundIndex + 1}/{roundQueue.length}</h2>
           <CountdownBadge seconds={secondsLeftFor(settings.voteSeconds)} />
@@ -1475,6 +1704,8 @@ export default function CaptionBattle() {
                       isSelected={isSelected}
                       disabled={disabled}
                       onVote={() => castVote(activeCaption.author_id)}
+                      showDownload={isVideoMedia(currentMedia)}
+                      onDownloadStyle={(style) => downloadComposedMeme(currentMedia, activeCaption.text, style)}
                     />
                   );
                 })()}
@@ -1497,7 +1728,7 @@ export default function CaptionBattle() {
 
   if (gameState === 'round_result') {
     return (
-      renderGameLayout(<>
+      renderAppShell(<>
         <div className="flex flex-col items-center text-center">
           <Trophy size={48} className="text-yellow-400 mb-4" />
           <h2 className="font-heading text-2xl font-bold mb-1">Résultats — Round {currentRoundIndex + 1}/{roundQueue.length}</h2>
@@ -1519,7 +1750,7 @@ export default function CaptionBattle() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    {currentMedia && isImageMedia(currentMedia) && (
+                    {currentMedia && (isImageMedia(currentMedia) || isVideoMedia(currentMedia)) && (
                       <button
                         onClick={() => downloadComposedMeme(currentMedia, c.text, 'bottom-gradient')}
                         title="Télécharger avec la légende incrustée"
@@ -1552,11 +1783,9 @@ export default function CaptionBattle() {
   // gameState === 'final_results'
   const finalRanking = [...players].sort((a, b) => (cumulativeScores[b.id] || 0) - (cumulativeScores[a.id] || 0));
   const podium = [finalRanking[1], finalRanking[0], finalRanking[2]]; // 2e, 1er, 3e — ordre visuel du podium
-  const rest = finalRanking.slice(3);
 
-  return (
-    <div className="min-h-screen bg-gray-950/95 text-white relative z-10 flex flex-col items-center justify-center p-4 overflow-hidden">
-      <VersionBadge />
+  return renderAppShell(
+    <div className="flex flex-col items-center text-center flex-1 justify-center py-4">
       <Trophy size={56} className="text-yellow-400 mb-3 animate-bounce" />
       <h2 className="font-heading text-4xl font-bold mb-8">Classement final !</h2>
 
@@ -1585,21 +1814,6 @@ export default function CaptionBattle() {
         </div>
       )}
 
-      {rest.length > 0 && (
-        <div className="bg-gray-900 p-4 rounded-2xl w-full max-w-md shadow-xl border border-gray-800 mb-6 space-y-2">
-          {rest.map((p, i) => (
-            <div key={p.id} className="flex items-center justify-between py-2 px-3 rounded-lg bg-gray-800">
-              <div className="flex items-center gap-2">
-                <span className="text-gray-500 font-mono text-sm w-5">{i + 4}.</span>
-                <PlayerDot id={p.id} avatar={p.avatar} />
-                <span className="font-bold">{p.name}</span>
-              </div>
-              <div className="font-black text-purple-300">{cumulativeScores[p.id] || 0} pts</div>
-            </div>
-          ))}
-        </div>
-      )}
-
       {bestCaptionOfGame && (
         <div className="bg-gradient-to-br from-purple-900/40 to-pink-900/40 border border-purple-700 rounded-2xl p-4 w-full max-w-md mb-8 flex items-center gap-4">
           {bestCaptionOfGame.media && isImageMedia(bestCaptionOfGame.media) && (
@@ -1615,20 +1829,15 @@ export default function CaptionBattle() {
         </div>
       )}
 
-      <div className="flex gap-3">
-        {isHost ? (
-          <button onClick={newGame} className="bg-purple-600 hover:bg-purple-500 active:scale-95 font-bold py-3 px-8 rounded-full transition">
-            Nouvelle partie
-          </button>
-        ) : (
-          <div className="flex items-center justify-center gap-3 text-gray-400 animate-pulse">
-            <Loader2 className="animate-spin" /> En attente du Host...
-          </div>
-        )}
-        <button onClick={leaveRoom} className="flex items-center gap-2 text-gray-500 hover:text-red-400 active:scale-95 font-bold py-3 px-6 transition">
-          <LogOut size={16} /> Quitter
+      {isHost ? (
+        <button onClick={newGame} className="bg-purple-600 hover:bg-purple-500 active:scale-95 font-bold py-3 px-8 rounded-full transition">
+          Nouvelle partie
         </button>
-      </div>
+      ) : (
+        <div className="flex items-center justify-center gap-3 text-gray-400 animate-pulse">
+          <Loader2 className="animate-spin" /> En attente du Host...
+        </div>
+      )}
     </div>
   );
 }
