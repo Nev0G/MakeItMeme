@@ -37,7 +37,7 @@ const shuffle = (arr) => {
 const DEFAULT_SETTINGS = { captionSeconds: 45, voteSeconds: 20, mediaPerPlayer: 1 };
 const MAX_FILE_MB = 25;
 // Incrémenter à chaque mise à jour livrée du jeu.
-const APP_VERSION = 'v5';
+const APP_VERSION = 'v6';
 
 const VersionBadge = () => (
   <div className="fixed bottom-2 right-3 text-[10px] text-gray-600 font-mono select-none pointer-events-none z-50">
@@ -337,28 +337,41 @@ export default function CaptionBattle() {
   const startUploadPhase = () => goToState('upload');
 
   const handleFileUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+    console.log('[upload] onChange déclenché', e.target.files);
+    const inputEl = e.target;
+    const file = inputEl.files && inputEl.files[0];
     setUploadError(null);
-
-    if (file.size > MAX_FILE_MB * 1024 * 1024) {
-      setUploadError(`Ce fichier dépasse ${MAX_FILE_MB}Mo, choisis-en un plus léger.`);
-      e.target.value = '';
+    if (!file) {
+      console.log('[upload] aucun fichier sélectionné');
       return;
     }
 
+    // On passe en "uploading" tout de suite, avant même la moindre autre
+    // opération : si le spinner ne s'affiche pas après ça, c'est que
+    // onChange lui-même ne se déclenche pas (souci de rendu, pas réseau).
     setUploading(true);
     try {
+      console.log('[upload] fichier reçu', file.name, file.size, file.type);
+
+      if (file.size > MAX_FILE_MB * 1024 * 1024) {
+        throw new Error(`Ce fichier dépasse ${MAX_FILE_MB}Mo, choisis-en un plus léger.`);
+      }
+      if (!room?.code) {
+        throw new Error("Code de room manquant côté client (rejoins ou recrée une partie).");
+      }
+
       const fileExt = file.name.split('.').pop();
       const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
       const filePath = `${room.code}/${fileName}`;
 
+      console.log('[upload] envoi vers Supabase Storage...', filePath);
       const { error } = await withTimeout(
         supabase.storage.from('game-media').upload(filePath, file),
         20000,
         'Le serveur Supabase ne répond pas (délai dépassé). Vérifie ta connexion et la configuration Supabase.'
       );
       if (error) throw error;
+      console.log('[upload] envoi réussi');
 
       const { data: { publicUrl } } = supabase.storage.from('game-media').getPublicUrl(filePath);
 
@@ -369,20 +382,22 @@ export default function CaptionBattle() {
       // On affiche le message d'erreur réel de Supabase dans l'UI (un alert()
       // navigateur peut être bloqué/silencieux selon le contexte et donner
       // l'impression que "rien ne se passe").
-      console.error("Erreur d'upload :", error);
+      console.error('[upload] échec :', error);
       const raw = error?.message || String(error);
       let hint = '';
       if (/bucket.*not.*found/i.test(raw)) {
-        hint = " Le bucket Supabase Storage 'game-media' n'existe pas.";
+        hint = " Le bucket Supabase Storage 'game-media' n'existe pas (ou le nom ne correspond pas exactement).";
       } else if (/row-level security|permission|not authorized|unauthorized/i.test(raw)) {
-        hint = " Les règles (RLS) du bucket 'game-media' bloquent l'upload anonyme — autorise INSERT pour le rôle 'anon'.";
+        hint = " Les règles (RLS) du bucket 'game-media' bloquent l'upload anonyme — vérifie que la policy INSERT s'applique bien au rôle 'anon' (pas seulement 'authenticated').";
       } else if (/payload.*too.*large|exceeded.*size/i.test(raw)) {
         hint = ' Le fichier dépasse la limite de taille configurée côté Supabase.';
+      } else if (/failed to fetch|networkerror|load failed/i.test(raw)) {
+        hint = ' Requête réseau bloquée (CORS, ad-blocker, ou URL Supabase invalide) — regarde l\'onglet Réseau des outils de dev.';
       }
       setUploadError(`Échec de l'upload : ${raw}.${hint}`);
     } finally {
       setUploading(false);
-      e.target.value = '';
+      if (inputEl) inputEl.value = '';
     }
   };
 
