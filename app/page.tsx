@@ -2,7 +2,10 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { Play, Image as ImageIcon, Video, Music, Send, Trophy, Users, Loader2, Crown, ThumbsUp, SkipForward, Settings } from 'lucide-react';
+import {
+  Play, Image as ImageIcon, Video, Music, Send, Trophy, Users, Loader2,
+  Crown, ThumbsUp, SkipForward, Settings, Copy, LogOut, Check,
+} from 'lucide-react';
 
 // ==========================================
 // 1. CONFIGURATION SUPABASE
@@ -23,6 +26,7 @@ const shuffle = (arr) => {
 };
 
 const DEFAULT_SETTINGS = { captionSeconds: 45, voteSeconds: 20, mediaPerPlayer: 1 };
+const MAX_FILE_MB = 25;
 
 // ==========================================
 // COMPOSANT LECTEUR MULTIMÉDIA UNIVERSEL
@@ -54,7 +58,7 @@ const Waiting = ({ label, sub }) => (
 
 const CountdownBadge = ({ seconds }) => (
   <div className={`bg-gray-900 px-4 py-2 rounded-full font-bold font-mono border ${seconds <= 5 ? 'border-red-500 text-red-400' : 'border-gray-800'}`}>
-    ⏳ {seconds}s
+    {seconds > 0 ? `⏳ ${seconds}s` : '⏰ Terminé'}
   </div>
 );
 
@@ -68,6 +72,7 @@ export default function CaptionBattle() {
   const [joinCode, setJoinCode] = useState('');
   const [players, setPlayers] = useState([]);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [copied, setCopied] = useState(false);
 
   const [medias, setMedias] = useState([]);
   const [uploading, setUploading] = useState(false);
@@ -83,6 +88,21 @@ export default function CaptionBattle() {
 
   const channelRef = useRef(null);
   const processedRoundRef = useRef(-1);
+  const autoSkipRef = useRef('');
+
+  // Refs "miroir" de l'état, pour que les listeners Supabase (enregistrés une
+  // seule fois côté channel) lisent toujours la valeur la plus fraîche
+  // plutôt qu'une closure figée au moment de la connexion.
+  const isHostRefValue = useRef(false);
+  const gameStateRef = useRef('home');
+  const settingsRef = useRef(DEFAULT_SETTINGS);
+  const mediasRef = useRef([]);
+  const roundQueueRef = useRef([]);
+  const currentRoundIndexRef = useRef(0);
+  const phaseStartedAtRef = useRef(null);
+  const captionsRef = useRef([]);
+  const votesRef = useRef([]);
+  const cumulativeScoresRef = useRef({});
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -114,6 +134,38 @@ export default function CaptionBattle() {
       setPlayers(list);
     });
 
+    // Rattrapage : si un joueur rejoint alors que la partie est déjà lancée,
+    // le host lui renvoie tout l'état courant (sinon il resterait bloqué au lobby).
+    channel.on('presence', { event: 'join' }, ({ key }) => {
+      if (key === playerId) return;
+      if (!isHostRefValue.current) return;
+      if (gameStateRef.current === 'home' || gameStateRef.current === 'lobby') return;
+
+      channel.send({ type: 'broadcast', event: 'settings_update', payload: { settings: settingsRef.current } });
+      mediasRef.current.forEach((media) => {
+        channel.send({ type: 'broadcast', event: 'media_added', payload: { media } });
+      });
+      if (roundQueueRef.current.length) {
+        channel.send({ type: 'broadcast', event: 'round_queue', payload: { queue: roundQueueRef.current } });
+      }
+      captionsRef.current.forEach((caption) => {
+        channel.send({ type: 'broadcast', event: 'caption_submitted', payload: { caption } });
+      });
+      votesRef.current.forEach((vote) => {
+        channel.send({ type: 'broadcast', event: 'vote_cast', payload: { vote } });
+      });
+      channel.send({ type: 'broadcast', event: 'scores_sync', payload: { scores: cumulativeScoresRef.current } });
+      channel.send({
+        type: 'broadcast',
+        event: 'game_update',
+        payload: {
+          newState: gameStateRef.current,
+          roundIndex: currentRoundIndexRef.current,
+          phaseStartedAt: phaseStartedAtRef.current,
+        },
+      });
+    });
+
     channel.on('broadcast', { event: 'game_update' }, ({ payload }) => {
       if (payload?.newState) setGameState(payload.newState);
       if (typeof payload?.roundIndex === 'number') setCurrentRoundIndex(payload.roundIndex);
@@ -143,6 +195,8 @@ export default function CaptionBattle() {
       ]);
     });
 
+    channel.on('broadcast', { event: 'scores_sync' }, ({ payload }) => setCumulativeScores(payload.scores || {}));
+
     channel.on('broadcast', { event: 'new_game' }, () => {
       setMedias([]);
       setRoundQueue([]);
@@ -153,6 +207,8 @@ export default function CaptionBattle() {
       setCumulativeScores({});
       setPhaseStartedAt(null);
       setGameState('upload');
+      processedRoundRef.current = -1;
+      autoSkipRef.current = '';
     });
 
     channel.subscribe(async (status) => {
@@ -164,10 +220,26 @@ export default function CaptionBattle() {
     channelRef.current = channel;
   };
 
+  const resetGameStateLocal = () => {
+    setPlayers([]);
+    setMedias([]);
+    setRoundQueue([]);
+    setCurrentRoundIndex(0);
+    setCaptions([]);
+    setVotes([]);
+    setMyCaption('');
+    setCumulativeScores({});
+    setPhaseStartedAt(null);
+    setSettings(DEFAULT_SETTINGS);
+    processedRoundRef.current = -1;
+    autoSkipRef.current = '';
+  };
+
   const createRoom = () => {
     if (!player.name.trim()) return;
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     const newPlayerId = makeId('p');
+    resetGameStateLocal();
     setPlayer((p) => ({ ...p, id: newPlayerId }));
     setRoom({ code });
     connectToRoom(code, newPlayerId, player.name.trim(), true);
@@ -178,10 +250,22 @@ export default function CaptionBattle() {
     const code = joinCode.trim().toUpperCase();
     if (!code || !player.name.trim()) return;
     const newPlayerId = makeId('p');
+    resetGameStateLocal();
     setPlayer((p) => ({ ...p, id: newPlayerId }));
     setRoom({ code });
     connectToRoom(code, newPlayerId, player.name.trim(), false);
     setGameState('lobby');
+  };
+
+  const leaveRoom = () => {
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+    resetGameStateLocal();
+    setRoom(null);
+    setPlayer((p) => ({ ...p, id: null }));
+    setGameState('home');
   };
 
   const hostId = useMemo(() => {
@@ -189,6 +273,18 @@ export default function CaptionBattle() {
     return creator ? creator.id : players[0]?.id ?? null;
   }, [players]);
   const isHost = player.id !== null && player.id === hostId;
+
+  // Miroirs à jour pour les listeners du channel
+  useEffect(() => { isHostRefValue.current = isHost; }, [isHost]);
+  useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
+  useEffect(() => { settingsRef.current = settings; }, [settings]);
+  useEffect(() => { mediasRef.current = medias; }, [medias]);
+  useEffect(() => { roundQueueRef.current = roundQueue; }, [roundQueue]);
+  useEffect(() => { currentRoundIndexRef.current = currentRoundIndex; }, [currentRoundIndex]);
+  useEffect(() => { phaseStartedAtRef.current = phaseStartedAt; }, [phaseStartedAt]);
+  useEffect(() => { captionsRef.current = captions; }, [captions]);
+  useEffect(() => { votesRef.current = votes; }, [votes]);
+  useEffect(() => { cumulativeScoresRef.current = cumulativeScores; }, [cumulativeScores]);
 
   const broadcast = (event, payload) => channelRef.current?.send({ type: 'broadcast', event, payload });
 
@@ -205,6 +301,17 @@ export default function CaptionBattle() {
     if (extra.phaseStartedAt) setPhaseStartedAt(extra.phaseStartedAt);
   };
 
+  const copyCode = async () => {
+    if (!room?.code) return;
+    try {
+      await navigator.clipboard.writeText(room.code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // clipboard indisponible (ex: contexte non sécurisé) — on ignore silencieusement
+    }
+  };
+
   // ==========================================
   // UPLOAD
   // ==========================================
@@ -213,6 +320,12 @@ export default function CaptionBattle() {
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    if (file.size > MAX_FILE_MB * 1024 * 1024) {
+      alert(`Ce fichier dépasse ${MAX_FILE_MB}Mo, choisis-en un plus léger.`);
+      e.target.value = '';
+      return;
+    }
 
     setUploading(true);
     try {
@@ -233,6 +346,7 @@ export default function CaptionBattle() {
       alert("Erreur lors de l'envoi du fichier. Vérifie que le bucket 'game-media' existe et est public sur Supabase.");
     } finally {
       setUploading(false);
+      e.target.value = '';
     }
   };
 
@@ -258,7 +372,8 @@ export default function CaptionBattle() {
   const votesForRound = votes.filter((v) => v.media_id === currentMediaId);
   const isMyMedia = currentMedia && currentMedia.owner_id === player.id;
   const iSubmittedCaption = captionsForRound.some((c) => c.author_id === player.id);
-  const expectedCaptioners = Math.max(0, players.length - 1); // tout le monde sauf le posteur
+  // tout le monde sauf le posteur (et sauf ceux qui ont quitté la room)
+  const expectedCaptioners = currentMedia ? players.filter((p) => p.id !== currentMedia.owner_id).length : 0;
 
   const submitCaption = () => {
     if (!myCaption.trim() || !currentMedia) return;
@@ -268,12 +383,39 @@ export default function CaptionBattle() {
     setMyCaption('');
   };
 
+  const secondsLeftFor = (totalSeconds) => {
+    if (!phaseStartedAt) return totalSeconds;
+    return Math.max(0, totalSeconds - Math.floor((now - phaseStartedAt) / 1000));
+  };
+
+  // Avance automatiquement quand tout le monde a répondu
   useEffect(() => {
     if (isHost && gameState === 'caption' && currentMedia && expectedCaptioners > 0 && captionsForRound.length >= expectedCaptioners) {
       goToState('vote', { phaseStartedAt: Date.now() });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [captions, isHost, gameState, currentMediaId]);
+  }, [captions, isHost, gameState, currentMediaId, players.length]);
+
+  // Filet de sécurité : avance automatiquement quand le temps est écoulé, même si
+  // tout le monde n'a pas répondu (évite qu'un round reste bloqué indéfiniment).
+  useEffect(() => {
+    if (!isHost || !currentMedia) return;
+    if (gameState === 'caption') {
+      const key = `caption-${currentRoundIndex}`;
+      if (secondsLeftFor(settings.captionSeconds) === 0 && autoSkipRef.current !== key) {
+        autoSkipRef.current = key;
+        goToState('vote', { phaseStartedAt: Date.now() });
+      }
+    }
+    if (gameState === 'vote') {
+      const key = `vote-${currentRoundIndex}`;
+      if (secondsLeftFor(settings.voteSeconds) === 0 && autoSkipRef.current !== key) {
+        autoSkipRef.current = key;
+        goToState('round_result', { phaseStartedAt: Date.now() });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [now, isHost, gameState, currentRoundIndex]);
 
   // Joueurs qui ont au moins une légende éligible à voter (≠ la leur)
   const eligibleVoters = players.filter((p) => captionsForRound.some((c) => c.author_id !== p.id));
@@ -291,7 +433,7 @@ export default function CaptionBattle() {
       goToState('round_result', { phaseStartedAt: Date.now() });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [votes, isHost, gameState, currentMediaId]);
+  }, [votes, isHost, gameState, currentMediaId, players.length]);
 
   const roundScoreboard = useMemo(() => {
     const tally = {};
@@ -336,11 +478,8 @@ export default function CaptionBattle() {
     setCumulativeScores({});
     setPhaseStartedAt(null);
     setGameState('upload');
-  };
-
-  const secondsLeftFor = (totalSeconds) => {
-    if (!phaseStartedAt) return totalSeconds;
-    return Math.max(0, totalSeconds - Math.floor((now - phaseStartedAt) / 1000));
+    processedRoundRef.current = -1;
+    autoSkipRef.current = '';
   };
 
   // ==========================================
@@ -377,9 +516,21 @@ export default function CaptionBattle() {
     </div>
   );
 
+  const renderTopBar = () => (
+    <div className="flex items-center justify-between mb-3 text-sm">
+      <span className="text-gray-500 font-mono">Room {room?.code}</span>
+      <button onClick={leaveRoom} className="flex items-center gap-1 text-gray-500 hover:text-red-400 font-bold transition">
+        <LogOut size={14} /> Quitter
+      </button>
+    </div>
+  );
+
   const GameLayout = ({ children }) => (
     <div className="min-h-screen bg-gray-950 text-white flex flex-col md:flex-row gap-4 p-4">
-      <div className="flex-1 flex flex-col max-w-2xl mx-auto md:mx-0 w-full">{children}</div>
+      <div className="flex-1 flex flex-col max-w-2xl mx-auto md:mx-0 w-full">
+        {renderTopBar()}
+        {children}
+      </div>
       {renderScoreboard()}
     </div>
   );
@@ -423,6 +574,7 @@ export default function CaptionBattle() {
                 placeholder="Code (ex: AB4F2C)"
                 value={joinCode}
                 onChange={(e) => setJoinCode(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && joinRoom()}
                 className="w-2/3 p-4 bg-gray-950 border border-gray-700 rounded-lg text-center font-mono uppercase font-bold text-white"
               />
               <button
@@ -448,9 +600,23 @@ export default function CaptionBattle() {
     return (
       <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center p-4">
         <div className="bg-gray-900 p-8 rounded-2xl w-full max-w-lg shadow-2xl border border-gray-800 text-center">
-          <h2 className="text-2xl font-bold mb-2">Code de la Room</h2>
-          <div className="text-6xl font-black font-mono tracking-widest text-purple-400 mb-8 bg-gray-950 py-4 rounded-xl border border-gray-800">
-            {room?.code}
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-2xl font-bold">Code de la Room</h2>
+            <button onClick={leaveRoom} className="flex items-center gap-1 text-gray-500 hover:text-red-400 text-sm font-bold transition">
+              <LogOut size={14} /> Quitter
+            </button>
+          </div>
+          <div className="relative mb-8">
+            <div className="text-6xl font-black font-mono tracking-widest text-purple-400 bg-gray-950 py-4 rounded-xl border border-gray-800">
+              {room?.code}
+            </div>
+            <button
+              onClick={copyCode}
+              className="absolute right-3 bottom-3 flex items-center gap-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold px-3 py-2 rounded-lg transition"
+            >
+              {copied ? <Check size={14} /> : <Copy size={14} />}
+              {copied ? 'Copié !' : 'Copier'}
+            </button>
           </div>
 
           <div className="text-left mb-8">
@@ -538,7 +704,7 @@ export default function CaptionBattle() {
         <div className="bg-gray-900 p-8 rounded-2xl w-full shadow-2xl border border-gray-800 text-center flex-1 flex flex-col justify-center">
           <h2 className="text-3xl font-black mb-2">Choisis ton arme</h2>
           <p className="text-gray-400 mb-8">
-            Upload {settings.mediaPerPlayer > 1 ? `${settings.mediaPerPlayer} médias` : 'un média'} (image, GIF, vidéo ou audio). Chacun sera captionné par les autres !
+            Upload {settings.mediaPerPlayer > 1 ? `${settings.mediaPerPlayer} médias` : 'un média'} (image, GIF, vidéo ou audio, {MAX_FILE_MB}Mo max). Chacun sera captionné par les autres !
           </p>
 
           {uploading ? (
@@ -723,6 +889,7 @@ export default function CaptionBattle() {
                   <span className="font-black text-purple-300 shrink-0 ml-3">+{c.points}</span>
                 </div>
               ))}
+            {captionsForRound.length === 0 && <p className="text-gray-500 text-sm">Aucune légende n'a été soumise ce round.</p>}
           </div>
 
           {isHost ? (
@@ -761,15 +928,20 @@ export default function CaptionBattle() {
         ))}
       </div>
 
-      {isHost ? (
-        <button onClick={newGame} className="bg-purple-600 hover:bg-purple-500 font-bold py-3 px-8 rounded-full">
-          Nouvelle partie
+      <div className="flex gap-3">
+        {isHost ? (
+          <button onClick={newGame} className="bg-purple-600 hover:bg-purple-500 font-bold py-3 px-8 rounded-full">
+            Nouvelle partie
+          </button>
+        ) : (
+          <div className="flex items-center justify-center gap-3 text-gray-400 animate-pulse">
+            <Loader2 className="animate-spin" /> En attente du Host...
+          </div>
+        )}
+        <button onClick={leaveRoom} className="flex items-center gap-2 text-gray-500 hover:text-red-400 font-bold py-3 px-6 transition">
+          <LogOut size={16} /> Quitter
         </button>
-      ) : (
-        <div className="flex items-center justify-center gap-3 text-gray-400 animate-pulse">
-          <Loader2 className="animate-spin" /> En attente du Host...
-        </div>
-      )}
+      </div>
     </div>
   );
 }
