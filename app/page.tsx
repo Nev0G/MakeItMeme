@@ -37,7 +37,7 @@ const shuffle = (arr) => {
 const DEFAULT_SETTINGS = { captionSeconds: 45, voteSeconds: 20, mediaPerPlayer: 1 };
 const MAX_FILE_MB = 25;
 // Incrémenter à chaque mise à jour livrée du jeu.
-const APP_VERSION = 'v8';
+const APP_VERSION = 'v9';
 
 const VersionBadge = () => (
   <div className="fixed bottom-2 right-3 text-[10px] text-gray-600 font-mono select-none pointer-events-none z-50">
@@ -584,7 +584,14 @@ export default function CaptionBattle() {
     </div>
   );
 
-  const GameLayout = ({ children }) => (
+  // IMPORTANT : ceci est une fonction ordinaire, pas un composant utilisé via
+  // renderGameLayout (fonction, pas composant JSX <GameLayout>). Un composant défini À L'INTÉRIEUR du rendu d'un autre
+  // composant change de "type" (nouvelle identité de fonction) à chaque
+  // re-render — et comme le chrono déclenche un re-render toutes les
+  // secondes, React démontait/remontait tout ce qu'il y avait dedans (y
+  // compris l'input fichier) en boucle, ce qui perdait silencieusement la
+  // sélection de fichier de l'utilisateur si elle prenait plus d'une seconde.
+  const renderGameLayout = (children) => (
     <div className="min-h-screen bg-gray-950 text-white flex flex-col md:flex-row gap-4 p-4">
       <VersionBadge />
       <div className="flex-1 flex flex-col max-w-2xl mx-auto md:mx-0 w-full">
@@ -762,7 +769,7 @@ export default function CaptionBattle() {
 
   if (gameState === 'upload') {
     return (
-      <GameLayout>
+      renderGameLayout(<>
         <div className="bg-gray-900 p-8 rounded-2xl w-full shadow-2xl border border-gray-800 text-center flex-1 flex flex-col justify-center">
           <h2 className="text-3xl font-black mb-2">Choisis ton arme</h2>
           <p className="text-gray-400 mb-8">
@@ -842,20 +849,20 @@ export default function CaptionBattle() {
             </button>
           )}
         </div>
-      </GameLayout>
+      </>)
     );
   }
 
   if (gameState === 'caption') {
     if (!currentMedia) {
       return (
-        <GameLayout>
+        renderGameLayout(<>
           <Waiting label="Préparation du round..." />
-        </GameLayout>
+        </>)
       );
     }
     return (
-      <GameLayout>
+      renderGameLayout(<>
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-black text-purple-400">
             Round {currentRoundIndex + 1}/{roundQueue.length}
@@ -910,22 +917,22 @@ export default function CaptionBattle() {
             <SkipForward size={16} /> Passer au vote quand même
           </button>
         )}
-      </GameLayout>
+      </>)
     );
   }
 
   if (gameState === 'vote') {
     if (!currentMedia) {
       return (
-        <GameLayout>
+        renderGameLayout(<>
           <Waiting label="Chargement du vote..." />
-        </GameLayout>
+        </>)
       );
     }
     const canIVote = captionsForRound.some((c) => c.author_id !== player.id);
 
     return (
-      <GameLayout>
+      renderGameLayout(<>
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-black text-purple-400">Vote — Round {currentRoundIndex + 1}/{roundQueue.length}</h2>
           <CountdownBadge seconds={secondsLeftFor(settings.voteSeconds)} />
@@ -964,13 +971,13 @@ export default function CaptionBattle() {
             <SkipForward size={16} /> Passer aux résultats quand même
           </button>
         )}
-      </GameLayout>
+      </>)
     );
   }
 
   if (gameState === 'round_result') {
     return (
-      <GameLayout>
+      renderGameLayout(<>
         <div className="flex flex-col items-center text-center">
           <Trophy size={48} className="text-yellow-400 mb-4" />
           <h2 className="text-2xl font-black mb-1">Résultats — Round {currentRoundIndex + 1}/{roundQueue.length}</h2>
@@ -1005,7 +1012,7 @@ export default function CaptionBattle() {
             </div>
           )}
         </div>
-      </GameLayout>
+      </>)
     );
   }
 
