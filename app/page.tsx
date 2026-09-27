@@ -37,7 +37,7 @@ const shuffle = (arr) => {
 const DEFAULT_SETTINGS = { captionSeconds: 45, voteSeconds: 20, mediaPerPlayer: 1 };
 const MAX_FILE_MB = 25;
 // Incrémenter à chaque mise à jour livrée du jeu.
-const APP_VERSION = 'v7';
+const APP_VERSION = 'v8';
 
 const VersionBadge = () => (
   <div className="fixed bottom-2 right-3 text-[10px] text-gray-600 font-mono select-none pointer-events-none z-50">
@@ -799,12 +799,8 @@ export default function CaptionBattle() {
             />
           ) : (
             <div className="space-y-4">
-              <button
-                type="button"
-                onClick={() => {
-                  pushDebug('bouton "uploader" cliqué');
-                  fileInputRef.current?.click();
-                }}
+              <label
+                onClick={() => pushDebug('label "uploader" cliqué (ouverture sélecteur système attendue)')}
                 className="relative flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-gray-600 hover:border-purple-500 hover:bg-purple-900/10 rounded-xl cursor-pointer transition group"
               >
                 <div className="flex gap-4 text-gray-400 group-hover:text-purple-400 mb-3">
@@ -814,14 +810,17 @@ export default function CaptionBattle() {
                 </div>
                 <span className="font-bold">Cliquer pour uploader un fichier ({myUploadCount}/{settings.mediaPerPlayer})</span>
                 <span className="text-xs text-gray-500 mt-2">JPG, PNG, GIF, MP4, MP3</span>
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                accept="image/*,video/mp4,audio/*"
-                onChange={handleFileUpload}
-              />
+                {/* sr-only plutôt que "hidden" (display:none) : certains navigateurs/webviews
+                    refusent d'ouvrir le sélecteur système sur un input display:none,
+                    que ce soit via clic natif du label ou via .click() en JS. */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="sr-only"
+                  accept="image/*,video/mp4,audio/*"
+                  onChange={handleFileUpload}
+                />
+              </label>
             </div>
           )}
 
