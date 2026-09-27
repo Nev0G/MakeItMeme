@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import {
   Play, Image as ImageIcon, Video, Music, Send, Trophy, Users, Loader2,
-  Crown, ThumbsUp, SkipForward, Settings, Copy, LogOut, Check,
+  Crown, ThumbsUp, SkipForward, Settings, Copy, LogOut, Check, Download,
 } from 'lucide-react';
 
 // ==========================================
@@ -39,7 +39,7 @@ const MAX_FILE_MB = 25;
 const MAX_NAME_LEN = 20;
 const MAX_CAPTION_LEN = 140;
 // Incrémenter à chaque mise à jour livrée du jeu.
-const APP_VERSION = 'v10';
+const APP_VERSION = 'v11';
 
 const PLAYER_COLORS = ['#a855f7', '#ec4899', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#f43f5e'];
 const colorForPlayer = (id) => {
@@ -90,6 +90,111 @@ const CountdownBadge = ({ seconds }) => (
   <div className={`bg-gray-900 px-4 py-2 rounded-full font-bold font-mono border ${seconds <= 5 ? 'border-red-500 text-red-400' : 'border-gray-800'}`}>
     {seconds > 0 ? `⏳ ${seconds}s` : '⏰ Terminé'}
   </div>
+);
+
+const isImageMedia = (media) => !media?.type || (!media.type.includes('video') && !media.type.includes('audio'));
+
+const DownloadButton = ({ onClick, className = '' }) => (
+  <button
+    onClick={onClick}
+    title="Télécharger le média"
+    className={`bg-black/60 hover:bg-black/80 text-white p-2 rounded-lg transition ${className}`}
+  >
+    <Download size={16} />
+  </button>
+);
+
+const MediaWithDownload = ({ media, onDownload }) => (
+  <div className="relative">
+    <MediaPlayer src={media.url} type={media.type} />
+    <DownloadButton onClick={() => onDownload(media)} className="absolute top-2 right-2" />
+  </div>
+);
+
+// Carte "meme" pour le vote : légende incrustée directement sur l'image, comme
+// un vrai meme. N'affiche l'image qu'une fois par carte (donc uniquement
+// pertinent pour des images ; vidéo/audio utilisent CaptionChoiceCard pour
+// éviter de dupliquer un lecteur audio/vidéo par carte).
+const MemeVoteCard = ({ media, caption, isMine, isSelected, disabled, shortcut, onVote, onDownload }) => (
+  <div
+    className={`relative rounded-2xl overflow-hidden border-2 transition shadow-xl bg-gray-900 flex flex-col ${
+      isSelected ? 'border-purple-500 ring-2 ring-purple-500' : isMine ? 'border-gray-700' : 'border-gray-800 hover:border-purple-500'
+    }`}
+  >
+    {isMine && (
+      <span className="absolute top-2 left-2 z-10 text-[10px] font-bold bg-gray-800/90 text-gray-300 px-2 py-1 rounded-full">
+        C'est la tienne
+      </span>
+    )}
+    {!isMine && shortcut && !disabled && (
+      <span className="absolute top-2 left-2 z-10 text-xs font-black bg-purple-600 text-white w-6 h-6 flex items-center justify-center rounded-full">
+        {shortcut}
+      </span>
+    )}
+    <DownloadButton onClick={() => onDownload(media)} className="absolute top-2 right-2 z-10" />
+
+    <div className="relative">
+      <img src={media.url} alt="" className="w-full h-56 object-cover" />
+      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/80 to-transparent p-4 pt-10">
+        <p
+          className="text-white font-black text-lg leading-tight"
+          style={{ textShadow: '1.5px 1.5px 0 #000, -1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000' }}
+        >
+          "{caption}"
+        </p>
+      </div>
+    </div>
+
+    <button
+      onClick={onVote}
+      disabled={disabled}
+      className={`w-full py-3 flex items-center justify-center gap-2 font-bold transition ${
+        disabled ? 'bg-gray-800 text-gray-500 cursor-default' : 'bg-purple-600 hover:bg-purple-500 text-white'
+      }`}
+    >
+      {isSelected ? (
+        <>
+          <Check size={18} /> Ton vote
+        </>
+      ) : isMine ? (
+        'Pas votable'
+      ) : (
+        <>
+          <ThumbsUp size={18} /> Voter {shortcut ? `(${shortcut})` : ''}
+        </>
+      )}
+    </button>
+  </div>
+);
+
+// Carte texte pour le vote (utilisée quand le média est une vidéo/audio, pour
+// ne pas dupliquer le lecteur — et donc le son — une fois par légende).
+const CaptionChoiceCard = ({ caption, isMine, isSelected, disabled, shortcut, onVote }) => (
+  <button
+    onClick={onVote}
+    disabled={disabled}
+    className={`text-left rounded-xl p-4 border-2 transition flex items-center justify-between gap-3 ${
+      isSelected
+        ? 'border-purple-500 bg-purple-900/30'
+        : isMine
+        ? 'border-gray-700 bg-gray-900 cursor-default'
+        : 'border-gray-700 bg-gray-800 hover:border-purple-500 hover:bg-purple-900/20'
+    }`}
+  >
+    <span className="font-bold text-lg">
+      {isMine && (
+        <span className="text-[10px] font-bold bg-gray-700 text-gray-300 px-2 py-1 rounded-full mr-2 align-middle">
+          TIENNE
+        </span>
+      )}
+      "{caption}"
+    </span>
+    {isSelected ? (
+      <Check size={20} className="text-purple-400 shrink-0" />
+    ) : (
+      !isMine && !disabled && <span className="text-xs text-gray-500 shrink-0 font-mono">{shortcut}</span>
+    )}
+  </button>
 );
 
 // ==========================================
@@ -515,6 +620,47 @@ export default function CaptionBattle() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [votes, isHost, gameState, currentMediaId, players.length]);
 
+  // Ordre mélangé des légendes pour le vote (stable tant que le set de légendes du round ne change pas)
+  const shuffledCaptionsForRound = useMemo(
+    () => shuffle(captionsForRound),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [captionsForRound.map((c) => c.author_id).join(','), currentMediaId]
+  );
+
+  // Raccourcis clavier 1-9 pour voter rapidement pendant la phase de vote
+  useEffect(() => {
+    if (gameState !== 'vote' || myVoteForRound) return;
+    const votable = shuffledCaptionsForRound.filter((c) => c.author_id !== player.id);
+    const handler = (e) => {
+      const n = parseInt(e.key, 10);
+      if (!n || n < 1) return;
+      const target = votable[n - 1];
+      if (target) castVote(target.author_id);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState, myVoteForRound, shuffledCaptionsForRound, player.id]);
+
+  const downloadMedia = async (media) => {
+    try {
+      const res = await fetch(media.url);
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const ext = (media.url.split('.').pop() || 'jpg').split('?')[0];
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `caption-battle-${media.id}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error('Téléchargement impossible, ouverture dans un nouvel onglet :', err);
+      window.open(media.url, '_blank');
+    }
+  };
+
   const roundScoreboard = useMemo(() => {
     const tally = {};
     votesForRound.forEach((v) => {
@@ -911,7 +1057,7 @@ export default function CaptionBattle() {
               <span className="text-purple-400 font-bold">{currentMedia.owner_name}</span>
             </p>
             <div className="w-full bg-gray-900 p-4 rounded-2xl border border-gray-800 mb-6 shadow-2xl">
-              <MediaPlayer src={currentMedia.url} type={currentMedia.type} />
+              <MediaWithDownload media={currentMedia} onDownload={downloadMedia} />
             </div>
 
             <div className="w-full relative">
@@ -958,37 +1104,68 @@ export default function CaptionBattle() {
       );
     }
     const canIVote = captionsForRound.some((c) => c.author_id !== player.id);
+    const useMemeCards = isImageMedia(currentMedia);
+    let voteIdx = 0;
 
     return (
       renderGameLayout(<>
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-black text-purple-400">Vote — Round {currentRoundIndex + 1}/{roundQueue.length}</h2>
           <CountdownBadge seconds={secondsLeftFor(settings.voteSeconds)} />
         </div>
 
-        <div className="w-full bg-gray-900 p-4 rounded-2xl border border-gray-800 mb-6 shadow-2xl">
-          <MediaPlayer src={currentMedia.url} type={currentMedia.type} />
-        </div>
+        {!useMemeCards && (
+          <div className="w-full bg-gray-900 p-4 rounded-2xl border border-gray-800 mb-4 shadow-2xl">
+            <MediaWithDownload media={currentMedia} onDownload={downloadMedia} />
+          </div>
+        )}
 
         {!canIVote ? (
           <Waiting label="Aucune légende à voter pour toi ce round." sub="En attente des autres..." />
-        ) : myVoteForRound ? (
-          <Waiting label={`En attente des autres votes... (${votesForRound.length}/${eligibleVoters.length})`} />
         ) : (
-          <div className="space-y-3">
-            {captionsForRound
-              .filter((c) => c.author_id !== player.id)
-              .map((c) => (
-                <button
-                  key={c.author_id}
-                  onClick={() => castVote(c.author_id)}
-                  className="w-full text-left bg-gray-800 hover:bg-purple-900/40 hover:border-purple-500 border border-gray-700 rounded-xl p-4 transition flex items-center justify-between gap-3"
-                >
-                  <span className="font-bold text-lg">"{c.text}"</span>
-                  <ThumbsUp size={20} className="text-purple-400 shrink-0" />
-                </button>
-              ))}
-          </div>
+          <>
+            {myVoteForRound && (
+              <p className="text-center text-sm text-gray-500 mb-3">
+                Vote enregistré — en attente des autres... ({votesForRound.length}/{eligibleVoters.length})
+              </p>
+            )}
+            {!myVoteForRound && !useMemeCards && (
+              <p className="text-center text-xs text-gray-600 mb-3">Astuce : les touches 1-9 votent directement.</p>
+            )}
+
+            <div className={useMemeCards ? 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4' : 'space-y-3'}>
+              {shuffledCaptionsForRound.map((c) => {
+                const isMine = c.author_id === player.id;
+                const isSelected = myVoteForRound?.caption_author_id === c.author_id;
+                const disabled = isMine || !!myVoteForRound;
+                const shortcut = isMine ? null : ++voteIdx;
+
+                return useMemeCards ? (
+                  <MemeVoteCard
+                    key={c.author_id}
+                    media={currentMedia}
+                    caption={c.text}
+                    isMine={isMine}
+                    isSelected={isSelected}
+                    disabled={disabled}
+                    shortcut={shortcut}
+                    onVote={() => castVote(c.author_id)}
+                    onDownload={downloadMedia}
+                  />
+                ) : (
+                  <CaptionChoiceCard
+                    key={c.author_id}
+                    caption={c.text}
+                    isMine={isMine}
+                    isSelected={isSelected}
+                    disabled={disabled}
+                    shortcut={shortcut}
+                    onVote={() => castVote(c.author_id)}
+                  />
+                );
+              })}
+            </div>
+          </>
         )}
 
         {isHost && (
@@ -1011,7 +1188,7 @@ export default function CaptionBattle() {
           <h2 className="text-2xl font-black mb-1">Résultats — Round {currentRoundIndex + 1}/{roundQueue.length}</h2>
           {currentMedia && (
             <div className="w-full bg-gray-900 p-4 rounded-2xl border border-gray-800 my-4 shadow-2xl">
-              <MediaPlayer src={currentMedia.url} type={currentMedia.type} />
+              <MediaWithDownload media={currentMedia} onDownload={downloadMedia} />
             </div>
           )}
           <div className="w-full space-y-2 mb-6">
