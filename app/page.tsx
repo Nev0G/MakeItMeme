@@ -312,7 +312,7 @@ const MAX_FILE_MB = 25;
 const MAX_NAME_LEN = 20;
 const MAX_CAPTION_LEN = 140;
 // Incrémenter à chaque mise à jour livrée du jeu.
-const APP_VERSION = 'v14';
+const APP_VERSION = 'v15';
 
 const PLAYER_COLORS = ['#a855f7', '#ec4899', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#f43f5e'];
 const colorForPlayer = (id) => {
@@ -350,9 +350,13 @@ const VersionBadge = () => (
 // ==========================================
 const MediaPlayer = ({ src, type }) => {
   if (!src) return null;
+  // w-auto/h-auto (plutôt que w-full) : le média garde ses proportions
+  // naturelles et se centre, au lieu d'être forcé sur toute la largeur puis
+  // réduit à une bande minuscule pour les vidéos/images au format portrait.
+  const sizingClasses = 'max-w-full max-h-[65vh] w-auto h-auto block mx-auto object-contain rounded-lg border-2 border-gray-700';
 
   if (type && type.includes('video')) {
-    return <video src={src} controls autoPlay loop className="max-h-64 w-full object-contain rounded-lg border-2 border-gray-700" />;
+    return <video src={src} controls autoPlay loop className={sizingClasses} />;
   }
   if (type && type.includes('audio')) {
     return (
@@ -362,7 +366,7 @@ const MediaPlayer = ({ src, type }) => {
       </div>
     );
   }
-  return <img src={src} alt="Média à captionner" className="max-h-64 w-full object-contain rounded-lg border-2 border-gray-700" />;
+  return <img src={src} alt="Média à captionner" className={sizingClasses} />;
 };
 
 const FUN_WAITING_PHRASES = [
@@ -1260,7 +1264,7 @@ export default function CaptionBattle() {
           <p className="text-xs text-gray-500">Ça prend la durée de la vidéo, patience 🙏</p>
         </div>
       )}
-      <div className="w-full max-w-6xl flex flex-col md:flex-row gap-4">
+      <div className="w-full max-w-[100rem] flex flex-col md:flex-row gap-4">
         {renderSidebar()}
         <div className="flex-1 min-w-0 flex flex-col">{mainContent}</div>
       </div>
