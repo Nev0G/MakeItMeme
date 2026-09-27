@@ -36,8 +36,21 @@ const shuffle = (arr) => {
 
 const DEFAULT_SETTINGS = { captionSeconds: 45, voteSeconds: 20, mediaPerPlayer: 1 };
 const MAX_FILE_MB = 25;
+const MAX_NAME_LEN = 20;
+const MAX_CAPTION_LEN = 140;
 // Incrémenter à chaque mise à jour livrée du jeu.
-const APP_VERSION = 'v9';
+const APP_VERSION = 'v10';
+
+const PLAYER_COLORS = ['#a855f7', '#ec4899', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#f43f5e'];
+const colorForPlayer = (id) => {
+  if (!id) return PLAYER_COLORS[0];
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  return PLAYER_COLORS[hash % PLAYER_COLORS.length];
+};
+const PlayerDot = ({ id }) => (
+  <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: colorForPlayer(id) }} />
+);
 
 const VersionBadge = () => (
   <div className="fixed bottom-2 right-3 text-[10px] text-gray-600 font-mono select-none pointer-events-none z-50">
@@ -94,13 +107,10 @@ export default function CaptionBattle() {
   const [medias, setMedias] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState(null);
-  const [debugLog, setDebugLog] = useState([]);
   const fileInputRef = useRef(null);
 
   const pushDebug = (msg) => {
-    const line = `${new Date().toLocaleTimeString()} — ${msg}`;
     console.log('[upload]', msg);
-    setDebugLog((prev) => [...prev.slice(-5), line]);
   };
   const [roundQueue, setRoundQueue] = useState([]); // liste d'ids de médias, 1 par round
   const [currentRoundIndex, setCurrentRoundIndex] = useState(0);
@@ -139,6 +149,13 @@ export default function CaptionBattle() {
     return () => {
       if (channelRef.current) supabase.removeChannel(channelRef.current);
     };
+  }, []);
+
+  // Pré-remplit le code de room si on arrive via un lien d'invitation (?room=XXXX)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const roomParam = new URLSearchParams(window.location.search).get('room');
+    if (roomParam) setJoinCode(roomParam.toUpperCase());
   }, []);
 
   // ==========================================
@@ -330,8 +347,12 @@ export default function CaptionBattle() {
 
   const copyCode = async () => {
     if (!room?.code) return;
+    const link =
+      typeof window !== 'undefined'
+        ? `${window.location.origin}${window.location.pathname}?room=${room.code}`
+        : room.code;
     try {
-      await navigator.clipboard.writeText(room.code);
+      await navigator.clipboard.writeText(link);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -564,7 +585,8 @@ export default function CaptionBattle() {
                 p.id === player.id ? 'bg-purple-900/40 border border-purple-600' : 'bg-gray-800'
               }`}
             >
-              <span className="font-bold truncate flex items-center gap-1">
+              <span className="font-bold truncate flex items-center gap-1.5">
+                <PlayerDot id={p.id} />
                 {i === 0 && (cumulativeScores[p.id] || 0) > 0 && <Crown size={14} className="text-yellow-400" />}
                 {p.name}
               </span>
@@ -592,13 +614,15 @@ export default function CaptionBattle() {
   // compris l'input fichier) en boucle, ce qui perdait silencieusement la
   // sélection de fichier de l'utilisateur si elle prenait plus d'une seconde.
   const renderGameLayout = (children) => (
-    <div className="min-h-screen bg-gray-950 text-white flex flex-col md:flex-row gap-4 p-4">
+    <div className="min-h-screen bg-gray-950 text-white flex justify-center p-4">
       <VersionBadge />
-      <div className="flex-1 flex flex-col max-w-2xl mx-auto md:mx-0 w-full">
-        {renderTopBar()}
-        {children}
+      <div className="w-full max-w-5xl flex flex-col md:flex-row gap-4">
+        <div className="flex-1 flex flex-col w-full md:max-w-2xl">
+          {renderTopBar()}
+          {children}
+        </div>
+        {renderScoreboard()}
       </div>
-      {renderScoreboard()}
     </div>
   );
 
@@ -619,6 +643,8 @@ export default function CaptionBattle() {
             type="text"
             placeholder="Ton Pseudo..."
             value={player.name}
+            maxLength={MAX_NAME_LEN}
+            autoFocus
             onChange={(e) => setPlayer({ ...player, name: e.target.value })}
             className="w-full p-4 bg-gray-950 border border-gray-700 rounded-lg text-white font-bold text-lg text-center mb-6 focus:border-purple-500 focus:outline-none transition"
           />
@@ -684,7 +710,7 @@ export default function CaptionBattle() {
               className="absolute right-3 bottom-3 flex items-center gap-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold px-3 py-2 rounded-lg transition"
             >
               {copied ? <Check size={14} /> : <Copy size={14} />}
-              {copied ? 'Copié !' : 'Copier'}
+              {copied ? 'Lien copié !' : "Copier l'invitation"}
             </button>
           </div>
 
@@ -695,17 +721,23 @@ export default function CaptionBattle() {
             <div className="grid grid-cols-2 gap-3">
               {players.map((p) => (
                 <div key={p.id} className="bg-gray-800 py-3 px-4 rounded-lg font-bold flex items-center gap-3">
-                  <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                  {p.name} {p.id === hostId && <span className="text-xs text-purple-400 bg-purple-900/30 px-2 py-1 rounded">HOST</span>}
+                  <PlayerDot id={p.id} />
+                  <span className="truncate">{p.name}</span>
+                  {p.id === hostId && <span className="text-xs text-purple-400 bg-purple-900/30 px-2 py-1 rounded shrink-0">HOST</span>}
                 </div>
               ))}
             </div>
           </div>
 
           <div className="text-left mb-8 bg-gray-950 border border-gray-800 rounded-xl p-4">
-            <h3 className="flex items-center gap-2 text-gray-400 font-bold mb-4 uppercase text-sm">
+            <h3 className="flex items-center gap-2 text-gray-400 font-bold mb-1 uppercase text-sm">
               <Settings size={16} /> Paramètres de la partie
             </h3>
+            {players.length > 0 && (
+              <p className="text-xs text-gray-500 mb-3">
+                → {players.length * settings.mediaPerPlayer} round{players.length * settings.mediaPerPlayer > 1 ? 's' : ''} au total
+              </p>
+            )}
             <div className="grid grid-cols-3 gap-3 text-sm">
               <div>
                 <label className="block text-gray-500 mb-1 text-xs">Temps légende</label>
@@ -831,14 +863,6 @@ export default function CaptionBattle() {
             </div>
           )}
 
-          {debugLog.length > 0 && (
-            <div className="mt-4 text-left bg-black/60 border border-gray-800 rounded-lg p-3 font-mono text-[11px] text-gray-400 space-y-1 max-h-32 overflow-y-auto">
-              {debugLog.map((line, i) => (
-                <div key={i}>{line}</div>
-              ))}
-            </div>
-          )}
-
           {isHost && !uploading && (
             <button
               onClick={launchGame}
@@ -882,8 +906,9 @@ export default function CaptionBattle() {
           />
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center">
-            <p className="text-gray-400 mb-3 text-sm">
-              Média envoyé par <span className="text-purple-400 font-bold">{currentMedia.owner_name}</span>
+            <p className="text-gray-400 mb-3 text-sm flex items-center gap-1.5">
+              Média envoyé par <PlayerDot id={currentMedia.owner_id} />
+              <span className="text-purple-400 font-bold">{currentMedia.owner_name}</span>
             </p>
             <div className="w-full bg-gray-900 p-4 rounded-2xl border border-gray-800 mb-6 shadow-2xl">
               <MediaPlayer src={currentMedia.url} type={currentMedia.type} />
@@ -894,6 +919,8 @@ export default function CaptionBattle() {
                 type="text"
                 placeholder="Écris la meilleure légende possible..."
                 value={myCaption}
+                maxLength={MAX_CAPTION_LEN}
+                autoFocus
                 onChange={(e) => setMyCaption(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && submitCaption()}
                 className="w-full p-5 pl-6 pr-16 bg-gray-800 border-2 border-gray-700 rounded-xl text-white font-bold text-lg focus:border-purple-500 focus:outline-none transition shadow-lg"
@@ -906,6 +933,7 @@ export default function CaptionBattle() {
                 <Send size={20} />
               </button>
             </div>
+            <p className="text-xs text-gray-600 mt-2 self-end">{myCaption.length}/{MAX_CAPTION_LEN}</p>
           </div>
         )}
 
@@ -994,7 +1022,9 @@ export default function CaptionBattle() {
                 <div key={c.author_id} className="flex items-center justify-between bg-gray-800 rounded-lg px-4 py-3">
                   <div className="text-left">
                     <p className="font-bold">"{c.text}"</p>
-                    <p className="text-xs text-gray-500">par {c.author_name}</p>
+                    <p className="text-xs text-gray-500 flex items-center gap-1">
+                      <PlayerDot id={c.author_id} /> par {c.author_name}
+                    </p>
                   </div>
                   <span className="font-black text-purple-300 shrink-0 ml-3">+{c.points}</span>
                 </div>
