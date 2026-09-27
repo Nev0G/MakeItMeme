@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { Play, Image as ImageIcon, Video, Music, Link as LinkIcon, Send, Trophy, Users, Loader2 } from 'lucide-react';
@@ -5,9 +7,8 @@ import { Play, Image as ImageIcon, Video, Music, Link as LinkIcon, Send, Trophy,
 // ==========================================
 // 1. CONFIGURATION SUPABASE
 // ==========================================
-// Assure-toi d'avoir ces variables dans ton .env.local
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://hidtcsztkjpqngwlrzqy.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_CREIog57Ep_e7sUZ0rx-VA_8ooqaGTJ';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ton-projet.supabase.co';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'ta-cle-publique';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // ==========================================
@@ -27,7 +28,6 @@ const MediaPlayer = ({ src, type }) => {
       </div>
     );
   }
-  // Par défaut (Image / GIF)
   return <img src={src} alt="Média à captionner" className="max-h-64 w-full object-contain rounded-lg border-2 border-gray-700" />;
 };
 
@@ -35,38 +35,23 @@ const MediaPlayer = ({ src, type }) => {
 // APPLICATION PRINCIPALE
 // ==========================================
 export default function CaptionBattle() {
-  // États globaux
-  const [gameState, setGameState] = useState('home'); // home, lobby, upload, caption, vote, scores
+  const [gameState, setGameState] = useState('home');
   const [player, setPlayer] = useState({ id: null, name: '' });
-  const [room, setRoom] = useState(null); // { id, code, host_id }
+  const [room, setRoom] = useState(null);
   const [players, setPlayers] = useState([]);
   
-  // États de jeu
-  const [medias, setMedias] = useState([]); // { url, type, owner_id }
-  const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
-  const [captions, setCaptions] = useState([]);
-  
-  // États UI temporaires
+  const [medias, setMedias] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [myCaption, setMyCaption] = useState('');
   
-  // ==========================================
-  // LOGIQUE TEMPS RÉEL SUPABASE
-  // ==========================================
   useEffect(() => {
     if (!room?.id) return;
 
-    // S'abonner aux changements de la room en temps réel
     const roomChannel = supabase.channel(`room:${room.id}`)
       .on('broadcast', { event: 'game_update' }, (payload) => {
-        // Synchroniser l'état du jeu avec les autres joueurs
         if (payload.payload.newState) {
           setGameState(payload.payload.newState);
         }
-      })
-      .on('presence', { event: 'sync' }, () => {
-        // Optionnel : Gérer l'arrivée / départ des joueurs via Presence
-        // const newState = roomChannel.presenceState();
       })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
@@ -74,15 +59,10 @@ export default function CaptionBattle() {
         }
       });
 
-    // Cleanup quand on quitte
     return () => { supabase.removeChannel(roomChannel); };
   }, [room?.id, player]);
 
-  // ==========================================
-  // ACTIONS DE JEU
-  // ==========================================
   const createRoom = () => {
-    // Pour un vrai jeu, faire un `await supabase.from('rooms').insert(...)`
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     const newPlayerId = 'p_' + Math.random().toString(36).substr(2, 9);
     
@@ -93,7 +73,6 @@ export default function CaptionBattle() {
   };
 
   const startGame = () => {
-    // Diffuser le changement d'état via Supabase pour tous les joueurs
     supabase.channel(`room:${room.id}`).send({
       type: 'broadcast',
       event: 'game_update',
@@ -102,38 +81,23 @@ export default function CaptionBattle() {
     setGameState('upload');
   };
 
-  // ==========================================
-  // FONCTION D'UPLOAD VERS SUPABASE STORAGE
-  // ==========================================
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
     setUploading(true);
     try {
-      // 1. Préparer le nom du fichier sécurisé
       const fileExt = file.name.split('.').pop();
       const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
-      const filePath = `${room.code}/${fileName}`; // Dossier organisé par room
+      const filePath = `${room.code}/${fileName}`;
 
-      // 2. Uploader dans le bucket 'game-media'
-      const { error } = await supabase.storage
-        .from('game-media')
-        .upload(filePath, file);
-
+      const { error } = await supabase.storage.from('game-media').upload(filePath, file);
       if (error) throw error;
 
-      // 3. Récupérer l'URL publique
-      const { data: { publicUrl } } = supabase.storage
-        .from('game-media')
-        .getPublicUrl(filePath);
+      const { data: { publicUrl } } = supabase.storage.from('game-media').getPublicUrl(filePath);
 
-      // 4. Enregistrer dans la DB Supabase
-      // await supabase.from('medias').insert({ room_id: room.id, url: publicUrl, type: file.type, owner_id: player.id })
-      
-      // En local pour la démo
       setMedias((prev) => [...prev, { url: publicUrl, type: file.type, owner_id: player.id }]);
-      setGameState('caption'); // On avance automatiquement (Normalement géré quand tout le monde a uploadé)
+      setGameState('caption');
       
     } catch (error) {
       console.error("Erreur d'upload :", error.message);
@@ -143,10 +107,6 @@ export default function CaptionBattle() {
     }
   };
 
-  // ==========================================
-  // RENDUS DES ÉCRANS
-  // ==========================================
-  
   if (gameState === 'home') {
     return (
       <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center p-4">
@@ -240,7 +200,6 @@ export default function CaptionBattle() {
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Bouton d'upload Fichier */}
               <label className="relative flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-gray-600 hover:border-purple-500 hover:bg-purple-900/10 rounded-xl cursor-pointer transition group">
                 <div className="flex gap-4 text-gray-400 group-hover:text-purple-400 mb-3">
                   <ImageIcon size={32} />
@@ -248,7 +207,7 @@ export default function CaptionBattle() {
                   <Music size={32} />
                 </div>
                 <span className="font-bold">Cliquer pour uploader un fichier</span>
-                <span className="text-xs text-gray-500 mt-2">JPG, PNG, GIF, MP4, MP3 (Max 50MB)</span>
+                <span className="text-xs text-gray-500 mt-2">JPG, PNG, GIF, MP4, MP3</span>
                 <input type="file" className="hidden" accept="image/*,video/mp4,audio/*" onChange={handleFileUpload} />
               </label>
               
@@ -258,9 +217,8 @@ export default function CaptionBattle() {
                 <div className="flex-grow border-t border-gray-700"></div>
               </div>
 
-              {/* Bouton d'upload via URL */}
               <div className="flex gap-2">
-                <input type="url" placeholder="Coller un lien externe (Imgur, etc.)" className="w-full p-4 bg-gray-950 border border-gray-700 rounded-lg text-white placeholder-gray-600 focus:border-purple-500" />
+                <input type="url" placeholder="Coller un lien externe..." className="w-full p-4 bg-gray-950 border border-gray-700 rounded-lg text-white placeholder-gray-600 focus:border-purple-500" />
                 <button className="bg-gray-800 hover:bg-gray-700 text-white p-4 rounded-lg transition">
                   <LinkIcon size={24} />
                 </button>
@@ -272,7 +230,6 @@ export default function CaptionBattle() {
     );
   }
 
-  // ÉCRANS SUIVANTS (Caption, Vote, Scores)
   if (gameState === 'caption') {
     const currentMedia = medias[0] || { url: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3B4emYyaHhxeHh5eHhxeHhxeHhxeHhxeHhxeHhxeHhxeHhxeHhxeA/3o7TKSjRrfIPjeiVyM/giphy.gif', type: 'image/gif' };
     
@@ -310,7 +267,6 @@ export default function CaptionBattle() {
     );
   }
 
-  // Écran final de transition/vote (Fallback)
   return (
     <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center p-4">
       <div className="text-center">
