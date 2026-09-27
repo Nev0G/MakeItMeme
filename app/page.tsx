@@ -312,7 +312,7 @@ const MAX_FILE_MB = 25;
 const MAX_NAME_LEN = 20;
 const MAX_CAPTION_LEN = 140;
 // Incrémenter à chaque mise à jour livrée du jeu.
-const APP_VERSION = 'v16';
+const APP_VERSION = 'v17';
 
 const PLAYER_COLORS = ['#a855f7', '#ec4899', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#f43f5e'];
 const colorForPlayer = (id) => {
@@ -465,7 +465,7 @@ const MemeVoteCard = ({ media, caption, isMine, isSelected, disabled, onVote, on
         <img src={media.url} alt="" className="w-full max-h-80 object-contain" />
       </div>
       <div className="bg-white text-gray-900 px-4 py-3">
-        <p className="font-black text-lg leading-snug break-words [overflow-wrap:anywhere]">"{caption}"</p>
+        <p className="font-black text-lg leading-snug text-center break-words [overflow-wrap:anywhere]">"{caption}"</p>
       </div>
 
       <button
