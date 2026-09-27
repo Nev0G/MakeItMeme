@@ -13,6 +13,15 @@ import {
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://hidtcsztkjpqngwlrzqy.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_CREIog57Ep_e7sUZ0rx-VA_8ooqaGTJ';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Si les variables d'env ne sont pas configurées sur Vercel, on tourne sur un
+// projet Supabase de démo qui n'a ni bucket ni base : tout upload y restera bloqué.
+const USING_FALLBACK_SUPABASE = !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+const withTimeout = (promise, ms, message) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms)),
+  ]);
 
 const makeId = (prefix) => `${prefix}_${Math.random().toString(36).slice(2, 11)}`;
 
@@ -28,7 +37,7 @@ const shuffle = (arr) => {
 const DEFAULT_SETTINGS = { captionSeconds: 45, voteSeconds: 20, mediaPerPlayer: 1 };
 const MAX_FILE_MB = 25;
 // Incrémenter à chaque mise à jour livrée du jeu.
-const APP_VERSION = 'v4';
+const APP_VERSION = 'v5';
 
 const VersionBadge = () => (
   <div className="fixed bottom-2 right-3 text-[10px] text-gray-600 font-mono select-none pointer-events-none z-50">
@@ -344,7 +353,11 @@ export default function CaptionBattle() {
       const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
       const filePath = `${room.code}/${fileName}`;
 
-      const { error } = await supabase.storage.from('game-media').upload(filePath, file);
+      const { error } = await withTimeout(
+        supabase.storage.from('game-media').upload(filePath, file),
+        20000,
+        'Le serveur Supabase ne répond pas (délai dépassé). Vérifie ta connexion et la configuration Supabase.'
+      );
       if (error) throw error;
 
       const { data: { publicUrl } } = supabase.storage.from('game-media').getPublicUrl(filePath);
@@ -732,6 +745,18 @@ export default function CaptionBattle() {
           <p className="text-gray-400 mb-8">
             Upload {settings.mediaPerPlayer > 1 ? `${settings.mediaPerPlayer} médias` : 'un média'} (image, GIF, vidéo ou audio, {MAX_FILE_MB}Mo max). Chacun sera captionné par les autres !
           </p>
+
+          {USING_FALLBACK_SUPABASE && (
+            <div className="mb-4 text-left bg-yellow-950/50 border border-yellow-700 text-yellow-300 text-sm rounded-lg p-4">
+              <p className="font-bold mb-1">⚠️ Config Supabase non détectée</p>
+              <p>
+                Les variables <code>NEXT_PUBLIC_SUPABASE_URL</code> et <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> ne
+                semblent pas configurées sur Vercel. Le jeu tourne sur un projet Supabase de démo sans bucket — les
+                uploads resteront bloqués. Ajoute-les dans Vercel → Project Settings → Environment Variables, avec
+                les valeurs de <em>ton</em> projet Supabase, puis redéploie.
+              </p>
+            </div>
+          )}
 
           {uploadError && (
             <div className="mb-4 text-left bg-red-950/50 border border-red-800 text-red-300 text-sm rounded-lg p-4">
