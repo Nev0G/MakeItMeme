@@ -133,6 +133,59 @@ const triggerBlobDownload = (blob, filename) => {
   URL.revokeObjectURL(blobUrl);
 };
 
+// Petite pluie de confettis vanilla (canvas), sans dépendance externe.
+const fireConfetti = () => {
+  if (typeof document === 'undefined') return;
+  const canvas = document.createElement('canvas');
+  canvas.style.position = 'fixed';
+  canvas.style.inset = '0';
+  canvas.style.width = '100vw';
+  canvas.style.height = '100vh';
+  canvas.style.pointerEvents = 'none';
+  canvas.style.zIndex = '9999';
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+
+  const colors = ['#a855f7', '#ec4899', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6'];
+  const pieces = Array.from({ length: 140 }, () => ({
+    x: Math.random() * canvas.width,
+    y: -20 - Math.random() * canvas.height * 0.5,
+    size: 6 + Math.random() * 6,
+    color: colors[Math.floor(Math.random() * colors.length)],
+    speedY: 2 + Math.random() * 3,
+    speedX: -1.5 + Math.random() * 3,
+    rotation: Math.random() * 360,
+    rotationSpeed: -8 + Math.random() * 16,
+  }));
+
+  const start = Date.now();
+  const duration = 3200;
+
+  const tick = () => {
+    const elapsed = Date.now() - start;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    pieces.forEach((p) => {
+      p.x += p.speedX;
+      p.y += p.speedY;
+      p.rotation += p.rotationSpeed;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate((p.rotation * Math.PI) / 180);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+      ctx.restore();
+    });
+    if (elapsed < duration) {
+      requestAnimationFrame(tick);
+    } else {
+      canvas.remove();
+    }
+  };
+  requestAnimationFrame(tick);
+};
+
 const shuffle = (arr) => {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -147,7 +200,7 @@ const MAX_FILE_MB = 25;
 const MAX_NAME_LEN = 20;
 const MAX_CAPTION_LEN = 140;
 // Incrémenter à chaque mise à jour livrée du jeu.
-const APP_VERSION = 'v12';
+const APP_VERSION = 'v13';
 
 const PLAYER_COLORS = ['#a855f7', '#ec4899', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#f43f5e'];
 const colorForPlayer = (id) => {
@@ -156,9 +209,23 @@ const colorForPlayer = (id) => {
   for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
   return PLAYER_COLORS[hash % PLAYER_COLORS.length];
 };
-const PlayerDot = ({ id }) => (
-  <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: colorForPlayer(id) }} />
-);
+const AVATAR_EMOJIS = ['😂', '🔥', '👻', '🐸', '🦄', '🍕', '🎃', '🐙', '🤡', '👽', '🦖', '🍔', '🐵', '💀', '🥸', '🦊'];
+const randomAvatar = () => AVATAR_EMOJIS[Math.floor(Math.random() * AVATAR_EMOJIS.length)];
+
+const PlayerDot = ({ id, avatar, size = 'sm' }) => {
+  const dims = size === 'lg' ? 'w-9 h-9 text-lg' : size === 'md' ? 'w-6 h-6 text-xs' : 'w-4 h-4 text-[10px]';
+  if (avatar) {
+    return (
+      <span
+        className={`inline-flex items-center justify-center rounded-full shrink-0 ${dims}`}
+        style={{ backgroundColor: `${colorForPlayer(id)}33`, border: `1.5px solid ${colorForPlayer(id)}` }}
+      >
+        {avatar}
+      </span>
+    );
+  }
+  return <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: colorForPlayer(id) }} />;
+};
 
 const VersionBadge = () => (
   <div className="fixed bottom-2 right-3 text-[10px] text-gray-600 font-mono select-none pointer-events-none z-50">
@@ -186,13 +253,31 @@ const MediaPlayer = ({ src, type }) => {
   return <img src={src} alt="Média à captionner" className="max-h-64 w-full object-contain rounded-lg border-2 border-gray-700" />;
 };
 
-const Waiting = ({ label, sub }) => (
-  <div className="py-12 flex flex-col items-center">
-    <Loader2 size={48} className="text-purple-500 animate-spin mb-4" />
-    <p className="font-bold animate-pulse">{label}</p>
-    {sub && <p className="text-gray-500 text-sm mt-2">{sub}</p>}
-  </div>
-);
+const FUN_WAITING_PHRASES = [
+  'Recomptage des votes à la main...',
+  "Réveil du gars qui a pas encore choisi...",
+  "Suppression des preuves compromettantes...",
+  'Négociation avec le serveur...',
+  "Interrogation d'un pigeon voyageur...",
+  'Chauffage des mèmes au micro-ondes...',
+];
+
+const Waiting = ({ label, sub, fun = false }) => {
+  const [phraseIdx, setPhraseIdx] = useState(0);
+  useEffect(() => {
+    if (!fun) return;
+    const id = setInterval(() => setPhraseIdx((i) => (i + 1) % FUN_WAITING_PHRASES.length), 2400);
+    return () => clearInterval(id);
+  }, [fun]);
+  return (
+    <div className="py-12 flex flex-col items-center">
+      <Loader2 size={48} className="text-purple-500 animate-spin mb-4" />
+      <p className="font-bold">{label}</p>
+      {sub && <p className="text-gray-500 text-sm mt-2">{sub}</p>}
+      {fun && <p className="text-gray-600 text-xs mt-3 italic">{FUN_WAITING_PHRASES[phraseIdx]}</p>}
+    </div>
+  );
+};
 
 const CountdownBadge = ({ seconds }) => (
   <div className={`bg-gray-900 px-4 py-2 rounded-full font-bold font-mono border ${seconds <= 5 ? 'border-red-500 text-red-400' : 'border-gray-800'}`}>
@@ -274,7 +359,7 @@ const MemeVoteCard = ({ media, caption, isMine, isSelected, disabled, onVote, on
       <button
         onClick={onVote}
         disabled={disabled}
-        className={`w-full py-3 flex items-center justify-center gap-2 font-bold transition ${
+        className={`w-full py-3 flex items-center justify-center gap-2 font-bold transition active:scale-95 ${
           disabled ? 'bg-gray-800 text-gray-500 cursor-default' : 'bg-purple-600 hover:bg-purple-500 text-white'
         }`}
       >
@@ -309,7 +394,7 @@ const CaptionChoiceCard = ({ caption, isMine, isSelected, disabled, onVote }) =>
     <button
       onClick={onVote}
       disabled={disabled}
-      className={`px-6 py-3 rounded-lg font-bold flex items-center gap-2 transition ${
+      className={`px-6 py-3 rounded-lg font-bold flex items-center gap-2 transition active:scale-95 ${
         disabled ? 'bg-gray-700 text-gray-500 cursor-default' : 'bg-purple-600 hover:bg-purple-500 text-white'
       }`}
     >
@@ -336,7 +421,7 @@ const Carousel = ({ index, count, onPrev, onNext, onJump, children }) => (
       <button
         onClick={onPrev}
         disabled={count <= 1}
-        className="shrink-0 bg-gray-800 hover:bg-gray-700 disabled:opacity-30 text-white p-3 rounded-full transition"
+        className="shrink-0 bg-gray-800 hover:bg-gray-700 disabled:opacity-30 text-white p-3 rounded-full transition active:scale-90"
         aria-label="Précédent"
       >
         <ChevronLeft size={22} />
@@ -345,7 +430,7 @@ const Carousel = ({ index, count, onPrev, onNext, onJump, children }) => (
       <button
         onClick={onNext}
         disabled={count <= 1}
-        className="shrink-0 bg-gray-800 hover:bg-gray-700 disabled:opacity-30 text-white p-3 rounded-full transition"
+        className="shrink-0 bg-gray-800 hover:bg-gray-700 disabled:opacity-30 text-white p-3 rounded-full transition active:scale-90"
         aria-label="Suivant"
       >
         <ChevronRight size={22} />
@@ -371,7 +456,7 @@ const Carousel = ({ index, count, onPrev, onNext, onJump, children }) => (
 // ==========================================
 export default function CaptionBattle() {
   const [gameState, setGameState] = useState('home');
-  const [player, setPlayer] = useState({ id: null, name: '' });
+  const [player, setPlayer] = useState({ id: null, name: '', avatar: randomAvatar() });
   const [room, setRoom] = useState(null);
   const [joinCode, setJoinCode] = useState('');
   const [players, setPlayers] = useState([]);
@@ -435,7 +520,7 @@ export default function CaptionBattle() {
   // ==========================================
   // CONNEXION AU CHANNEL DE LA ROOM (presence + broadcast)
   // ==========================================
-  const connectToRoom = (code, playerId, playerName, isCreator) => {
+  const connectToRoom = (code, playerId, playerName, playerAvatar, isCreator) => {
     if (channelRef.current) supabase.removeChannel(channelRef.current);
 
     const channel = supabase.channel(`room:${code}`, {
@@ -446,7 +531,7 @@ export default function CaptionBattle() {
       const state = channel.presenceState();
       const list = Object.values(state)
         .flat()
-        .map((p) => ({ id: p.player_id, name: p.player_name, is_creator: p.is_creator, joined_at: p.joined_at }))
+        .map((p) => ({ id: p.player_id, name: p.player_name, avatar: p.player_avatar, is_creator: p.is_creator, joined_at: p.joined_at }))
         .sort((a, b) => a.joined_at - b.joined_at);
       setPlayers(list);
     });
@@ -530,7 +615,7 @@ export default function CaptionBattle() {
 
     channel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
-        await channel.track({ player_id: playerId, player_name: playerName, is_creator: isCreator, joined_at: Date.now() });
+        await channel.track({ player_id: playerId, player_name: playerName, player_avatar: playerAvatar, is_creator: isCreator, joined_at: Date.now() });
       }
     });
 
@@ -560,7 +645,7 @@ export default function CaptionBattle() {
     resetGameStateLocal();
     setPlayer((p) => ({ ...p, id: newPlayerId }));
     setRoom({ code });
-    connectToRoom(code, newPlayerId, player.name.trim(), true);
+    connectToRoom(code, newPlayerId, player.name.trim(), player.avatar, true);
     setGameState('lobby');
   };
 
@@ -571,7 +656,7 @@ export default function CaptionBattle() {
     resetGameStateLocal();
     setPlayer((p) => ({ ...p, id: newPlayerId }));
     setRoom({ code });
-    connectToRoom(code, newPlayerId, player.name.trim(), false);
+    connectToRoom(code, newPlayerId, player.name.trim(), player.avatar, false);
     setGameState('lobby');
   };
 
@@ -678,7 +763,7 @@ export default function CaptionBattle() {
 
       const { data: { publicUrl } } = supabase.storage.from('game-media').getPublicUrl(filePath);
 
-      const media = { id: makeId('m'), url: publicUrl, type: file.type, owner_id: player.id, owner_name: player.name };
+      const media = { id: makeId('m'), url: publicUrl, type: file.type, owner_id: player.id, owner_name: player.name, owner_avatar: player.avatar };
       setMedias((prev) => [...prev, media]);
       broadcast('media_added', { media });
     } catch (error) {
@@ -731,7 +816,7 @@ export default function CaptionBattle() {
 
   const submitCaption = () => {
     if (!myCaption.trim() || !currentMedia) return;
-    const caption = { media_id: currentMedia.id, author_id: player.id, author_name: player.name, text: myCaption.trim() };
+    const caption = { media_id: currentMedia.id, author_id: player.id, author_name: player.name, author_avatar: player.avatar, text: myCaption.trim() };
     setCaptions((prev) => [...prev, caption]);
     broadcast('caption_submitted', { caption });
     setMyCaption('');
@@ -892,6 +977,28 @@ export default function CaptionBattle() {
     autoSkipRef.current = '';
   };
 
+  // Meilleure légende de tout le match (toutes légendes/votes cumulés depuis le début de la partie)
+  const bestCaptionOfGame = useMemo(() => {
+    if (captions.length === 0) return null;
+    let best = null;
+    captions.forEach((c) => {
+      const pts = votes.filter((v) => v.media_id === c.media_id && v.caption_author_id === c.author_id).length;
+      if (!best || pts > best.points) best = { ...c, points: pts };
+    });
+    if (!best || best.points === 0) return null;
+    return { ...best, media: medias.find((m) => m.id === best.media_id) };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState === 'final_results']);
+
+  const confettiFiredRef = useRef(false);
+  useEffect(() => {
+    if (gameState === 'final_results' && !confettiFiredRef.current) {
+      confettiFiredRef.current = true;
+      fireConfetti();
+    }
+    if (gameState !== 'final_results') confettiFiredRef.current = false;
+  }, [gameState]);
+
   // ==========================================
   // CLASSEMENT (panneau latéral)
   // ==========================================
@@ -916,7 +1023,7 @@ export default function CaptionBattle() {
               }`}
             >
               <span className="font-bold truncate flex items-center gap-1.5">
-                <PlayerDot id={p.id} />
+                <PlayerDot id={p.id} avatar={p.avatar} />
                 {i === 0 && (cumulativeScores[p.id] || 0) > 0 && <Crown size={14} className="text-yellow-400" />}
                 {p.name}
               </span>
@@ -944,7 +1051,7 @@ export default function CaptionBattle() {
   // compris l'input fichier) en boucle, ce qui perdait silencieusement la
   // sélection de fichier de l'utilisateur si elle prenait plus d'une seconde.
   const renderGameLayout = (children) => (
-    <div className="min-h-screen bg-gray-950 text-white flex justify-center p-4">
+    <div className="min-h-screen bg-gray-950/95 text-white relative z-10 flex justify-center p-4">
       <VersionBadge />
       <div className="w-full max-w-5xl flex flex-col md:flex-row gap-4">
         <div className="flex-1 flex flex-col w-full md:max-w-2xl">
@@ -961,14 +1068,36 @@ export default function CaptionBattle() {
   // ==========================================
   if (gameState === 'home') {
     return (
-      <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center p-4">
+      <div className="min-h-screen bg-gray-950/95 text-white relative z-10 flex flex-col items-center justify-center p-4">
         <VersionBadge />
-        <h1 className="text-6xl font-black mb-2 bg-gradient-to-r from-purple-500 to-pink-500 bg-clip-text text-transparent transform -rotate-2">
+        <h1 className="font-heading text-6xl sm:text-7xl font-extrabold mb-2 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 bg-clip-text text-transparent transform -rotate-2 drop-shadow-sm">
           CAPTION BATTLE
         </h1>
         <p className="text-gray-400 mb-8 font-medium">Le jeu où tes potes ruinent tes images (et vidéos/audios).</p>
 
         <div className="bg-gray-900 p-8 rounded-2xl w-full max-w-md shadow-2xl border border-gray-800">
+          <div className="flex justify-center mb-4">
+            <span
+              className="w-16 h-16 flex items-center justify-center rounded-full text-3xl"
+              style={{ backgroundColor: `${colorForPlayer(player.avatar)}33`, border: `2px solid ${colorForPlayer(player.avatar)}` }}
+            >
+              {player.avatar}
+            </span>
+          </div>
+          <div className="flex flex-wrap justify-center gap-2 mb-5">
+            {AVATAR_EMOJIS.map((emoji) => (
+              <button
+                key={emoji}
+                onClick={() => setPlayer((p) => ({ ...p, avatar: emoji }))}
+                className={`w-9 h-9 flex items-center justify-center rounded-full text-lg transition active:scale-90 ${
+                  player.avatar === emoji ? 'bg-purple-600 scale-110' : 'bg-gray-800 hover:bg-gray-700'
+                }`}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+
           <input
             type="text"
             placeholder="Ton Pseudo..."
@@ -983,7 +1112,7 @@ export default function CaptionBattle() {
             <button
               onClick={createRoom}
               disabled={!player.name.trim()}
-              className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold py-4 px-6 rounded-lg flex items-center justify-center gap-2 transition transform hover:scale-[1.02]"
+              className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold py-4 px-6 rounded-lg flex items-center justify-center gap-2 transition transform hover:scale-[1.02] active:scale-95"
             >
               <Play fill="currentColor" /> Créer une partie
             </button>
@@ -1004,7 +1133,7 @@ export default function CaptionBattle() {
               <button
                 onClick={joinRoom}
                 disabled={!player.name.trim() || !joinCode.trim()}
-                className="w-1/3 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-white font-bold py-4 rounded-lg transition"
+                className="w-1/3 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-white font-bold py-4 rounded-lg transition active:scale-95"
               >
                 Rejoindre
               </button>
@@ -1022,11 +1151,11 @@ export default function CaptionBattle() {
       mediaPerPlayer: [1, 2, 3],
     };
     return (
-      <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center p-4">
+      <div className="min-h-screen bg-gray-950/95 text-white relative z-10 flex flex-col items-center justify-center p-4">
         <VersionBadge />
         <div className="bg-gray-900 p-8 rounded-2xl w-full max-w-lg shadow-2xl border border-gray-800 text-center">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-2xl font-bold">Code de la Room</h2>
+            <h2 className="font-heading text-2xl font-bold">Code de la Room</h2>
             <button onClick={leaveRoom} className="flex items-center gap-1 text-gray-500 hover:text-red-400 text-sm font-bold transition">
               <LogOut size={14} /> Quitter
             </button>
@@ -1037,7 +1166,7 @@ export default function CaptionBattle() {
             </div>
             <button
               onClick={copyCode}
-              className="absolute right-3 bottom-3 flex items-center gap-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold px-3 py-2 rounded-lg transition"
+              className="absolute right-3 bottom-3 flex items-center gap-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold px-3 py-2 rounded-lg transition active:scale-95"
             >
               {copied ? <Check size={14} /> : <Copy size={14} />}
               {copied ? 'Lien copié !' : "Copier l'invitation"}
@@ -1051,7 +1180,7 @@ export default function CaptionBattle() {
             <div className="grid grid-cols-2 gap-3">
               {players.map((p) => (
                 <div key={p.id} className="bg-gray-800 py-3 px-4 rounded-lg font-bold flex items-center gap-3">
-                  <PlayerDot id={p.id} />
+                  <PlayerDot id={p.id} avatar={p.avatar} />
                   <span className="truncate">{p.name}</span>
                   {p.id === hostId && <span className="text-xs text-purple-400 bg-purple-900/30 px-2 py-1 rounded shrink-0">HOST</span>}
                 </div>
@@ -1133,7 +1262,7 @@ export default function CaptionBattle() {
     return (
       renderGameLayout(<>
         <div className="bg-gray-900 p-8 rounded-2xl w-full shadow-2xl border border-gray-800 text-center flex-1 flex flex-col justify-center">
-          <h2 className="text-3xl font-black mb-2">Choisis ton arme</h2>
+          <h2 className="font-heading text-3xl font-bold mb-2">Choisis ton arme</h2>
           <p className="text-gray-400 mb-8">
             Upload {settings.mediaPerPlayer > 1 ? `${settings.mediaPerPlayer} médias` : 'un média'} (image, GIF, vidéo ou audio, {MAX_FILE_MB}Mo max). Chacun sera captionné par les autres !
           </p>
@@ -1165,6 +1294,7 @@ export default function CaptionBattle() {
             <Waiting
               label={`En attente des autres joueurs... (${medias.length} médias reçus)`}
               sub={`Tu as envoyé ${myUploadCount}/${settings.mediaPerPlayer} média(s).`}
+              fun
             />
           ) : (
             <div className="space-y-4">
@@ -1197,7 +1327,7 @@ export default function CaptionBattle() {
             <button
               onClick={launchGame}
               disabled={!everyoneUploaded}
-              className="mt-6 w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white font-black py-4 px-6 rounded-lg text-lg transition"
+              className="mt-6 w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white font-black py-4 px-6 rounded-lg text-lg transition active:scale-95"
             >
               {everyoneUploaded ? `Lancer les ${medias.length} rounds !` : `En attente des uploads (${medias.length}/${players.length * settings.mediaPerPlayer})`}
             </button>
@@ -1218,7 +1348,7 @@ export default function CaptionBattle() {
     return (
       renderGameLayout(<>
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-black text-purple-400">
+          <h2 className="font-heading text-2xl font-bold text-purple-400">
             Round {currentRoundIndex + 1}/{roundQueue.length}
           </h2>
           <CountdownBadge seconds={secondsLeftFor(settings.captionSeconds)} />
@@ -1228,16 +1358,18 @@ export default function CaptionBattle() {
           <Waiting
             label="C'est ton meme ! Les autres légendent..."
             sub={`${captionsForRound.length}/${expectedCaptioners} légendes reçues.`}
+            fun
           />
         ) : iSubmittedCaption ? (
           <Waiting
             label={`En attente des autres joueurs... (${captionsForRound.length}/${expectedCaptioners})`}
             sub="Ta légende a bien été envoyée."
+            fun
           />
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center">
             <p className="text-gray-400 mb-3 text-sm flex items-center gap-1.5">
-              Média envoyé par <PlayerDot id={currentMedia.owner_id} />
+              Média envoyé par <PlayerDot id={currentMedia.owner_id} avatar={currentMedia.owner_avatar} />
               <span className="text-purple-400 font-bold">{currentMedia.owner_name}</span>
             </p>
             <div className="w-full bg-gray-900 p-4 rounded-2xl border border-gray-800 mb-6 shadow-2xl">
@@ -1258,7 +1390,7 @@ export default function CaptionBattle() {
               <button
                 onClick={submitCaption}
                 disabled={!myCaption.trim()}
-                className="absolute right-3 top-3 bottom-3 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 rounded-lg px-4 flex items-center justify-center transition"
+                className="absolute right-3 top-3 bottom-3 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 rounded-lg px-4 flex items-center justify-center transition active:scale-95"
               >
                 <Send size={20} />
               </button>
@@ -1295,7 +1427,7 @@ export default function CaptionBattle() {
     return (
       renderGameLayout(<>
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-black text-purple-400">Vote — Round {currentRoundIndex + 1}/{roundQueue.length}</h2>
+          <h2 className="font-heading text-2xl font-bold text-purple-400">Vote — Round {currentRoundIndex + 1}/{roundQueue.length}</h2>
           <CountdownBadge seconds={secondsLeftFor(settings.voteSeconds)} />
         </div>
 
@@ -1368,7 +1500,7 @@ export default function CaptionBattle() {
       renderGameLayout(<>
         <div className="flex flex-col items-center text-center">
           <Trophy size={48} className="text-yellow-400 mb-4" />
-          <h2 className="text-2xl font-black mb-1">Résultats — Round {currentRoundIndex + 1}/{roundQueue.length}</h2>
+          <h2 className="font-heading text-2xl font-bold mb-1">Résultats — Round {currentRoundIndex + 1}/{roundQueue.length}</h2>
           {currentMedia && (
             <div className="w-full bg-gray-900 p-4 rounded-2xl border border-gray-800 my-4 shadow-2xl">
               <MediaWithDownload media={currentMedia} onDownload={downloadMedia} />
@@ -1383,7 +1515,7 @@ export default function CaptionBattle() {
                   <div className="text-left min-w-0">
                     <p className="font-bold truncate">"{c.text}"</p>
                     <p className="text-xs text-gray-500 flex items-center gap-1">
-                      <PlayerDot id={c.author_id} /> par {c.author_name}
+                      <PlayerDot id={c.author_id} avatar={c.author_avatar} /> par {c.author_name}
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -1419,30 +1551,73 @@ export default function CaptionBattle() {
 
   // gameState === 'final_results'
   const finalRanking = [...players].sort((a, b) => (cumulativeScores[b.id] || 0) - (cumulativeScores[a.id] || 0));
-  return (
-    <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center p-4">
-      <VersionBadge />
-      <Trophy size={64} className="text-yellow-400 mb-6 animate-bounce" />
-      <h2 className="text-3xl font-black mb-8">Classement final !</h2>
+  const podium = [finalRanking[1], finalRanking[0], finalRanking[2]]; // 2e, 1er, 3e — ordre visuel du podium
+  const rest = finalRanking.slice(3);
 
-      <div className="bg-gray-900 p-6 rounded-2xl w-full max-w-md shadow-2xl border border-gray-800 mb-8">
-        {finalRanking.map((p, i) => (
-          <div
-            key={p.id}
-            className={`flex items-center justify-between py-3 px-4 rounded-lg mb-2 ${i === 0 ? 'bg-purple-900/40 border border-purple-500' : 'bg-gray-800'}`}
-          >
-            <div className="flex items-center gap-3">
-              {i === 0 && <Crown size={18} className="text-yellow-400" />}
-              <span className="font-bold">{p.name}</span>
+  return (
+    <div className="min-h-screen bg-gray-950/95 text-white relative z-10 flex flex-col items-center justify-center p-4 overflow-hidden">
+      <VersionBadge />
+      <Trophy size={56} className="text-yellow-400 mb-3 animate-bounce" />
+      <h2 className="font-heading text-4xl font-bold mb-8">Classement final !</h2>
+
+      {finalRanking.length > 0 && (
+        <div className="flex items-end justify-center gap-3 sm:gap-5 mb-8 w-full max-w-lg">
+          {podium.map((p, slot) => {
+            if (!p) return <div key={slot} className="flex-1" />;
+            const place = slot === 1 ? 1 : slot === 0 ? 2 : 3;
+            const heights = { 1: 'h-40', 2: 'h-28', 3: 'h-20' };
+            const medals = { 1: '🥇', 2: '🥈', 3: '🥉' };
+            return (
+              <div key={p.id} className="flex-1 flex flex-col items-center">
+                <span className="text-3xl mb-1">{medals[place]}</span>
+                <span className="text-2xl mb-1">{p.avatar || '🙂'}</span>
+                <span className="font-bold text-sm truncate max-w-full">{p.name}</span>
+                <span className="font-heading font-bold text-purple-300 text-lg mb-2">{cumulativeScores[p.id] || 0} pts</span>
+                <div
+                  className={`w-full ${heights[place]} rounded-t-xl border-t-2 border-x-2 border-purple-500/50 flex items-start justify-center pt-2 font-heading font-bold text-2xl`}
+                  style={{ background: `linear-gradient(to top, ${colorForPlayer(p.id)}55, ${colorForPlayer(p.id)}15)` }}
+                >
+                  {place}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {rest.length > 0 && (
+        <div className="bg-gray-900 p-4 rounded-2xl w-full max-w-md shadow-xl border border-gray-800 mb-6 space-y-2">
+          {rest.map((p, i) => (
+            <div key={p.id} className="flex items-center justify-between py-2 px-3 rounded-lg bg-gray-800">
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500 font-mono text-sm w-5">{i + 4}.</span>
+                <PlayerDot id={p.id} avatar={p.avatar} />
+                <span className="font-bold">{p.name}</span>
+              </div>
+              <div className="font-black text-purple-300">{cumulativeScores[p.id] || 0} pts</div>
             </div>
-            <div className="font-black text-purple-300">{cumulativeScores[p.id] || 0} pts</div>
+          ))}
+        </div>
+      )}
+
+      {bestCaptionOfGame && (
+        <div className="bg-gradient-to-br from-purple-900/40 to-pink-900/40 border border-purple-700 rounded-2xl p-4 w-full max-w-md mb-8 flex items-center gap-4">
+          {bestCaptionOfGame.media && isImageMedia(bestCaptionOfGame.media) && (
+            <img src={bestCaptionOfGame.media.url} alt="" className="w-16 h-16 rounded-lg object-cover shrink-0" />
+          )}
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold text-purple-300 uppercase tracking-wide mb-1">🏆 Punchline légendaire du match</p>
+            <p className="font-bold truncate">"{bestCaptionOfGame.text}"</p>
+            <p className="text-xs text-gray-400 flex items-center gap-1 mt-1">
+              <PlayerDot id={bestCaptionOfGame.author_id} avatar={bestCaptionOfGame.author_avatar} /> {bestCaptionOfGame.author_name} · {bestCaptionOfGame.points} vote{bestCaptionOfGame.points > 1 ? 's' : ''}
+            </p>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
 
       <div className="flex gap-3">
         {isHost ? (
-          <button onClick={newGame} className="bg-purple-600 hover:bg-purple-500 font-bold py-3 px-8 rounded-full">
+          <button onClick={newGame} className="bg-purple-600 hover:bg-purple-500 active:scale-95 font-bold py-3 px-8 rounded-full transition">
             Nouvelle partie
           </button>
         ) : (
@@ -1450,7 +1625,7 @@ export default function CaptionBattle() {
             <Loader2 className="animate-spin" /> En attente du Host...
           </div>
         )}
-        <button onClick={leaveRoom} className="flex items-center gap-2 text-gray-500 hover:text-red-400 font-bold py-3 px-6 transition">
+        <button onClick={leaveRoom} className="flex items-center gap-2 text-gray-500 hover:text-red-400 active:scale-95 font-bold py-3 px-6 transition">
           <LogOut size={16} /> Quitter
         </button>
       </div>
