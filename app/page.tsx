@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import {
   Play, Image as ImageIcon, Video, Music, Send, Trophy, Users, Loader2,
   Crown, ThumbsUp, SkipForward, Settings, Copy, LogOut, Check, Download,
-  ChevronLeft, ChevronRight, Link as LinkIcon,
+  ChevronLeft, ChevronRight, Link as LinkIcon, Volume2, VolumeX,
 } from 'lucide-react';
 
 // ==========================================
@@ -360,7 +360,7 @@ const DEFAULT_SETTINGS = {
 const MAX_NAME_LEN = 20;
 const MAX_CAPTION_LEN = 140;
 // Incrémenter à chaque mise à jour livrée du jeu.
-const APP_VERSION = 'v19';
+const APP_VERSION = 'v20';
 
 const PLAYER_COLORS = ['#a855f7', '#ec4899', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#f43f5e'];
 const colorForPlayer = (id) => {
@@ -394,24 +394,143 @@ const VersionBadge = () => (
 );
 
 // ==========================================
+// EFFETS SONORES (synthétisés dans le navigateur, aucun fichier audio)
+// ==========================================
+let audioCtx = null;
+let sfxEnabled = true;
+let sfxSuspended = false; // coupé temporairement (ex. génération d'une vidéo)
+const playingMedia = new Set(); // vidéos/audios des memes actuellement en lecture
+
+// Vrai tant qu'un meme (vidéo/audio) est en train de jouer. Les éléments retirés
+// de la page ou en pause sont oubliés automatiquement.
+const isMediaPlaying = () => {
+  playingMedia.forEach((el) => {
+    if (!el.isConnected || el.paused || el.ended) playingMedia.delete(el);
+  });
+  return playingMedia.size > 0;
+};
+
+const getAudioCtx = () => {
+  if (typeof window === 'undefined') return null;
+  if (!audioCtx) {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return null;
+    audioCtx = new Ctx();
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+  return audioCtx;
+};
+
+const tone = (ctx, { freq, start = 0, dur = 0.12, type = 'sine', gain = 0.07, slideTo = null }) => {
+  const osc = ctx.createOscillator();
+  const g = ctx.createGain();
+  const t0 = ctx.currentTime + start;
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t0);
+  if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(gain, t0 + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  osc.connect(g);
+  g.connect(ctx.destination);
+  osc.start(t0);
+  osc.stop(t0 + dur + 0.05);
+};
+
+const SFX_LIBRARY = {
+  click: (c) => tone(c, { freq: 700, slideTo: 500, dur: 0.05, type: 'triangle', gain: 0.035 }),
+  join: (c) => {
+    tone(c, { freq: 523, dur: 0.12 });
+    tone(c, { freq: 784, start: 0.1, dur: 0.18 });
+  },
+  leave: (c) => {
+    tone(c, { freq: 500, dur: 0.12, gain: 0.06 });
+    tone(c, { freq: 330, start: 0.1, dur: 0.2, gain: 0.06 });
+  },
+  success: (c) => {
+    tone(c, { freq: 660, dur: 0.1 });
+    tone(c, { freq: 880, start: 0.09, dur: 0.1 });
+    tone(c, { freq: 1175, start: 0.18, dur: 0.18 });
+  },
+  error: (c) => {
+    tone(c, { freq: 220, dur: 0.16, type: 'square', gain: 0.05 });
+    tone(c, { freq: 165, start: 0.14, dur: 0.24, type: 'square', gain: 0.05 });
+  },
+  send: (c) => tone(c, { freq: 420, slideTo: 900, dur: 0.14, gain: 0.08 }),
+  vote: (c) => {
+    tone(c, { freq: 587, dur: 0.08, gain: 0.08 });
+    tone(c, { freq: 880, start: 0.07, dur: 0.16, gain: 0.08 });
+  },
+  whoosh: (c) => tone(c, { freq: 260, slideTo: 820, dur: 0.2, type: 'sawtooth', gain: 0.03 }),
+  tick: (c) => tone(c, { freq: 1000, dur: 0.05, type: 'square', gain: 0.03 }),
+  buzzer: (c) => tone(c, { freq: 140, slideTo: 100, dur: 0.45, type: 'sawtooth', gain: 0.06 }),
+  roundStart: (c) => {
+    [392, 523, 659].forEach((f, i) => tone(c, { freq: f, start: i * 0.08, dur: 0.14, type: 'triangle' }));
+  },
+  voteStart: (c) => {
+    tone(c, { freq: 440, dur: 0.1, type: 'triangle' });
+    tone(c, { freq: 440, start: 0.14, dur: 0.1, type: 'triangle' });
+    tone(c, { freq: 660, start: 0.28, dur: 0.2, type: 'triangle' });
+  },
+  reveal: (c) => {
+    [523, 659, 784, 1047].forEach((f, i) => tone(c, { freq: f, start: i * 0.07, dur: 0.16 }));
+  },
+  fanfare: (c) => {
+    [523, 659, 784, 1047].forEach((f, i) => tone(c, { freq: f, start: i * 0.12, dur: 0.22, type: 'triangle', gain: 0.09 }));
+    tone(c, { freq: 1047, start: 0.5, dur: 0.6, type: 'triangle', gain: 0.09 });
+    tone(c, { freq: 784, start: 0.5, dur: 0.6, type: 'triangle', gain: 0.06 });
+  },
+};
+
+// Joue un effet, sauf si les sons sont coupés ou si un meme est en train de jouer.
+const playSfx = (name) => {
+  if (!sfxEnabled || sfxSuspended || isMediaPlaying()) return;
+  try {
+    const ctx = getAudioCtx();
+    if (ctx && SFX_LIBRARY[name]) SFX_LIBRARY[name](ctx);
+  } catch {
+    // audio indisponible : on ignore silencieusement
+  }
+};
+
+const SoundToggle = ({ on, onToggle, className = '' }) => (
+  <button
+    type="button"
+    data-sfx="off"
+    onClick={onToggle}
+    title={on ? 'Couper les effets sonores' : 'Activer les effets sonores'}
+    className={`text-gray-500 hover:text-white transition active:scale-90 ${className}`}
+  >
+    {on ? <Volume2 size={16} /> : <VolumeX size={16} />}
+  </button>
+);
+
+// ==========================================
 // COMPOSANT LECTEUR MULTIMÉDIA UNIVERSEL
 // ==========================================
-const MediaPlayer = ({ src, type }) => {
+const MediaPlayer = ({ src, type, compact = false }) => {
   if (!src) return null;
   // w-auto/h-auto (plutôt que w-full) : le média garde ses proportions
   // naturelles et se centre, au lieu d'être forcé sur toute la largeur puis
   // réduit à une bande minuscule pour les vidéos/images au format portrait.
-  const sizingClasses = 'max-w-full max-h-[65vh] w-auto h-auto block mx-auto object-contain rounded-lg border-2 border-gray-700';
+  const sizingClasses = `max-w-full ${
+    compact ? 'max-h-[35vh]' : 'max-h-[65vh]'
+  } w-auto h-auto block mx-auto object-contain rounded-lg border-2 border-gray-700`;
 
   // Volume à 50 % au chargement (une seule fois : on ne touche pas au volume
   // à chaque re-render, sinon on écraserait le réglage du joueur).
   const setDefaultVolume = (e) => {
     e.currentTarget.volume = 0.5;
   };
+  // Suivi des médias en lecture : les effets sonores du site se taisent tant
+  // qu'un meme joue.
+  const trackPlaying = (e) => playingMedia.add(e.currentTarget);
+  const untrackPlaying = (e) => playingMedia.delete(e.currentTarget);
   // Filet de sécurité : si la boucle native s'interrompt (fin atteinte malgré
   // l'attribut loop), on relance manuellement la lecture.
   const restartIfEnded = (e) => {
     const el = e.currentTarget;
+    playingMedia.delete(el);
     el.currentTime = 0;
     el.play().catch(() => {});
   };
@@ -425,6 +544,9 @@ const MediaPlayer = ({ src, type }) => {
         loop
         playsInline
         onLoadedMetadata={setDefaultVolume}
+        onPlaying={trackPlaying}
+        onPause={untrackPlaying}
+        onEmptied={untrackPlaying}
         onEnded={restartIfEnded}
         className={sizingClasses}
       />
@@ -434,7 +556,18 @@ const MediaPlayer = ({ src, type }) => {
     return (
       <div className="flex flex-col items-center justify-center p-8 bg-gray-800 rounded-lg border-2 border-gray-700 w-full">
         <Music size={48} className="text-purple-400 mb-4 animate-bounce" />
-        <audio src={src} controls autoPlay loop onLoadedMetadata={setDefaultVolume} onEnded={restartIfEnded} className="w-full" />
+        <audio
+          src={src}
+          controls
+          autoPlay
+          loop
+          onLoadedMetadata={setDefaultVolume}
+          onPlaying={trackPlaying}
+          onPause={untrackPlaying}
+          onEmptied={untrackPlaying}
+          onEnded={restartIfEnded}
+          className="w-full"
+        />
       </div>
     );
   }
@@ -510,110 +643,48 @@ const DownloadButton = ({ onClick, className = '' }) => (
   </button>
 );
 
-const MediaWithDownload = ({ media, onDownload }) => (
+const MediaWithDownload = ({ media, onDownload, compact = false }) => (
   <div className="relative">
-    <MediaPlayer src={media.url} type={media.type} />
+    <MediaPlayer src={media.url} type={media.type} compact={compact} />
     <DownloadButton onClick={() => onDownload(media)} className="absolute top-2 right-2" />
   </div>
 );
 
-// Carte "meme" pour le vote : légende incrustée directement sur l'image, comme
-// un vrai meme. N'affiche l'image qu'une fois par carte (donc uniquement
-// pertinent pour des images ; vidéo/audio utilisent CaptionChoiceCard pour
-// éviter de dupliquer un lecteur audio/vidéo par carte).
-const MemeVoteCard = ({ media, caption, isMine, isSelected, disabled, onVote, onDownloadStyle }) => {
+// Carte du résumé de vote : la légende (style "vieux meme" : fond blanc, texte
+// centré) + un menu pour la télécharger incrustée sur le meme.
+// Sa propre légende reste visible mais n'est pas votable.
+const RecapCaptionCard = ({ index, caption, isMine, isSelected, disabled, onVote, showDownload, onDownloadStyle }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   return (
     <div
-      className={`relative rounded-2xl overflow-hidden border-2 transition shadow-xl bg-gray-900 flex flex-col ${
-        isSelected ? 'border-purple-500 ring-2 ring-purple-500' : isMine ? 'border-gray-700' : 'border-gray-800'
+      className={`relative rounded-2xl overflow-hidden border-2 transition flex flex-col shadow-lg ${
+        isSelected
+          ? 'border-purple-500 ring-2 ring-purple-500'
+          : isMine
+          ? 'border-gray-700'
+          : 'border-gray-800 hover:border-purple-500'
       }`}
     >
-      {isMine && (
-        <span className="absolute top-2 left-2 z-10 text-[10px] font-bold bg-gray-800/90 text-gray-300 px-2 py-1 rounded-full">
-          C'est la tienne
-        </span>
-      )}
-      <div className="absolute top-2 right-2 z-20">
-        <DownloadButton onClick={() => setMenuOpen((v) => !v)} />
-        {menuOpen && (
-          <>
-            <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-            <div className="absolute right-0 mt-1 z-20 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl overflow-hidden w-48 text-xs">
-              {MEME_STYLES.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onDownloadStyle(s.id);
-                  }}
-                  className="w-full text-left px-3 py-2.5 text-gray-200 hover:bg-purple-900/40 transition"
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-
-      <div className="relative bg-black flex items-center justify-center">
-        <img src={media.url} alt="" className="w-full max-h-80 object-contain" />
-      </div>
-      <div className="bg-white text-gray-900 px-4 py-3">
-        <p className="font-black text-lg leading-snug text-center break-words [overflow-wrap:anywhere]">"{caption}"</p>
-      </div>
-
-      <button
-        onClick={onVote}
-        disabled={disabled}
-        className={`w-full py-3 flex items-center justify-center gap-2 font-bold transition active:scale-95 ${
-          disabled ? 'bg-gray-800 text-gray-500 cursor-default' : 'bg-purple-600 hover:bg-purple-500 shadow-md shadow-purple-900/40 text-white'
-        }`}
-      >
-        {isSelected ? (
-          <>
-            <Check size={18} /> Ton vote
-          </>
-        ) : isMine ? (
-          'Pas votable'
-        ) : (
-          <>
-            <ThumbsUp size={18} /> Voter pour celle-ci
-          </>
-        )}
-      </button>
-    </div>
-  );
-};
-
-// Carte texte pour le vote (utilisée quand le média est une vidéo/audio, pour
-// ne pas dupliquer le lecteur — et donc le son — une fois par légende).
-const CaptionChoiceCard = ({ caption, isMine, isSelected, disabled, onVote, showDownload, onDownloadStyle }) => {
-  const [menuOpen, setMenuOpen] = useState(false);
-  return (
-    <div
-      className={`relative rounded-2xl border-2 p-8 flex flex-col items-center justify-center gap-4 min-h-[180px] ${
-        isSelected ? 'border-purple-500 bg-purple-900/30' : isMine ? 'border-gray-700 bg-gray-900' : 'border-gray-700 bg-gray-800'
-      }`}
-    >
+      <span className="absolute top-2 left-2 z-10 text-xs font-black bg-gray-900/80 text-gray-200 w-6 h-6 flex items-center justify-center rounded-full">
+        {index}
+      </span>
       {showDownload && (
-        <div className="absolute top-3 right-3 z-20">
+        <div className="absolute top-2 right-2 z-20">
           <DownloadButton onClick={() => setMenuOpen((v) => !v)} />
           {menuOpen && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
               <div className="absolute right-0 mt-1 z-20 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl overflow-hidden w-48 text-xs">
-                {MEME_STYLES.map((s) => (
+                {MEME_STYLES.map((st) => (
                   <button
-                    key={s.id}
+                    key={st.id}
                     onClick={() => {
                       setMenuOpen(false);
-                      onDownloadStyle(s.id);
+                      onDownloadStyle(st.id);
                     }}
                     className="w-full text-left px-3 py-2.5 text-gray-200 hover:bg-purple-900/40 transition"
                   >
-                    {s.label}
+                    {st.label}
                   </button>
                 ))}
               </div>
@@ -621,70 +692,26 @@ const CaptionChoiceCard = ({ caption, isMine, isSelected, disabled, onVote, show
           )}
         </div>
       )}
-      {isMine && (
-        <span className="text-[10px] font-bold bg-gray-700 text-gray-300 px-2 py-1 rounded-full">C'EST LA TIENNE</span>
-      )}
-      <p className="font-black text-2xl text-center break-words [overflow-wrap:anywhere]">"{caption}"</p>
       <button
+        data-sfx="off"
         onClick={onVote}
         disabled={disabled}
-        className={`px-6 py-3 rounded-lg font-bold flex items-center gap-2 transition active:scale-95 ${
-          disabled ? 'bg-gray-700 text-gray-500 cursor-default' : 'bg-purple-600 hover:bg-purple-500 shadow-md shadow-purple-900/40 text-white'
+        className={`flex-1 px-6 pt-10 pb-5 text-center font-black text-lg leading-snug break-words [overflow-wrap:anywhere] transition active:scale-[0.98] ${
+          isSelected
+            ? 'bg-purple-600 text-white'
+            : isMine
+            ? 'bg-gray-200 text-gray-500 cursor-default'
+            : 'bg-white text-gray-900 hover:bg-purple-50'
         }`}
       >
-        {isSelected ? (
-          <>
-            <Check size={18} /> Ton vote
-          </>
-        ) : isMine ? (
-          'Pas votable'
-        ) : (
-          <>
-            <ThumbsUp size={18} /> Voter pour celle-ci
-          </>
-        )}
+        "{caption}"
       </button>
+      <div className="px-3 py-2 text-xs font-bold text-center bg-gray-900 text-gray-400">
+        {isSelected ? '✅ Ton vote' : isMine ? "C'est la tienne — pas votable" : 'Clique pour voter'}
+      </div>
     </div>
   );
 };
-
-// Carrousel générique : une carte à la fois, navigation flèches + points +
-// clavier (gérée par le composant parent). "cards" est un tableau de noeuds JSX déjà construits.
-const Carousel = ({ index, count, onPrev, onNext, onJump, children }) => (
-  <div className="w-full">
-    <div className="flex items-center gap-3">
-      <button
-        onClick={onPrev}
-        disabled={count <= 1}
-        className="shrink-0 bg-gray-800 hover:bg-gray-700 disabled:opacity-30 text-white p-3 rounded-full transition active:scale-90"
-        aria-label="Précédent"
-      >
-        <ChevronLeft size={22} />
-      </button>
-      <div className="flex-1 min-w-0">{children}</div>
-      <button
-        onClick={onNext}
-        disabled={count <= 1}
-        className="shrink-0 bg-gray-800 hover:bg-gray-700 disabled:opacity-30 text-white p-3 rounded-full transition active:scale-90"
-        aria-label="Suivant"
-      >
-        <ChevronRight size={22} />
-      </button>
-    </div>
-    {count > 1 && (
-      <div className="flex items-center justify-center gap-2 mt-4">
-        {Array.from({ length: count }).map((_, i) => (
-          <button
-            key={i}
-            onClick={() => onJump(i)}
-            className={`h-2 rounded-full transition-all ${i === index ? 'w-6 bg-purple-500' : 'w-2 bg-gray-700 hover:bg-gray-600'}`}
-            aria-label={`Aller à la carte ${i + 1}`}
-          />
-        ))}
-      </div>
-    )}
-  </div>
-);
 
 // ==========================================
 // APPLICATION PRINCIPALE
@@ -715,6 +742,10 @@ export default function CaptionBattle() {
   const [myCaption, setMyCaption] = useState('');
   const [votes, setVotes] = useState([]); // {media_id, voter_id, caption_author_id}
   const [cumulativeScores, setCumulativeScores] = useState({});
+  // Présentation synchronisée : ordre (aléatoire) des légendes tiré par le host,
+  // et index de la légende actuellement affichée chez tout le monde.
+  const [captionOrder, setCaptionOrder] = useState({ mediaId: null, order: [] });
+  const [presentIndex, setPresentIndex] = useState(0);
 
   const channelRef = useRef(null);
   const processedRoundRef = useRef(-1);
@@ -733,6 +764,8 @@ export default function CaptionBattle() {
   const captionsRef = useRef([]);
   const votesRef = useRef([]);
   const cumulativeScoresRef = useRef({});
+  const captionOrderRef = useRef({ mediaId: null, order: [] });
+  const presentIndexRef = useRef(0);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -812,6 +845,8 @@ export default function CaptionBattle() {
         event: 'scores_sync',
         payload: { scores: cumulativeScoresRef.current, processedRound: processedRoundRef.current },
       });
+      channel.send({ type: 'broadcast', event: 'caption_order', payload: captionOrderRef.current });
+      channel.send({ type: 'broadcast', event: 'present_slide', payload: { index: presentIndexRef.current } });
       channel.send({
         type: 'broadcast',
         event: 'game_update',
@@ -861,7 +896,17 @@ export default function CaptionBattle() {
       }
     });
 
+    channel.on('broadcast', { event: 'caption_order' }, ({ payload }) => {
+      setCaptionOrder({ mediaId: payload.mediaId, order: payload.order || [] });
+    });
+
+    channel.on('broadcast', { event: 'present_slide' }, ({ payload }) => {
+      setPresentIndex(payload.index || 0);
+    });
+
     channel.on('broadcast', { event: 'new_game' }, () => {
+      setCaptionOrder({ mediaId: null, order: [] });
+      setPresentIndex(0);
       setMedias([]);
       setRoundQueue([]);
       setCurrentRoundIndex(0);
@@ -885,6 +930,8 @@ export default function CaptionBattle() {
   };
 
   const resetGameStateLocal = () => {
+    setCaptionOrder({ mediaId: null, order: [] });
+    setPresentIndex(0);
     setPlayers([]);
     setMedias([]);
     setUploadError(null);
@@ -974,6 +1021,8 @@ export default function CaptionBattle() {
   useEffect(() => { captionsRef.current = captions; }, [captions]);
   useEffect(() => { votesRef.current = votes; }, [votes]);
   useEffect(() => { cumulativeScoresRef.current = cumulativeScores; }, [cumulativeScores]);
+  useEffect(() => { captionOrderRef.current = captionOrder; }, [captionOrder]);
+  useEffect(() => { presentIndexRef.current = presentIndex; }, [presentIndex]);
 
   const broadcast = (event, payload) => channelRef.current?.send({ type: 'broadcast', event, payload });
 
@@ -1049,6 +1098,7 @@ export default function CaptionBattle() {
       const media = { id: makeId('m'), url: publicUrl, type: file.type, owner_id: player.id, owner_name: player.name, owner_avatar: player.avatar };
       setMedias((prev) => [...prev, media]);
       broadcast('media_added', { media });
+      playSfx('success');
     } catch (error) {
       // On affiche le message d'erreur réel de Supabase dans l'UI (un alert()
       // navigateur peut être bloqué/silencieux selon le contexte et donner
@@ -1066,6 +1116,7 @@ export default function CaptionBattle() {
         hint = ' Requête réseau bloquée (CORS, ad-blocker, ou URL Supabase invalide) — regarde l\'onglet Réseau des outils de dev.';
       }
       setUploadError(`Échec de l'upload : ${raw}.${hint}`);
+      playSfx('error');
     } finally {
       setUploading(false);
       if (inputEl) inputEl.value = '';
@@ -1099,6 +1150,7 @@ export default function CaptionBattle() {
       parsed = new URL(raw).toString();
     } catch {
       setUploadError('Ce lien ne semble pas valide.');
+      playSfx('error');
       return;
     }
     const resolvedUrl = resolveExternalMediaUrl(parsed);
@@ -1114,6 +1166,7 @@ export default function CaptionBattle() {
     setMedias((prev) => [...prev, media]);
     broadcast('media_added', { media });
     setExternalUrl('');
+    playSfx('success');
   };
 
   const myUploadCount = medias.filter((m) => m.owner_id === player.id).length;
@@ -1163,6 +1216,7 @@ export default function CaptionBattle() {
     setCaptions((prev) => [...prev, caption]);
     broadcast('caption_submitted', { caption });
     setMyCaption('');
+    playSfx('send');
   };
 
   const secondsLeftFor = (totalSeconds) => {
@@ -1170,10 +1224,46 @@ export default function CaptionBattle() {
     return Math.max(0, totalSeconds - Math.floor((now - phaseStartedAt) / 1000));
   };
 
+  // Légendes du round dans l'ordre partagé : l'ordre est tiré au hasard par le
+  // host (donc identique pour tous et sans rapport avec l'ordre d'arrivée des
+  // joueurs). Les légendes arrivées en retard sont ajoutées à la fin.
+  const orderedCaptions = useMemo(() => {
+    const forRound = captions.filter((c) => c.media_id === currentMediaId);
+    const order = captionOrder.mediaId === currentMediaId ? captionOrder.order : [];
+    const byAuthor = new Map(forRound.map((c) => [c.author_id, c]));
+    const inOrder = order.map((id) => byAuthor.get(id)).filter(Boolean);
+    const rest = forRound.filter((c) => !order.includes(c.author_id));
+    return [...inOrder, ...rest];
+  }, [captions, captionOrder, currentMediaId]);
+
+  // Fin de la phase d'écriture : le host tire l'ordre des légendes au hasard, le
+  // diffuse, puis lance la présentation (ou passe aux résultats s'il n'y en a aucune).
+  const goAfterCaption = () => {
+    if (!currentMedia) return;
+    if (captionsForRound.length === 0) {
+      goToState('round_result', { phaseStartedAt: Date.now() });
+      return;
+    }
+    const order = shuffle(captionsForRound.map((c) => c.author_id));
+    const payload = { mediaId: currentMedia.id, order };
+    broadcast('caption_order', payload);
+    setCaptionOrder(payload);
+    broadcast('present_slide', { index: 0 });
+    setPresentIndex(0);
+    goToState('present', { phaseStartedAt: Date.now() });
+  };
+
+  // Le host fait défiler les légendes : tout le monde voit la même en même temps.
+  const setSlide = (index) => {
+    const clamped = Math.max(0, Math.min(Math.max(0, orderedCaptions.length - 1), index));
+    setPresentIndex(clamped);
+    broadcast('present_slide', { index: clamped });
+  };
+
   // Avance automatiquement quand tout le monde a répondu
   useEffect(() => {
     if (isHost && gameState === 'caption' && currentMedia && expectedCaptioners > 0 && captionsForRound.length >= expectedCaptioners) {
-      goToState('vote', { phaseStartedAt: Date.now() });
+      goAfterCaption();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [captions, isHost, gameState, currentMediaId, players.length]);
@@ -1186,7 +1276,7 @@ export default function CaptionBattle() {
       const key = `caption-${currentRoundIndex}`;
       if (secondsLeftFor(settings.captionSeconds) === 0 && autoSkipRef.current !== key) {
         autoSkipRef.current = key;
-        goToState('vote', { phaseStartedAt: Date.now() });
+        goAfterCaption();
       }
     }
     if (gameState === 'vote') {
@@ -1208,6 +1298,7 @@ export default function CaptionBattle() {
     const vote = { media_id: currentMedia.id, voter_id: player.id, caption_author_id: authorId };
     setVotes((prev) => [...prev.filter((v) => !(v.voter_id === player.id && v.media_id === currentMedia.id)), vote]);
     broadcast('vote_cast', { vote });
+    playSfx('vote');
   };
 
   useEffect(() => {
@@ -1217,37 +1308,33 @@ export default function CaptionBattle() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [votes, isHost, gameState, currentMediaId, players.length]);
 
-  // Ordre mélangé des légendes pour le vote (stable tant que le set de légendes du round ne change pas)
-  const shuffledCaptionsForRound = useMemo(
-    () => shuffle(captionsForRound),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [captionsForRound.map((c) => c.author_id).join(','), currentMediaId]
-  );
-
-  // Carrousel de vote : une légende candidate à la fois
-  const [voteSlide, setVoteSlide] = useState(0);
+  // Vote (résumé) : touches 1-9 pour voter directement pour la légende correspondante
   useEffect(() => {
-    setVoteSlide(0);
-  }, [currentMediaId]);
-  const voteCardCount = shuffledCaptionsForRound.length;
-  const goPrevSlide = () => setVoteSlide((s) => (voteCardCount ? (s - 1 + voteCardCount) % voteCardCount : 0));
-  const goNextSlide = () => setVoteSlide((s) => (voteCardCount ? (s + 1) % voteCardCount : 0));
-
-  // Navigation clavier pendant le vote : flèches pour parcourir, Entrée pour voter la carte affichée
-  useEffect(() => {
-    if (gameState !== 'vote') return;
+    if (gameState !== 'vote' || myVoteForRound) return;
     const handler = (e) => {
-      if (e.key === 'ArrowLeft') goPrevSlide();
-      else if (e.key === 'ArrowRight') goNextSlide();
-      else if (e.key === 'Enter') {
-        const target = shuffledCaptionsForRound[voteSlide];
-        if (target && target.author_id !== player.id && !myVoteForRound) castVote(target.author_id);
-      }
+      if (e.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+      const n = parseInt(e.key, 10);
+      if (!n) return;
+      const target = orderedCaptions[n - 1];
+      if (target && target.author_id !== player.id) castVote(target.author_id);
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameState, voteSlide, shuffledCaptionsForRound, myVoteForRound, player.id, voteCardCount]);
+  }, [gameState, myVoteForRound, orderedCaptions, player.id]);
+
+  // Présentation : le host fait défiler avec les flèches du clavier
+  useEffect(() => {
+    if (gameState !== 'present' || !isHost) return;
+    const handler = (e) => {
+      if (e.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+      if (e.key === 'ArrowRight') setSlide(presentIndex + 1);
+      else if (e.key === 'ArrowLeft') setSlide(presentIndex - 1);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState, isHost, presentIndex, orderedCaptions.length]);
 
   const downloadMedia = async (media) => {
     try {
@@ -1269,6 +1356,7 @@ export default function CaptionBattle() {
   const downloadComposedMeme = async (media, text, style) => {
     if (isVideoMedia(media)) {
       setVideoComposeProgress(0);
+      sfxSuspended = true;
       try {
         const blob = await composeMemeVideo(media.url, text, style, (ratio) => setVideoComposeProgress(ratio));
         if (!blob || blob.size === 0) throw new Error('Génération de la vidéo impossible.');
@@ -1281,6 +1369,7 @@ export default function CaptionBattle() {
         downloadMedia(media);
       } finally {
         setVideoComposeProgress(null);
+        sfxSuspended = false;
       }
       return;
     }
@@ -1337,6 +1426,8 @@ export default function CaptionBattle() {
 
   const newGame = () => {
     broadcast('new_game', {});
+    setCaptionOrder({ mediaId: null, order: [] });
+    setPresentIndex(0);
     setMedias([]);
     setRoundQueue([]);
     setCurrentRoundIndex(0);
@@ -1373,6 +1464,110 @@ export default function CaptionBattle() {
   }, [gameState]);
 
   // ==========================================
+  // EFFETS SONORES (les sons se taisent tant qu'un meme vidéo/audio joue)
+  // ==========================================
+  const [soundOn, setSoundOn] = useState(true);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('caption-battle-sfx') === 'off') setSoundOn(false);
+    } catch {
+      // stockage indisponible
+    }
+  }, []);
+  useEffect(() => {
+    sfxEnabled = soundOn;
+    try {
+      localStorage.setItem('caption-battle-sfx', soundOn ? 'on' : 'off');
+    } catch {
+      // stockage indisponible
+    }
+  }, [soundOn]);
+  const toggleSound = () => {
+    const next = !soundOn;
+    setSoundOn(next);
+    if (next) {
+      sfxEnabled = true;
+      playSfx('success');
+    }
+  };
+
+  // Les navigateurs exigent un geste de l'utilisateur avant de laisser jouer du son
+  useEffect(() => {
+    const unlock = () => getAudioCtx();
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+  }, []);
+
+  // Petit clic sur tous les boutons (sauf ceux qui ont leur propre son : data-sfx="off")
+  useEffect(() => {
+    const onClick = (e) => {
+      const btn = e.target && e.target.closest ? e.target.closest('button') : null;
+      if (!btn || btn.disabled || btn.dataset.sfx === 'off') return;
+      playSfx('click');
+    };
+    document.addEventListener('click', onClick);
+    return () => document.removeEventListener('click', onClick);
+  }, []);
+
+  // Changement de phase / de round
+  const prevPhaseRef = useRef({ state: 'home', round: 0 });
+  useEffect(() => {
+    const prev = prevPhaseRef.current;
+    prevPhaseRef.current = { state: gameState, round: currentRoundIndex };
+    if (prev.state === gameState && prev.round === currentRoundIndex) return;
+    if (prev.state === 'home') return; // pas de son en arrivant dans une room
+    if (gameState === 'upload' || gameState === 'caption') playSfx('roundStart');
+    else if (gameState === 'vote') playSfx('voteStart');
+    else if (gameState === 'round_result') playSfx('reveal');
+    else if (gameState === 'final_results') playSfx('fanfare');
+  }, [gameState, currentRoundIndex]);
+
+  // Chaque nouvelle légende affichée pendant la présentation
+  useEffect(() => {
+    if (gameState === 'present') playSfx('whoosh');
+  }, [presentIndex, gameState]);
+
+  // Un joueur arrive / part
+  const prevPlayerIdsRef = useRef(new Set());
+  useEffect(() => {
+    const ids = new Set(players.map((p) => p.id));
+    const prev = prevPlayerIdsRef.current;
+    prevPlayerIdsRef.current = ids;
+    if (prev.size === 0 || !room) return; // première synchro : on ne joue rien
+    let joined = false;
+    let left = false;
+    ids.forEach((id) => {
+      if (!prev.has(id) && id !== player.id) joined = true;
+    });
+    prev.forEach((id) => {
+      if (!ids.has(id)) left = true;
+    });
+    if (joined) playSfx('join');
+    else if (left) playSfx('leave');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [players]);
+
+  // Compte à rebours : tic-tac sur les 5 dernières secondes, buzzer à 0
+  const lastTickRef = useRef(null);
+  useEffect(() => {
+    if (gameState !== 'caption' && gameState !== 'vote') {
+      lastTickRef.current = null;
+      return;
+    }
+    const left = secondsLeftFor(gameState === 'caption' ? settings.captionSeconds : settings.voteSeconds);
+    const key = `${gameState}-${currentRoundIndex}-${left}`;
+    if (lastTickRef.current === key) return;
+    lastTickRef.current = key;
+    if (left > 0 && left <= 5) playSfx('tick');
+    else if (left === 0) playSfx('buzzer');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [now, gameState, currentRoundIndex]);
+
+  // ==========================================
   // SIDEBAR PERSISTANTE (façon Discord : room + liste des joueurs en direct)
   // ==========================================
   // Statut de chaque joueur pour la phase en cours (✅ fait / ⏳ en attente / null = non concerné)
@@ -1399,7 +1594,8 @@ export default function CaptionBattle() {
       lobby: { emoji: '🛋️', label: 'Lobby' },
       upload: { emoji: '📤', label: 'Upload des memes' },
       caption: { emoji: '✍️', label: 'Écriture des légendes' },
-      vote: { emoji: '🗳️', label: 'Vote' },
+      present: { emoji: '👀', label: 'Présentation des légendes' },
+      vote: { emoji: '🗳️', label: 'Résumé & vote' },
       round_result: { emoji: '🏆', label: 'Résultats du round' },
       final_results: { emoji: '🎉', label: 'Partie terminée' },
     };
@@ -1505,12 +1701,15 @@ export default function CaptionBattle() {
       </div>
 
       <div className="h-px bg-gray-800 my-3 shrink-0" />
-      <button
-        onClick={leaveRoom}
-        className="flex items-center gap-2 text-gray-500 hover:text-red-400 text-sm font-bold transition py-1 shrink-0 active:scale-95"
-      >
-        <LogOut size={14} /> Quitter la room
-      </button>
+      <div className="flex items-center justify-between shrink-0">
+        <button
+          onClick={leaveRoom}
+          className="flex items-center gap-2 text-gray-500 hover:text-red-400 text-sm font-bold transition py-1 active:scale-95"
+        >
+          <LogOut size={14} /> Quitter la room
+        </button>
+        <SoundToggle on={soundOn} onToggle={toggleSound} />
+      </div>
     </div>
   );
 
@@ -1554,7 +1753,8 @@ export default function CaptionBattle() {
         </h1>
         <p className="text-gray-400 mb-8 font-medium">Le jeu où tes potes ruinent tes images (et vidéos/audios).</p>
 
-        <div className="bg-gray-900 p-8 rounded-2xl w-full max-w-md shadow-2xl border border-gray-800">
+        <div className="relative bg-gray-900 p-8 rounded-2xl w-full max-w-md shadow-2xl border border-gray-800">
+          <SoundToggle on={soundOn} onToggle={toggleSound} className="absolute top-3 right-3" />
           <div className="flex justify-center mb-4">
             <span
               className="w-16 h-16 flex items-center justify-center rounded-full text-3xl"
@@ -1969,6 +2169,7 @@ export default function CaptionBattle() {
                 className="w-full p-5 pl-6 pr-16 bg-gray-800 border-2 border-gray-700 rounded-xl text-white font-bold text-lg focus:border-purple-500 focus:outline-none transition shadow-lg"
               />
               <button
+                data-sfx="off"
                 onClick={submitCaption}
                 disabled={!myCaption.trim()}
                 className="absolute right-3 top-3 bottom-3 bg-purple-600 hover:bg-purple-500 shadow-md shadow-purple-900/40 disabled:opacity-40 rounded-lg px-4 flex items-center justify-center transition active:scale-95"
@@ -1982,89 +2183,166 @@ export default function CaptionBattle() {
 
         {isHost && (
           <button
-            onClick={() => goToState('vote', { phaseStartedAt: Date.now() })}
+            onClick={goAfterCaption}
             className="mt-6 w-full flex items-center justify-center gap-2 text-gray-500 hover:text-gray-300 text-sm font-bold py-2 transition"
           >
-            <SkipForward size={16} /> Passer au vote quand même
+            <SkipForward size={16} /> Passer à la présentation quand même
           </button>
         )}
       </>)
     );
   }
 
-  if (gameState === 'vote') {
+  if (gameState === 'present') {
     if (!currentMedia) {
-      return (
-        renderAppShell(<>
-          <Waiting label="Chargement du vote..." />
-        </>)
-      );
+      return renderAppShell(<Waiting label="Chargement de la présentation..." />);
     }
-    const canIVote = captionsForRound.some((c) => c.author_id !== player.id);
-    const useMemeCards = isImageMedia(currentMedia);
-    const boundedSlide = voteCardCount ? Math.min(voteSlide, voteCardCount - 1) : 0;
-    const activeCaption = shuffledCaptionsForRound[boundedSlide];
+    const total = orderedCaptions.length;
+    const idx = Math.min(presentIndex, Math.max(0, total - 1));
+    const active = orderedCaptions[idx];
+    const isLast = idx >= total - 1;
+    const hostName = players.find((p) => p.id === hostId)?.name;
+    const startVote = () => goToState('vote', { phaseStartedAt: Date.now() });
 
-    return (
-      renderAppShell(<>
+    return renderAppShell(
+      <>
         <div className="flex justify-between items-center mb-4">
-          <h2 className="font-heading text-2xl font-bold text-purple-400">Vote — Round {currentRoundIndex + 1}/{roundQueue.length}</h2>
-          <CountdownBadge seconds={secondsLeftFor(settings.voteSeconds)} />
+          <h2 className="font-heading text-2xl font-bold text-purple-400">
+            Round {currentRoundIndex + 1}/{roundQueue.length} — Les légendes
+          </h2>
+          <span className="font-mono text-sm text-gray-400 bg-gray-900 border border-gray-800 rounded-full px-3 py-1">
+            {total > 0 ? idx + 1 : 0}/{total}
+          </span>
         </div>
 
-        {!useMemeCards && (
-          <div className="w-full bg-gray-900 p-4 rounded-2xl border border-gray-800 mb-4 shadow-2xl">
+        {/* Le média reste monté d'une légende à l'autre : la vidéo ne se relance pas */}
+        <div className="w-full bg-gray-900 rounded-2xl border border-gray-800 shadow-2xl overflow-hidden">
+          <div className="bg-black/60 p-3">
             <MediaWithDownload media={currentMedia} onDownload={downloadMedia} />
+          </div>
+          {active ? (
+            <div key={active.author_id} className="bg-white text-gray-900 px-6 py-5 animate-fadein">
+              <p className="font-black text-2xl leading-snug text-center break-words [overflow-wrap:anywhere]">
+                "{active.text}"
+              </p>
+            </div>
+          ) : (
+            <div className="bg-gray-800 px-6 py-5 text-center text-gray-400">Aucune légende à afficher.</div>
+          )}
+        </div>
+
+        {total > 1 && (
+          <div className="flex items-center justify-center gap-2 mt-4">
+            {orderedCaptions.map((c, i) => (
+              <button
+                key={c.author_id}
+                data-sfx="off"
+                disabled={!isHost}
+                onClick={() => setSlide(i)}
+                aria-label={`Légende ${i + 1}`}
+                className={`h-2 rounded-full transition-all ${i === idx ? 'w-6 bg-purple-500' : 'w-2 bg-gray-700'} ${
+                  isHost ? 'hover:bg-gray-500 cursor-pointer' : 'cursor-default'
+                }`}
+              />
+            ))}
           </div>
         )}
 
-        {!canIVote ? (
-          <Waiting label="Aucune légende à voter pour toi ce round." sub="En attente des autres..." />
-        ) : (
+        {isHost ? (
           <>
-            <div className="flex items-center justify-between mb-3 text-sm">
-              <span className="text-gray-500 font-mono">{boundedSlide + 1}/{voteCardCount}</span>
-              {myVoteForRound ? (
-                <span className="text-gray-500">
-                  Vote enregistré — en attente des autres ({votesForRound.length}/{eligibleVoters.length})
-                </span>
+            <div className="mt-5 flex items-center justify-center gap-3">
+              <button
+                data-sfx="off"
+                onClick={() => setSlide(idx - 1)}
+                disabled={idx <= 0}
+                className="flex items-center gap-1 bg-gray-800 hover:bg-gray-700 disabled:opacity-30 text-white font-bold py-3 px-5 rounded-lg transition active:scale-95"
+              >
+                <ChevronLeft size={20} /> Précédente
+              </button>
+              {!isLast ? (
+                <button
+                  data-sfx="off"
+                  onClick={() => setSlide(idx + 1)}
+                  className="flex items-center gap-1 bg-purple-600 hover:bg-purple-500 shadow-md shadow-purple-900/40 text-white font-bold py-3 px-5 rounded-lg transition active:scale-95"
+                >
+                  Suivante <ChevronRight size={20} />
+                </button>
               ) : (
-                <span className="text-gray-600 text-xs hidden sm:inline">← → pour naviguer, Entrée pour voter</span>
+                <button
+                  onClick={startVote}
+                  className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-black py-3 px-6 rounded-lg shadow-lg shadow-purple-900/40 transition active:scale-95"
+                >
+                  Passer au vote 🗳️
+                </button>
               )}
             </div>
-
-            {activeCaption && (
-              <Carousel index={boundedSlide} count={voteCardCount} onPrev={goPrevSlide} onNext={goNextSlide} onJump={setVoteSlide}>
-                {(() => {
-                  const isMine = activeCaption.author_id === player.id;
-                  const isSelected = myVoteForRound?.caption_author_id === activeCaption.author_id;
-                  const disabled = isMine || !!myVoteForRound;
-                  return useMemeCards ? (
-                    <MemeVoteCard
-                      media={currentMedia}
-                      caption={activeCaption.text}
-                      isMine={isMine}
-                      isSelected={isSelected}
-                      disabled={disabled}
-                      onVote={() => castVote(activeCaption.author_id)}
-                      onDownloadStyle={(style) => downloadComposedMeme(currentMedia, activeCaption.text, style)}
-                    />
-                  ) : (
-                    <CaptionChoiceCard
-                      caption={activeCaption.text}
-                      isMine={isMine}
-                      isSelected={isSelected}
-                      disabled={disabled}
-                      onVote={() => castVote(activeCaption.author_id)}
-                      showDownload={isVideoMedia(currentMedia)}
-                      onDownloadStyle={(style) => downloadComposedMeme(currentMedia, activeCaption.text, style)}
-                    />
-                  );
-                })()}
-              </Carousel>
+            <p className="text-center text-xs text-gray-600 mt-2">
+              ← → pour faire défiler — tout le monde voit la même légende que toi
+            </p>
+            {!isLast && (
+              <button
+                onClick={startVote}
+                className="mt-3 w-full flex items-center justify-center gap-2 text-gray-500 hover:text-gray-300 text-sm font-bold py-2 transition"
+              >
+                <SkipForward size={16} /> Passer directement au vote
+              </button>
             )}
           </>
+        ) : (
+          <p className="mt-5 text-center text-sm text-gray-400 animate-pulse">
+            👀 {hostName || 'Le host'} fait défiler les légendes...
+          </p>
         )}
+      </>
+    );
+  }
+
+  if (gameState === 'vote') {
+    if (!currentMedia) {
+      return renderAppShell(<Waiting label="Chargement du vote..." />);
+    }
+    const canIVote = orderedCaptions.some((c) => c.author_id !== player.id);
+    const canDownload = isImageMedia(currentMedia) || isVideoMedia(currentMedia);
+
+    return renderAppShell(
+      <>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="font-heading text-2xl font-bold text-purple-400">
+            Résumé — Round {currentRoundIndex + 1}/{roundQueue.length}
+          </h2>
+          <CountdownBadge seconds={secondsLeftFor(settings.voteSeconds)} />
+        </div>
+
+        <div className="w-full bg-gray-900 p-3 rounded-2xl border border-gray-800 mb-4 shadow-2xl">
+          <MediaWithDownload media={currentMedia} onDownload={downloadMedia} compact />
+        </div>
+
+        <p className="text-center text-sm text-gray-400 mb-3">
+          {myVoteForRound
+            ? `Vote enregistré — en attente des autres (${votesForRound.length}/${eligibleVoters.length})`
+            : !canIVote
+            ? 'Aucune autre légende pour laquelle voter — attends les autres...'
+            : 'Vote pour la meilleure légende (touches 1-9 pour voter vite)'}
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+          {orderedCaptions.map((c, i) => {
+            const isMine = c.author_id === player.id;
+            return (
+              <RecapCaptionCard
+                key={c.author_id}
+                index={i + 1}
+                caption={c.text}
+                isMine={isMine}
+                isSelected={myVoteForRound?.caption_author_id === c.author_id}
+                disabled={isMine || !!myVoteForRound}
+                onVote={() => castVote(c.author_id)}
+                showDownload={canDownload}
+                onDownloadStyle={(style) => downloadComposedMeme(currentMedia, c.text, style)}
+              />
+            );
+          })}
+        </div>
 
         {isHost && (
           <button
@@ -2074,7 +2352,7 @@ export default function CaptionBattle() {
             <SkipForward size={16} /> Passer aux résultats quand même
           </button>
         )}
-      </>)
+      </>
     );
   }
 
@@ -2090,7 +2368,7 @@ export default function CaptionBattle() {
             </div>
           )}
           <div className="w-full space-y-2 mb-6">
-            {captionsForRound
+            {orderedCaptions
               .map((c) => ({ ...c, points: votesForRound.filter((v) => v.caption_author_id === c.author_id).length }))
               .sort((a, b) => b.points - a.points)
               .map((c) => (
