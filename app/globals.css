@@ -21,6 +21,17 @@ body {
   position: relative;
 }
 
+/* Plein écran sans défilement de page sur desktop (à partir du breakpoint
+   Tailwind "md"). Sur mobile, l'écran est trop petit pour tout faire tenir
+   sans scroll, donc le comportement naturel (page qui défile) reste actif. */
+@media (min-width: 768px) {
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
+  }
+}
+
 .font-heading {
   font-family: 'Baloo 2', Arial, Helvetica, sans-serif;
 }

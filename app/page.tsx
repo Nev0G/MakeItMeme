@@ -362,7 +362,7 @@ const DEFAULT_SETTINGS = {
 const MAX_NAME_LEN = 20;
 const MAX_CAPTION_LEN = 140;
 // Incrémenter à chaque mise à jour livrée du jeu.
-const APP_VERSION = 'v21';
+const APP_VERSION = 'v23';
 
 const PLAYER_COLORS = ['#a855f7', '#ec4899', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#f43f5e'];
 const colorForPlayer = (id) => {
@@ -528,14 +528,6 @@ const MediaPlayer = ({ src, type, compact = false }) => {
   // qu'un meme joue.
   const trackPlaying = (e) => playingMedia.add(e.currentTarget);
   const untrackPlaying = (e) => playingMedia.delete(e.currentTarget);
-  // Filet de sécurité : si la boucle native s'interrompt (fin atteinte malgré
-  // l'attribut loop), on relance manuellement la lecture.
-  const restartIfEnded = (e) => {
-    const el = e.currentTarget;
-    playingMedia.delete(el);
-    el.currentTime = 0;
-    el.play().catch(() => {});
-  };
 
   if (type && type.includes('video')) {
     return (
@@ -543,13 +535,12 @@ const MediaPlayer = ({ src, type, compact = false }) => {
         src={src}
         controls
         autoPlay
-        loop
         playsInline
         onLoadedMetadata={setDefaultVolume}
         onPlaying={trackPlaying}
         onPause={untrackPlaying}
         onEmptied={untrackPlaying}
-        onEnded={restartIfEnded}
+        onEnded={untrackPlaying}
         className={sizingClasses}
       />
     );
@@ -562,12 +553,11 @@ const MediaPlayer = ({ src, type, compact = false }) => {
           src={src}
           controls
           autoPlay
-          loop
           onLoadedMetadata={setDefaultVolume}
           onPlaying={trackPlaying}
           onPause={untrackPlaying}
           onEmptied={untrackPlaying}
-          onEnded={restartIfEnded}
+          onEnded={untrackPlaying}
           className="w-full"
         />
       </div>
@@ -1974,7 +1964,7 @@ export default function CaptionBattle() {
     const progress = totalRounds > 0 ? Math.min(1, completedRounds / totalRounds) : 0;
 
     return (
-      <div className="mb-4 bg-gray-900/80 border border-gray-800 rounded-2xl px-4 py-3">
+      <div className="shrink-0 mb-4 bg-gray-900/80 border border-gray-800 rounded-2xl px-4 py-3">
         <div className="flex items-center justify-between gap-3 text-sm flex-wrap">
           <span className="font-bold">
             {phase.emoji} {phase.label}
@@ -2016,7 +2006,7 @@ export default function CaptionBattle() {
   };
 
   const renderSidebar = () => (
-    <div className="w-full md:w-72 shrink-0 bg-gray-900 rounded-2xl border border-gray-800 shadow-xl shadow-black/30 p-4 flex flex-col md:h-[calc(100vh-2rem)] md:sticky md:top-4">
+    <div className="w-full md:w-72 shrink-0 bg-gray-900 rounded-2xl border border-gray-800 shadow-xl shadow-black/30 p-4 flex flex-col md:h-[calc(100dvh-2rem)] md:sticky md:top-4">
       <div className="flex items-center justify-between mb-1">
         <span className="text-gray-500 font-mono text-xs uppercase tracking-wide"># room-{room?.code}</span>
         <button onClick={copyCode} title="Copier le lien d'invitation" className="text-gray-500 hover:text-white transition">
@@ -2111,7 +2101,7 @@ export default function CaptionBattle() {
   // Fonction ordinaire (pas un composant <Tag>) — voir la note plus haut sur le
   // bug de remontage : la même règle s'applique ici.
   const renderAppShell = (mainContent) => (
-    <div className="min-h-screen bg-gray-950/95 text-white relative z-10 flex justify-center p-4">
+    <div className="min-h-screen md:h-[100dvh] md:overflow-hidden bg-gray-950/95 text-white relative z-10 flex justify-center p-4">
       <VersionBadge />
       <CursorLayer
         key="cursor-layer"
@@ -2135,11 +2125,16 @@ export default function CaptionBattle() {
           <p className="text-xs text-gray-500">Ça prend la durée de la vidéo, patience 🙏</p>
         </div>
       )}
-      <div className="w-full max-w-[100rem] flex flex-col md:flex-row gap-4">
+      <div className="w-full max-w-[100rem] flex flex-col md:flex-row gap-4 md:h-full md:min-h-0">
         {renderSidebar()}
-        <div className="flex-1 min-w-0 flex flex-col">
+        <div className="flex-1 min-w-0 flex flex-col md:h-full md:min-h-0">
           {renderProgressHeader()}
-          <div key={gameState} className="flex-1 min-w-0 flex flex-col animate-fadein">{mainContent}</div>
+          <div
+            key={gameState}
+            className="flex-1 min-w-0 flex flex-col animate-fadein md:min-h-0 md:overflow-y-auto md:pr-1"
+          >
+            {mainContent}
+          </div>
         </div>
       </div>
     </div>
@@ -2150,7 +2145,7 @@ export default function CaptionBattle() {
   // ==========================================
   if (gameState === 'home') {
     return (
-      <div className="min-h-screen bg-gray-950/95 text-white relative z-10 flex flex-col items-center justify-center p-4">
+      <div className="min-h-screen md:h-[100dvh] md:overflow-hidden bg-gray-950/95 text-white relative z-10 flex flex-col items-center justify-center p-4">
         <VersionBadge />
         <h1
           className="font-heading text-6xl sm:text-7xl font-extrabold mb-2 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 bg-clip-text text-transparent animate-bob drop-shadow-sm"
