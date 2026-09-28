@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import {
   Play, Image as ImageIcon, Video, Music, Send, Trophy, Users, Loader2,
   Crown, ThumbsUp, SkipForward, Settings, Copy, LogOut, Check, Download,
-  ChevronLeft, ChevronRight, Link as LinkIcon, Volume2, VolumeX,
+  ChevronLeft, ChevronRight, Link as LinkIcon, Volume2, VolumeX, Eye, EyeOff, Pencil,
 } from 'lucide-react';
 
 // ==========================================
@@ -274,8 +274,9 @@ const fireConfetti = ({ count = 140, duration = 3200 } = {}) => {
   canvas.style.zIndex = '9999';
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
-  document.body.appendChild(canvas);
   const ctx = canvas.getContext('2d');
+  if (!ctx) return; // canvas indisponible : pas de confettis, mais pas d'erreur
+  document.body.appendChild(canvas);
 
   const colors = ['#a855f7', '#ec4899', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6'];
   const pieces = Array.from({ length: count }, () => ({
@@ -356,11 +357,12 @@ const DEFAULT_SETTINGS = {
   allowExternalLink: true,
   maxFileMB: 25,
   ownerCanCaption: true,
+  cursorsEnabled: true,
 };
 const MAX_NAME_LEN = 20;
 const MAX_CAPTION_LEN = 140;
 // Incrémenter à chaque mise à jour livrée du jeu.
-const APP_VERSION = 'v20';
+const APP_VERSION = 'v21';
 
 const PLAYER_COLORS = ['#a855f7', '#ec4899', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#f43f5e'];
 const colorForPlayer = (id) => {
@@ -650,68 +652,394 @@ const MediaWithDownload = ({ media, onDownload, compact = false }) => (
   </div>
 );
 
-// Carte du résumé de vote : la légende (style "vieux meme" : fond blanc, texte
-// centré) + un menu pour la télécharger incrustée sur le meme.
-// Sa propre légende reste visible mais n'est pas votable.
+// ==========================================
+// LÉGENDES : rendu lisible et aux couleurs du site
+// ==========================================
+// La taille du texte s'adapte à la longueur : une légende courte est énorme,
+// une longue reste lisible sans déborder.
+const captionSizeLarge = (text) => {
+  const n = (text || '').length;
+  if (n <= 24) return 'text-4xl sm:text-5xl';
+  if (n <= 60) return 'text-3xl sm:text-4xl';
+  if (n <= 110) return 'text-2xl sm:text-3xl';
+  return 'text-xl sm:text-2xl';
+};
+const captionSizeSmall = (text) => {
+  const n = (text || '').length;
+  if (n <= 30) return 'text-2xl';
+  if (n <= 70) return 'text-xl';
+  return 'text-lg';
+};
+
+const CaptionText = ({ text, size = 'large', className = '' }) => (
+  <p
+    className={`font-heading font-extrabold text-white text-center leading-tight break-words [overflow-wrap:anywhere] [text-shadow:0_2px_14px_rgba(168,85,247,0.45)] ${
+      size === 'large' ? captionSizeLarge(text) : captionSizeSmall(text)
+    } ${className}`}
+  >
+    <span className="text-transparent bg-clip-text bg-gradient-to-br from-purple-400 to-pink-400">“</span>
+    {text}
+    <span className="text-transparent bg-clip-text bg-gradient-to-br from-pink-400 to-orange-300">”</span>
+  </p>
+);
+
+// Carte du résumé de vote : fond sombre + bordure dégradée, texte blanc très
+// contrasté. Sa propre légende reste visible mais n'est pas votable.
 const RecapCaptionCard = ({ index, caption, isMine, isSelected, disabled, onVote, showDownload, onDownloadStyle }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   return (
     <div
-      className={`relative rounded-2xl overflow-hidden border-2 transition flex flex-col shadow-lg ${
+      className={`relative rounded-2xl p-[2px] transition duration-200 animate-rise ${
         isSelected
-          ? 'border-purple-500 ring-2 ring-purple-500'
+          ? 'bg-gradient-to-br from-purple-400 via-pink-500 to-orange-400 shadow-xl shadow-purple-500/40 scale-[1.02]'
           : isMine
-          ? 'border-gray-700'
-          : 'border-gray-800 hover:border-purple-500'
+          ? 'bg-gray-700/60'
+          : 'bg-gradient-to-br from-purple-800/70 to-pink-800/70 hover:from-purple-500 hover:to-pink-500 hover:-translate-y-1 hover:shadow-xl hover:shadow-purple-900/50'
       }`}
+      style={{ animationDelay: `${Math.min(index, 12) * 60}ms` }}
     >
-      <span className="absolute top-2 left-2 z-10 text-xs font-black bg-gray-900/80 text-gray-200 w-6 h-6 flex items-center justify-center rounded-full">
-        {index}
-      </span>
-      {showDownload && (
-        <div className="absolute top-2 right-2 z-20">
-          <DownloadButton onClick={() => setMenuOpen((v) => !v)} />
-          {menuOpen && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-              <div className="absolute right-0 mt-1 z-20 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl overflow-hidden w-48 text-xs">
-                {MEME_STYLES.map((st) => (
-                  <button
-                    key={st.id}
-                    onClick={() => {
-                      setMenuOpen(false);
-                      onDownloadStyle(st.id);
-                    }}
-                    className="w-full text-left px-3 py-2.5 text-gray-200 hover:bg-purple-900/40 transition"
-                  >
-                    {st.label}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      )}
-      <button
-        data-sfx="off"
-        onClick={onVote}
-        disabled={disabled}
-        className={`flex-1 px-6 pt-10 pb-5 text-center font-black text-lg leading-snug break-words [overflow-wrap:anywhere] transition active:scale-[0.98] ${
-          isSelected
-            ? 'bg-purple-600 text-white'
-            : isMine
-            ? 'bg-gray-200 text-gray-500 cursor-default'
-            : 'bg-white text-gray-900 hover:bg-purple-50'
+      <div
+        className={`relative h-full rounded-[14px] overflow-hidden flex flex-col ${
+          isSelected ? 'bg-gradient-to-br from-purple-800 to-pink-800' : 'bg-gray-950'
         }`}
       >
-        "{caption}"
-      </button>
-      <div className="px-3 py-2 text-xs font-bold text-center bg-gray-900 text-gray-400">
-        {isSelected ? '✅ Ton vote' : isMine ? "C'est la tienne — pas votable" : 'Clique pour voter'}
+        <span className="absolute top-2 left-2 z-10 text-xs font-black bg-purple-600/80 text-white w-6 h-6 flex items-center justify-center rounded-full">
+          {index}
+        </span>
+        {showDownload && (
+          <div className="absolute top-2 right-2 z-20">
+            <DownloadButton onClick={() => setMenuOpen((v) => !v)} />
+            {menuOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+                <div className="absolute right-0 mt-1 z-20 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl overflow-hidden w-48 text-xs">
+                  {MEME_STYLES.map((st) => (
+                    <button
+                      key={st.id}
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onDownloadStyle(st.id);
+                      }}
+                      className="w-full text-left px-3 py-2.5 text-gray-200 hover:bg-purple-900/40 transition"
+                    >
+                      {st.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+        <button
+          data-sfx="off"
+          onClick={onVote}
+          disabled={disabled}
+          className={`flex-1 px-5 pt-11 pb-6 transition active:scale-[0.98] ${
+            isMine ? 'cursor-default opacity-70' : disabled ? 'cursor-default' : 'cursor-pointer'
+          }`}
+        >
+          <CaptionText text={caption} size="small" />
+        </button>
+        <div
+          className={`px-3 py-2 text-xs font-bold text-center ${
+            isSelected ? 'bg-black/25 text-white' : 'bg-gray-900 text-gray-400'
+          }`}
+        >
+          {isSelected ? (
+            <span className="inline-block animate-pop">✅ Ton vote</span>
+          ) : isMine ? (
+            "C'est la tienne — pas votable"
+          ) : (
+            'Clique pour voter'
+          )}
+        </div>
       </div>
     </div>
   );
 };
+
+// ==========================================
+// CURSEURS PARTAGÉS + DESSIN
+// ==========================================
+// Les positions des autres joueurs arrivent par le canal temps réel. Tout est
+// dans une couche fixe qui ignore la souris (pointer-events: none) : elle ne
+// gêne jamais les clics. On dessine en maintenant Maj (Shift) et en bougeant la
+// souris ; les traits s'effacent tout seuls au bout de quelques secondes.
+const CURSOR_HOLD_MS = 5000; // le trait reste entier
+const CURSOR_FADE_MS = 3000; // puis s'efface progressivement
+const CURSOR_IDLE_MS = 6000; // curseur masqué sans nouvelles
+const CURSOR_MAX_POINTS = 900;
+
+// Petit bus : les messages "cursor" du canal arrivent ici sans faire re-rendre tout le jeu.
+const cursorSubscribers = new Set();
+const emitCursor = (payload) => cursorSubscribers.forEach((fn) => fn(payload));
+
+const round4 = (n) => Math.round(n * 10000) / 10000;
+
+const drawStrokes = (canvas, strokes) => {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return false;
+  const dpr = window.devicePixelRatio || 1;
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 4;
+  const now = Date.now();
+  let alive = false;
+  strokes.forEach((stroke, key) => {
+    stroke.pts = stroke.pts.filter((pt) => now - pt.t < CURSOR_HOLD_MS + CURSOR_FADE_MS);
+    if (stroke.pts.length === 0) {
+      strokes.delete(key);
+      return;
+    }
+    alive = true;
+    ctx.strokeStyle = stroke.color;
+    ctx.fillStyle = stroke.color;
+    if (stroke.pts.length === 1) {
+      const pt = stroke.pts[0];
+      ctx.globalAlpha = 0.9;
+      ctx.beginPath();
+      ctx.arc(pt.x * w, pt.y * h, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+      return;
+    }
+    for (let i = 1; i < stroke.pts.length; i++) {
+      const a = stroke.pts[i - 1];
+      const b = stroke.pts[i];
+      const age = now - b.t;
+      ctx.globalAlpha =
+        age < CURSOR_HOLD_MS ? 0.95 : Math.max(0, 0.95 * (1 - (age - CURSOR_HOLD_MS) / CURSOR_FADE_MS));
+      ctx.beginPath();
+      ctx.moveTo(a.x * w, a.y * h);
+      ctx.lineTo(b.x * w, b.y * h);
+      ctx.stroke();
+    }
+  });
+  ctx.globalAlpha = 1;
+  return alive;
+};
+
+const CursorLayer = React.memo(function CursorLayer({ channelRef, me, allowed, showCursors, drawOn, playerCount }) {
+  const canvasRef = useRef(null);
+  const strokesRef = useRef(new Map()); // "idJoueur:idTrait" -> { color, pts: [{x, y, t}] }
+  const rafRef = useRef(null);
+  const [remote, setRemote] = useState({}); // id -> { x, y, name, avatar, t, off }
+  const [hint, setHint] = useState(false);
+  const [hasMouse, setHasMouse] = useState(true);
+
+  // Valeurs les plus récentes pour les écouteurs (qui ne sont posés qu'une fois)
+  const latest = useRef({});
+  latest.current = { allowed, showCursors, drawOn, me };
+
+  // Fréquence d'envoi adaptée au nombre de joueurs, pour ne pas saturer le canal
+  const interval = Math.min(500, 150 + playerCount * 40);
+
+  const startLoop = () => {
+    if (rafRef.current) return;
+    const tick = () => {
+      const canvas = canvasRef.current;
+      if (!canvas) {
+        rafRef.current = null;
+        return;
+      }
+      const alive = drawStrokes(canvas, strokesRef.current);
+      rafRef.current = alive ? requestAnimationFrame(tick) : null;
+    };
+    rafRef.current = requestAnimationFrame(tick);
+  };
+
+  useEffect(() => {
+    setHasMouse(window.matchMedia ? window.matchMedia('(pointer: fine)').matches : true);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
+
+  // Aide affichée quelques secondes à l'arrivée
+  useEffect(() => {
+    if (!allowed) return;
+    setHint(true);
+    const timer = setTimeout(() => setHint(false), 9000);
+    return () => clearTimeout(timer);
+  }, [allowed]);
+
+  // Réception des curseurs et des traits des autres joueurs
+  useEffect(() => {
+    const onMsg = (m) => {
+      const cur = latest.current;
+      if (!m || !m.id || m.id === cur.me.id || !cur.allowed || !cur.showCursors) return;
+      const now = Date.now();
+      if (m.off) {
+        setRemote((prev) => (prev[m.id] ? { ...prev, [m.id]: { ...prev[m.id], off: true } } : prev));
+        return;
+      }
+      if (typeof m.x === 'number' && typeof m.y === 'number') {
+        setRemote((prev) => ({ ...prev, [m.id]: { x: m.x, y: m.y, name: m.n, avatar: m.a, t: now, off: false } }));
+      }
+      if (Array.isArray(m.s)) {
+        m.s.forEach((seg) => {
+          if (!seg || !seg.i || !Array.isArray(seg.p)) return;
+          const key = `${m.id}:${seg.i}`;
+          let stroke = strokesRef.current.get(key);
+          if (!stroke) {
+            stroke = { color: colorForPlayer(m.id), pts: [] };
+            strokesRef.current.set(key, stroke);
+          }
+          for (let i = 0; i + 1 < seg.p.length; i += 2) {
+            if (stroke.pts.length < CURSOR_MAX_POINTS) stroke.pts.push({ x: seg.p[i], y: seg.p[i + 1], t: now });
+          }
+        });
+        startLoop();
+      }
+    };
+    cursorSubscribers.add(onMsg);
+    return () => {
+      cursorSubscribers.delete(onMsg);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Curseurs qui n'ont plus donné de nouvelles : on les masque
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setRemote((prev) => {
+        const now = Date.now();
+        let changed = false;
+        const next = {};
+        Object.entries(prev).forEach(([id, c]) => {
+          if (now - c.t < CURSOR_IDLE_MS) next[id] = c;
+          else changed = true;
+        });
+        return changed ? next : prev;
+      });
+    }, 1500);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Si on masque les curseurs (ou si le host les coupe) : on retire ceux des autres
+  useEffect(() => {
+    if (showCursors && allowed) return;
+    setRemote({});
+    strokesRef.current.forEach((_, key) => {
+      if (!key.startsWith(`${latest.current.me.id}:`)) strokesRef.current.delete(key);
+    });
+  }, [showCursors, allowed]);
+
+  // Envoi de MA position (et de mes traits), en petits paquets
+  useEffect(() => {
+    if (!allowed) return;
+    const st = { x: 0, y: 0, dirty: false, offPending: false, sid: null, last: null, pending: {} };
+
+    const onMove = (e) => {
+      if (e.pointerType && e.pointerType !== 'mouse') return;
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      st.x = e.clientX / w;
+      st.y = e.clientY / h;
+      st.dirty = true;
+      st.offPending = false;
+      if (latest.current.drawOn && e.shiftKey) {
+        if (!st.sid) {
+          st.sid = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
+          st.last = null;
+        }
+        if (!st.last || Math.hypot(e.clientX - st.last.x, e.clientY - st.last.y) >= 4) {
+          st.last = { x: e.clientX, y: e.clientY };
+          const nx = round4(st.x);
+          const ny = round4(st.y);
+          (st.pending[st.sid] = st.pending[st.sid] || []).push(nx, ny);
+          const key = `${latest.current.me.id}:${st.sid}`;
+          let stroke = strokesRef.current.get(key);
+          if (!stroke) {
+            stroke = { color: colorForPlayer(latest.current.me.id), pts: [] };
+            strokesRef.current.set(key, stroke);
+          }
+          if (stroke.pts.length < CURSOR_MAX_POINTS) stroke.pts.push({ x: nx, y: ny, t: Date.now() });
+          startLoop();
+        }
+      } else {
+        st.sid = null;
+        st.last = null;
+      }
+    };
+    const onLeave = () => {
+      st.offPending = true;
+      st.sid = null;
+      st.last = null;
+    };
+
+    window.addEventListener('pointermove', onMove);
+    document.documentElement.addEventListener('mouseleave', onLeave);
+    window.addEventListener('blur', onLeave);
+
+    const timer = setInterval(() => {
+      const ch = channelRef.current;
+      const hasStrokes = Object.keys(st.pending).length > 0;
+      if (!ch || (!st.dirty && !hasStrokes && !st.offPending)) return;
+      const cur = latest.current.me;
+      const payload = { id: cur.id, n: cur.name, a: cur.avatar, x: round4(st.x), y: round4(st.y) };
+      if (hasStrokes) payload.s = Object.entries(st.pending).map(([i, p]) => ({ i, p }));
+      if (st.offPending) payload.off = true;
+      ch.send({ type: 'broadcast', event: 'cursor', payload });
+      st.pending = {};
+      st.dirty = false;
+      st.offPending = false;
+    }, interval);
+
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('pointermove', onMove);
+      document.documentElement.removeEventListener('mouseleave', onLeave);
+      window.removeEventListener('blur', onLeave);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allowed, interval]);
+
+  if (!allowed || !hasMouse) return null;
+
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 0;
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 0;
+
+  return (
+    <>
+      <canvas ref={canvasRef} className="fixed inset-0 w-screen h-screen pointer-events-none z-[890]" />
+      {showCursors &&
+        Object.entries(remote).map(([id, c]) => {
+          if (c.off) return null;
+          const col = colorForPlayer(id);
+          return (
+            <div
+              key={id}
+              className="fixed top-0 left-0 z-[900] pointer-events-none"
+              style={{ transform: `translate3d(${c.x * vw}px, ${c.y * vh}px, 0)`, transition: `transform ${interval}ms linear` }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))' }}>
+                <path d="M3 2l7.5 19 2.6-7.9L21 10.5z" fill={col} stroke="white" strokeWidth="1.5" strokeLinejoin="round" />
+              </svg>
+              <span
+                className="absolute left-4 top-4 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold text-white whitespace-nowrap shadow-lg"
+                style={{ backgroundColor: col }}
+              >
+                {c.avatar} {c.name}
+              </span>
+            </div>
+          );
+        })}
+      {hint && drawOn && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[900] pointer-events-none animate-fadein bg-gray-900/90 border border-purple-700 text-gray-200 text-xs font-bold rounded-full px-4 py-2 shadow-xl">
+          ✏️ Maintiens <kbd className="bg-gray-700 rounded px-1.5 py-0.5">Maj</kbd> et bouge la souris pour gribouiller
+        </div>
+      )}
+    </>
+  );
+});
 
 // ==========================================
 // APPLICATION PRINCIPALE
@@ -895,6 +1223,8 @@ export default function CaptionBattle() {
         processedRoundRef.current = Math.max(processedRoundRef.current, payload.processedRound);
       }
     });
+
+    channel.on('broadcast', { event: 'cursor' }, ({ payload }) => emitCursor(payload));
 
     channel.on('broadcast', { event: 'caption_order' }, ({ payload }) => {
       setCaptionOrder({ mediaId: payload.mediaId, order: payload.order || [] });
@@ -1482,6 +1812,45 @@ export default function CaptionBattle() {
       // stockage indisponible
     }
   }, [soundOn]);
+  // Préférences d'affichage des curseurs partagés / du dessin (mémorisées)
+  const [showCursors, setShowCursors] = useState(true);
+  const [drawOn, setDrawOn] = useState(true);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('caption-battle-cursors') === 'off') setShowCursors(false);
+      if (localStorage.getItem('caption-battle-draw') === 'off') setDrawOn(false);
+    } catch {
+      // stockage indisponible
+    }
+  }, []);
+  useEffect(() => {
+    try {
+      localStorage.setItem('caption-battle-cursors', showCursors ? 'on' : 'off');
+      localStorage.setItem('caption-battle-draw', drawOn ? 'on' : 'off');
+    } catch {
+      // stockage indisponible
+    }
+  }, [showCursors, drawOn]);
+  const meForCursor = useMemo(
+    () => ({ id: player.id, name: player.name, avatar: player.avatar }),
+    [player.id, player.name, player.avatar]
+  );
+
+  // Petite onde au clic (purement décorative, ignore les clics au clavier)
+  useEffect(() => {
+    const onClick = (e) => {
+      if (!e.detail || typeof e.clientX !== 'number') return;
+      const ripple = document.createElement('span');
+      ripple.className = 'click-ripple';
+      ripple.style.left = `${e.clientX}px`;
+      ripple.style.top = `${e.clientY}px`;
+      document.body.appendChild(ripple);
+      setTimeout(() => ripple.remove(), 650);
+    };
+    document.addEventListener('click', onClick);
+    return () => document.removeEventListener('click', onClick);
+  }, []);
+
   const toggleSound = () => {
     const next = !soundOn;
     setSoundOn(next);
@@ -1637,7 +2006,7 @@ export default function CaptionBattle() {
         {totalRounds > 0 && (
           <div className="mt-2 h-1.5 bg-gray-800 rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-500"
+              className="h-full shimmer-bar transition-all duration-500"
               style={{ width: `${Math.round(progress * 100)}%` }}
             />
           </div>
@@ -1675,7 +2044,9 @@ export default function CaptionBattle() {
                 p.id === player.id ? 'bg-purple-900/40 border border-purple-600/60' : 'hover:bg-gray-800/70 hover:translate-x-0.5'
               }`}
             >
-              <PlayerDot id={p.id} avatar={p.avatar} size="md" />
+              <span className="wiggle-hover inline-flex cursor-default">
+                <PlayerDot id={p.id} avatar={p.avatar} size="md" />
+              </span>
               <span className="font-bold truncate flex-1">{p.name}</span>
               {(() => {
                 const st = playerStatus(p);
@@ -1695,7 +2066,9 @@ export default function CaptionBattle() {
               {p.id === hostId && (
                 <span className="text-[9px] font-bold text-purple-400 bg-purple-900/40 px-1.5 py-0.5 rounded shrink-0">HOST</span>
               )}
-              <span className="font-black text-purple-300 text-xs shrink-0 w-6 text-right">{cumulativeScores[p.id] || 0}</span>
+              <span key={cumulativeScores[p.id] || 0} className="font-black text-purple-300 text-xs shrink-0 w-6 text-right inline-block animate-pop">
+                {cumulativeScores[p.id] || 0}
+              </span>
             </div>
           ))}
       </div>
@@ -1708,7 +2081,29 @@ export default function CaptionBattle() {
         >
           <LogOut size={14} /> Quitter la room
         </button>
-        <SoundToggle on={soundOn} onToggle={toggleSound} />
+        <div className="flex items-center gap-2.5">
+          {settings.cursorsEnabled && (
+            <>
+              <button
+                type="button"
+                onClick={() => setShowCursors((v) => !v)}
+                title={showCursors ? 'Masquer les curseurs des autres' : 'Afficher les curseurs des autres'}
+                className="text-gray-500 hover:text-white transition active:scale-90"
+              >
+                {showCursors ? <Eye size={16} /> : <EyeOff size={16} />}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDrawOn((v) => !v)}
+                title={drawOn ? 'Dessin activé (Maj + souris)' : 'Dessin désactivé'}
+                className={`transition active:scale-90 ${drawOn ? 'text-purple-400 hover:text-purple-300' : 'text-gray-600 hover:text-white'}`}
+              >
+                <Pencil size={16} />
+              </button>
+            </>
+          )}
+          <SoundToggle on={soundOn} onToggle={toggleSound} />
+        </div>
       </div>
     </div>
   );
@@ -1718,6 +2113,15 @@ export default function CaptionBattle() {
   const renderAppShell = (mainContent) => (
     <div className="min-h-screen bg-gray-950/95 text-white relative z-10 flex justify-center p-4">
       <VersionBadge />
+      <CursorLayer
+        key="cursor-layer"
+        channelRef={channelRef}
+        me={meForCursor}
+        allowed={settings.cursorsEnabled && !!player.id}
+        showCursors={showCursors}
+        drawOn={drawOn}
+        playerCount={players.length}
+      />
       {videoComposeProgress !== null && (
         <div className="fixed inset-0 z-[999] bg-black/80 flex flex-col items-center justify-center gap-4 p-4">
           <Loader2 size={40} className="text-purple-400 animate-spin" />
@@ -1748,7 +2152,10 @@ export default function CaptionBattle() {
     return (
       <div className="min-h-screen bg-gray-950/95 text-white relative z-10 flex flex-col items-center justify-center p-4">
         <VersionBadge />
-        <h1 className="font-heading text-6xl sm:text-7xl font-extrabold mb-2 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 bg-clip-text text-transparent transform -rotate-2 drop-shadow-sm">
+        <h1
+          className="font-heading text-6xl sm:text-7xl font-extrabold mb-2 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 bg-clip-text text-transparent animate-bob drop-shadow-sm"
+          style={{ '--bob-rot': '-2deg' }}
+        >
           CAPTION BATTLE
         </h1>
         <p className="text-gray-400 mb-8 font-medium">Le jeu où tes potes ruinent tes images (et vidéos/audios).</p>
@@ -1931,6 +2338,13 @@ export default function CaptionBattle() {
               checked={settings.allowExternalLink}
               disabled={!isHost}
               onChange={(v) => updateSettings({ allowExternalLink: v })}
+            />
+            <ToggleRow
+              label="Curseurs & dessins partagés"
+              hint="Voir la souris des autres et gribouiller (Maj + souris)"
+              checked={settings.cursorsEnabled}
+              disabled={!isHost}
+              onChange={(v) => updateSettings({ cursorsEnabled: v })}
             />
           </div>
         </div>
@@ -2216,19 +2630,22 @@ export default function CaptionBattle() {
         </div>
 
         {/* Le média reste monté d'une légende à l'autre : la vidéo ne se relance pas */}
-        <div className="w-full bg-gray-900 rounded-2xl border border-gray-800 shadow-2xl overflow-hidden">
-          <div className="bg-black/60 p-3">
-            <MediaWithDownload media={currentMedia} onDownload={downloadMedia} />
-          </div>
-          {active ? (
-            <div key={active.author_id} className="bg-white text-gray-900 px-6 py-5 animate-fadein">
-              <p className="font-black text-2xl leading-snug text-center break-words [overflow-wrap:anywhere]">
-                "{active.text}"
-              </p>
+        <div className="w-full rounded-3xl p-[3px] bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 gradient-animated shadow-2xl shadow-purple-900/40">
+          <div className="rounded-[21px] bg-gray-950 overflow-hidden">
+            <div className="bg-black/50 p-3">
+              <MediaWithDownload media={currentMedia} onDownload={downloadMedia} />
             </div>
-          ) : (
-            <div className="bg-gray-800 px-6 py-5 text-center text-gray-400">Aucune légende à afficher.</div>
-          )}
+            {active ? (
+              <div
+                key={active.author_id}
+                className="animate-caption-in bg-gradient-to-b from-gray-900 to-purple-950/70 px-6 py-8 sm:py-10"
+              >
+                <CaptionText text={active.text} size="large" />
+              </div>
+            ) : (
+              <div className="bg-gray-900 px-6 py-8 text-center text-gray-400">Aucune légende à afficher.</div>
+            )}
+          </div>
         </div>
 
         {total > 1 && (
@@ -2360,7 +2777,7 @@ export default function CaptionBattle() {
     return (
       renderAppShell(<>
         <div className="flex flex-col items-center text-center">
-          <Trophy size={48} className="text-yellow-400 mb-4" />
+          <Trophy size={48} className="text-yellow-400 mb-4 animate-bob" />
           <h2 className="font-heading text-2xl font-bold mb-1">Résultats — Round {currentRoundIndex + 1}/{roundQueue.length}</h2>
           {currentMedia && (
             <div className="w-full bg-gray-900 p-4 rounded-2xl border border-gray-800 my-4 shadow-2xl">
@@ -2371,11 +2788,21 @@ export default function CaptionBattle() {
             {orderedCaptions
               .map((c) => ({ ...c, points: votesForRound.filter((v) => v.caption_author_id === c.author_id).length }))
               .sort((a, b) => b.points - a.points)
-              .map((c) => (
-                <div key={c.author_id} className="flex items-center justify-between bg-gray-800 rounded-lg px-4 py-3 gap-3">
+              .map((c, rank) => (
+                <div
+                  key={c.author_id}
+                  className={`animate-rise flex items-center justify-between rounded-xl px-4 py-3 gap-3 border ${
+                    rank === 0 && c.points > 0
+                      ? 'bg-gradient-to-r from-purple-900/60 to-pink-900/50 border-pink-500/60 shadow-lg shadow-purple-900/30'
+                      : 'bg-gray-900 border-gray-800'
+                  }`}
+                  style={{ animationDelay: `${rank * 80}ms` }}
+                >
                   <div className="text-left min-w-0">
-                    <p className="font-bold truncate">"{c.text}"</p>
-                    <p className="text-xs text-gray-500 flex items-center gap-1">
+                    <p className="font-heading font-bold text-lg leading-snug text-white break-words [overflow-wrap:anywhere]">
+                      {rank === 0 && c.points > 0 && <span className="mr-1">👑</span>}“{c.text}”
+                    </p>
+                    <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
                       <PlayerDot id={c.author_id} avatar={c.author_avatar} /> par {c.author_name}
                     </p>
                   </div>
@@ -2389,7 +2816,7 @@ export default function CaptionBattle() {
                         <Download size={16} />
                       </button>
                     )}
-                    <span className="font-black text-purple-300">+{c.points}</span>
+                    <span className="font-heading font-extrabold text-xl text-purple-300 animate-pop">+{c.points}</span>
                   </div>
                 </div>
               ))}
@@ -2451,7 +2878,9 @@ export default function CaptionBattle() {
           )}
           <div className="min-w-0">
             <p className="text-[10px] font-bold text-purple-300 uppercase tracking-wide mb-1">🏆 Punchline légendaire du match</p>
-            <p className="font-bold truncate">"{bestCaptionOfGame.text}"</p>
+            <p className="font-heading font-bold text-lg leading-snug text-white line-clamp-2 break-words [overflow-wrap:anywhere]">
+              “{bestCaptionOfGame.text}”
+            </p>
             <p className="text-xs text-gray-400 flex items-center gap-1 mt-1">
               <PlayerDot id={bestCaptionOfGame.author_id} avatar={bestCaptionOfGame.author_avatar} /> {bestCaptionOfGame.author_name} · {bestCaptionOfGame.points} vote{bestCaptionOfGame.points > 1 ? 's' : ''}
             </p>

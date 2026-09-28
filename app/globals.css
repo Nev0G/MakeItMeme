@@ -124,3 +124,121 @@ body {
 html {
   scroll-behavior: smooth;
 }
+
+/* ==========================================
+   Effets d'animation (le site ne doit pas rester "fixe")
+   ========================================== */
+
+/* Apparition échelonnée (cartes du résumé...) : reste invisible pendant le délai */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-rise {
+  animation: rise 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+/* "Pop" : score qui change, vote validé... */
+@keyframes pop {
+  0% { transform: scale(0.7); }
+  55% { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+.animate-pop {
+  animation: pop 0.4s ease-out;
+}
+
+/* Légende qui arrive pendant la présentation */
+@keyframes caption-in {
+  0% { opacity: 0; transform: translateY(18px) scale(0.94); filter: blur(4px); }
+  60% { opacity: 1; transform: translateY(-3px) scale(1.02); filter: blur(0); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-caption-in {
+  animation: caption-in 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* Léger flottement (titre, trophées...) */
+@keyframes bob {
+  0%, 100% { transform: translateY(0) rotate(var(--bob-rot, 0deg)); }
+  50% { transform: translateY(-6px) rotate(var(--bob-rot, 0deg)); }
+}
+.animate-bob {
+  animation: bob 3.5s ease-in-out infinite;
+}
+
+/* Petit tremblement au survol (avatars) */
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-14deg) scale(1.15); }
+  75% { transform: rotate(14deg) scale(1.15); }
+}
+.wiggle-hover:hover {
+  animation: wiggle 0.5s ease-in-out;
+}
+
+/* Bordure dégradée qui "respire" */
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.gradient-animated {
+  background-size: 200% 200%;
+  animation: gradient-shift 6s ease infinite;
+}
+
+/* Barre de progression qui brille */
+@keyframes shimmer {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+.shimmer-bar {
+  background-image: linear-gradient(90deg, #a855f7, #ec4899, #f97316, #ec4899, #a855f7);
+  background-size: 200% 100%;
+  animation: shimmer 3s linear infinite;
+}
+
+/* Emojis qui montent doucement en arrière-plan */
+@keyframes float-up {
+  0% { transform: translateY(0) rotate(0deg); opacity: 0; }
+  10% { opacity: var(--float-opacity, 0.14); }
+  90% { opacity: var(--float-opacity, 0.14); }
+  100% { transform: translateY(-115vh) rotate(var(--float-rot, 25deg)); opacity: 0; }
+}
+.float-emoji {
+  position: absolute;
+  bottom: -3rem;
+  line-height: 1;
+  user-select: none;
+  animation: float-up linear infinite;
+}
+
+/* Onde au clic */
+@keyframes click-ripple {
+  from { transform: translate(-50%, -50%) scale(0.2); opacity: 0.7; }
+  to { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
+}
+.click-ripple {
+  position: fixed;
+  z-index: 9000;
+  width: 44px;
+  height: 44px;
+  border-radius: 9999px;
+  border: 2px solid rgba(192, 132, 252, 0.9);
+  pointer-events: none;
+  animation: click-ripple 0.6s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-bob,
+  .gradient-animated,
+  .shimmer-bar,
+  .float-emoji,
+  .animate-caption-in,
+  .animate-rise,
+  .animate-pop {
+    animation: none !important;
+  }
+  .float-emoji { display: none; }
+}
