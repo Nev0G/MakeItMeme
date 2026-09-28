@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import {
   Play, Image as ImageIcon, Video, Music, Send, Trophy, Users, Loader2,
   Crown, ThumbsUp, SkipForward, Settings, Copy, LogOut, Check, Download,
-  ChevronLeft, ChevronRight, Link as LinkIcon, Volume2, VolumeX, Eye, EyeOff, Pencil,
+  ChevronLeft, ChevronRight, Link as LinkIcon, Volume2, VolumeX, Eye, EyeOff, Pencil, BookOpen, X, RotateCcw,
 } from 'lucide-react';
 
 // ==========================================
@@ -362,7 +362,7 @@ const DEFAULT_SETTINGS = {
 const MAX_NAME_LEN = 20;
 const MAX_CAPTION_LEN = 140;
 // Incrémenter à chaque mise à jour livrée du jeu.
-const APP_VERSION = 'v23';
+const APP_VERSION = 'v24';
 
 const PLAYER_COLORS = ['#a855f7', '#ec4899', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#f43f5e'];
 const colorForPlayer = (id) => {
@@ -609,6 +609,50 @@ const ToggleRow = ({ label, hint, checked, disabled, onChange }) => (
         className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${checked ? 'translate-x-5' : ''}`}
       />
     </button>
+  </div>
+);
+
+const RULES_STEPS = [
+  { emoji: '📤', title: 'Chacun upload un meme', text: "Une image, un GIF, une vidéo ou un audio — le tien, celui d'un autre, peu importe." },
+  { emoji: '✍️', title: 'Tout le monde légende', text: "À chaque round, un meme s'affiche et chacun écrit sa légende dessus." },
+  { emoji: '👀', title: 'Le host fait défiler', text: 'Les légendes anonymes défilent une par une, dans un ordre tiré au hasard, pareil pour tous.' },
+  { emoji: '🗳️', title: 'Tout le monde vote', text: 'Résumé de toutes les légendes en même temps : chacun vote pour sa préférée (pas la sienne !).' },
+  { emoji: '🏆', title: 'Les points tombent', text: '1 point par vote reçu. Le score cumule sur tous les rounds — le plus haut score gagne.' },
+];
+
+const RulesModal = ({ onClose }) => (
+  <div className="fixed inset-0 z-[950] bg-black/80 flex items-center justify-center p-4" onClick={onClose}>
+    <div
+      onClick={(e) => e.stopPropagation()}
+      className="bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto p-6 relative animate-rise"
+    >
+      <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 hover:text-white transition active:scale-90">
+        <X size={20} />
+      </button>
+      <h2 className="font-heading text-2xl font-bold mb-5 flex items-center gap-2">
+        <BookOpen size={22} className="text-purple-400" /> Comment jouer ?
+      </h2>
+      <div className="space-y-4">
+        {RULES_STEPS.map((s, i) => (
+          <div key={i} className="flex gap-3">
+            <span className="text-3xl shrink-0">{s.emoji}</span>
+            <div>
+              <p className="font-bold text-white">{s.title}</p>
+              <p className="text-sm text-gray-400">{s.text}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="text-xs text-gray-600 mt-6 border-t border-gray-800 pt-4">
+        💡 Le host règle le temps de légende, le temps de vote et le nombre de memes par joueur dans le lobby.
+      </p>
+      <button
+        onClick={onClose}
+        className="mt-5 w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-lg transition active:scale-95"
+      >
+        Compris !
+      </button>
+    </div>
   </div>
 );
 
@@ -1036,9 +1080,30 @@ const CursorLayer = React.memo(function CursorLayer({ channelRef, me, allowed, s
 // ==========================================
 export default function CaptionBattle() {
   const [gameState, setGameState] = useState('home');
-  const [player, setPlayer] = useState({ id: null, name: '', avatar: randomAvatar() });
+  // Pseudo/avatar mémorisés (localStorage, séparé de la session de room) pour
+  // ne pas les retaper à chaque partie.
+  const readIdentity = () => {
+    try {
+      return JSON.parse(localStorage.getItem('caption-battle-identity') || 'null');
+    } catch {
+      return null;
+    }
+  };
+  const [player, setPlayer] = useState(() => {
+    const saved = readIdentity();
+    return { id: null, name: saved?.name || '', avatar: saved?.avatar || randomAvatar() };
+  });
+  useEffect(() => {
+    if (!player.name.trim()) return;
+    try {
+      localStorage.setItem('caption-battle-identity', JSON.stringify({ name: player.name, avatar: player.avatar }));
+    } catch {
+      // stockage indisponible
+    }
+  }, [player.name, player.avatar]);
   const [room, setRoom] = useState(null);
   const [joinCode, setJoinCode] = useState('');
+  const [showRules, setShowRules] = useState(false);
   const [players, setPlayers] = useState([]);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [copied, setCopied] = useState(false);
@@ -1224,7 +1289,7 @@ export default function CaptionBattle() {
       setPresentIndex(payload.index || 0);
     });
 
-    channel.on('broadcast', { event: 'new_game' }, () => {
+    channel.on('broadcast', { event: 'new_game' }, ({ payload }) => {
       setCaptionOrder({ mediaId: null, order: [] });
       setPresentIndex(0);
       setMedias([]);
@@ -1233,7 +1298,7 @@ export default function CaptionBattle() {
       setCaptions([]);
       setVotes([]);
       setMyCaption('');
-      setCumulativeScores({});
+      if (!payload?.keepScores) setCumulativeScores({});
       setPhaseStartedAt(null);
       setGameState('upload');
       processedRoundRef.current = -1;
@@ -1329,6 +1394,24 @@ export default function CaptionBattle() {
     return creator ? creator.id : players[0]?.id ?? null;
   }, [players]);
   const isHost = player.id !== null && player.id === hostId;
+
+  // Transfert de host visible : le host actuel part → quelqu'un d'autre reprend
+  // automatiquement la main (le plus ancien arrivé), avec une notif pour tous.
+  const [hostToast, setHostToast] = useState(null);
+  const prevHostIdRef = useRef(null);
+  useEffect(() => {
+    const prev = prevHostIdRef.current;
+    prevHostIdRef.current = hostId;
+    if (!prev || !hostId || prev === hostId || players.length === 0) return;
+    if (gameState === 'home') return;
+    const newHost = players.find((p) => p.id === hostId);
+    if (!newHost) return;
+    setHostToast(newHost.id === player.id ? 'Le host a quitté — tu es maintenant host !' : `👑 ${newHost.name} est le nouveau host`);
+    playSfx(newHost.id === player.id ? 'success' : 'whoosh');
+    const t = setTimeout(() => setHostToast(null), 4500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hostId]);
 
   // Miroirs à jour pour les listeners du channel
   useEffect(() => { isHostRefValue.current = isHost; }, [isHost]);
@@ -1744,8 +1827,8 @@ export default function CaptionBattle() {
     }
   };
 
-  const newGame = () => {
-    broadcast('new_game', {});
+  const newGame = (keepScores = false) => {
+    broadcast('new_game', { keepScores });
     setCaptionOrder({ mediaId: null, order: [] });
     setPresentIndex(0);
     setMedias([]);
@@ -1754,7 +1837,7 @@ export default function CaptionBattle() {
     setCaptions([]);
     setVotes([]);
     setMyCaption('');
-    setCumulativeScores({});
+    if (!keepScores) setCumulativeScores({});
     setPhaseStartedAt(null);
     setGameState('upload');
     processedRoundRef.current = -1;
@@ -2103,6 +2186,11 @@ export default function CaptionBattle() {
   const renderAppShell = (mainContent) => (
     <div className="min-h-screen md:h-[100dvh] md:overflow-hidden bg-gray-950/95 text-white relative z-10 flex justify-center p-4">
       <VersionBadge />
+      {hostToast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[960] animate-fadein bg-gray-900 border border-purple-600 shadow-xl shadow-purple-900/40 text-white text-sm font-bold rounded-full px-5 py-2.5 flex items-center gap-2">
+          <Crown size={16} className="text-yellow-400" /> {hostToast}
+        </div>
+      )}
       <CursorLayer
         key="cursor-layer"
         channelRef={channelRef}
@@ -2145,6 +2233,7 @@ export default function CaptionBattle() {
   // ==========================================
   if (gameState === 'home') {
     return (
+      <>
       <div className="min-h-screen md:h-[100dvh] md:overflow-hidden bg-gray-950/95 text-white relative z-10 flex flex-col items-center justify-center p-4">
         <VersionBadge />
         <h1
@@ -2220,8 +2309,17 @@ export default function CaptionBattle() {
               </button>
             </div>
           </div>
+
+          <button
+            onClick={() => setShowRules(true)}
+            className="mt-5 w-full flex items-center justify-center gap-1.5 text-gray-500 hover:text-purple-300 text-sm font-bold transition"
+          >
+            <BookOpen size={15} /> Comment jouer ?
+          </button>
         </div>
       </div>
+      {showRules && <RulesModal onClose={() => setShowRules(false)} />}
+    </>
     );
   }
 
@@ -2884,9 +2982,20 @@ export default function CaptionBattle() {
       )}
 
       {isHost ? (
-        <button onClick={newGame} className="bg-purple-600 hover:bg-purple-500 shadow-md shadow-purple-900/40 active:scale-95 font-bold py-3 px-8 rounded-full transition">
-          Nouvelle partie
-        </button>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <button
+            onClick={() => newGame(true)}
+            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-500 shadow-md shadow-purple-900/40 active:scale-95 font-bold py-3 px-6 rounded-full transition"
+          >
+            <RotateCcw size={16} /> Rejouer (scores conservés)
+          </button>
+          <button
+            onClick={() => newGame(false)}
+            className="bg-gray-800 hover:bg-gray-700 active:scale-95 font-bold py-3 px-6 rounded-full transition"
+          >
+            Nouvelle partie (scores à zéro)
+          </button>
+        </div>
       ) : (
         <div className="flex items-center justify-center gap-3 text-gray-400 animate-pulse">
           <Loader2 className="animate-spin" /> En attente du Host...
