@@ -145,14 +145,30 @@ const composeMemeVideo = (url, text, style, onProgress) =>
     video.preload = 'auto';
 
     let rafId = null;
-    let finished = false;
+    let safetyTimer = null;
+    let settled = false;
     const cleanup = () => {
       if (rafId) cancelAnimationFrame(rafId);
+      if (safetyTimer) clearTimeout(safetyTimer);
       video.pause();
       video.remove();
     };
+    // Une seule issue possible (succès OU échec), et on nettoie toujours :
+    // c'est ce qui évite le chargement infini si quelque chose se passe mal.
+    const fail = (err) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(err);
+    };
+    const succeed = (blob) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(blob);
+    };
 
-    video.onerror = () => reject(new Error('Impossible de charger la vidéo (CORS ?).'));
+    video.onerror = () => fail(new Error('Impossible de charger la vidéo (CORS ?).'));
 
     video.onloadedmetadata = () => {
       const maxDim = 720;
@@ -168,7 +184,7 @@ const composeMemeVideo = (url, text, style, onProgress) =>
         const rawStream = video.captureStream ? video.captureStream() : video.mozCaptureStream ? video.mozCaptureStream() : null;
         if (rawStream) rawStream.getAudioTracks().forEach((t) => stream.addTrack(t));
       } catch (err) {
-        reject(err);
+        fail(err);
         return;
       }
 
@@ -178,42 +194,43 @@ const composeMemeVideo = (url, text, style, onProgress) =>
       try {
         recorder = new MediaRecorder(stream, { mimeType });
       } catch (err) {
-        reject(err);
+        fail(err);
         return;
       }
       const chunks = [];
       recorder.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) chunks.push(e.data);
       };
-      recorder.onerror = (e) => {
-        cleanup();
-        reject(e.error || new Error('Erreur MediaRecorder'));
-      };
-      recorder.onstop = () => {
-        cleanup();
-        if (!finished) resolve(new Blob(chunks, { type: mimeType }));
-      };
+      recorder.onerror = (e) => fail(e.error || new Error('Erreur MediaRecorder'));
+      recorder.onstop = () => succeed(new Blob(chunks, { type: mimeType }));
 
       const drawFrame = () => {
-        if (video.paused || video.ended) return;
+        if (settled || video.paused || video.ended) return;
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         drawCaptionOnCanvas(ctx, canvas, text, style);
-        if (onProgress && video.duration) onProgress(Math.min(1, video.currentTime / video.duration));
+        if (onProgress && isFinite(video.duration) && video.duration > 0) {
+          onProgress(Math.min(1, video.currentTime / video.duration));
+        }
         rafId = requestAnimationFrame(drawFrame);
       };
 
-      video.onended = () => {
-        finished = true;
+      const stopRecording = () => {
         if (recorder.state !== 'inactive') recorder.stop();
+        else fail(new Error("L'enregistrement s'est arrêté avant la fin de la vidéo."));
       };
+
+      video.onended = stopRecording;
 
       video
         .play()
         .then(() => {
-          recorder.start();
+          recorder.start(250);
           drawFrame();
+          // Garde-fou : durée de la vidéo + marge, sinon on coupe et on garde ce qu'on a.
+          const maxMs = ((isFinite(video.duration) && video.duration > 0 ? video.duration : 60) + 10) * 1000;
+          safetyTimer = setTimeout(stopRecording, maxMs);
         })
-        .catch(reject);
+        .catch(fail);
     };
   });
 
@@ -246,7 +263,7 @@ const triggerBlobDownload = (blob, filename) => {
 };
 
 // Petite pluie de confettis vanilla (canvas), sans dépendance externe.
-const fireConfetti = () => {
+const fireConfetti = ({ count = 140, duration = 3200 } = {}) => {
   if (typeof document === 'undefined') return;
   const canvas = document.createElement('canvas');
   canvas.style.position = 'fixed';
@@ -261,7 +278,7 @@ const fireConfetti = () => {
   const ctx = canvas.getContext('2d');
 
   const colors = ['#a855f7', '#ec4899', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6'];
-  const pieces = Array.from({ length: 140 }, () => ({
+  const pieces = Array.from({ length: count }, () => ({
     x: Math.random() * canvas.width,
     y: -20 - Math.random() * canvas.height * 0.5,
     size: 6 + Math.random() * 6,
@@ -273,7 +290,6 @@ const fireConfetti = () => {
   }));
 
   const start = Date.now();
-  const duration = 3200;
 
   const tick = () => {
     const elapsed = Date.now() - start;
@@ -307,12 +323,44 @@ const shuffle = (arr) => {
   return a;
 };
 
-const DEFAULT_SETTINGS = { captionSeconds: 45, voteSeconds: 20, mediaPerPlayer: 1 };
-const MAX_FILE_MB = 25;
+// Session du joueur (par onglet) : permet de garder le même identifiant après un
+// rafraîchissement, donc de retrouver ses points et sa place dans la room.
+const SESSION_KEY = 'caption-battle-session';
+const readSession = () => {
+  try {
+    return JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null');
+  } catch {
+    return null;
+  }
+};
+const writeSession = (data) => {
+  try {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(data));
+  } catch {
+    // stockage indisponible : on continue sans persistance
+  }
+};
+const clearSession = () => {
+  try {
+    sessionStorage.removeItem(SESSION_KEY);
+  } catch {
+    // ignore
+  }
+};
+
+const DEFAULT_SETTINGS = {
+  captionSeconds: 45,
+  voteSeconds: 20,
+  mediaPerPlayer: 1,
+  shuffleRounds: true,
+  allowExternalLink: true,
+  maxFileMB: 25,
+  ownerCanCaption: true,
+};
 const MAX_NAME_LEN = 20;
 const MAX_CAPTION_LEN = 140;
 // Incrémenter à chaque mise à jour livrée du jeu.
-const APP_VERSION = 'v17';
+const APP_VERSION = 'v19';
 
 const PLAYER_COLORS = ['#a855f7', '#ec4899', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#f43f5e'];
 const colorForPlayer = (id) => {
@@ -355,14 +403,38 @@ const MediaPlayer = ({ src, type }) => {
   // réduit à une bande minuscule pour les vidéos/images au format portrait.
   const sizingClasses = 'max-w-full max-h-[65vh] w-auto h-auto block mx-auto object-contain rounded-lg border-2 border-gray-700';
 
+  // Volume à 50 % au chargement (une seule fois : on ne touche pas au volume
+  // à chaque re-render, sinon on écraserait le réglage du joueur).
+  const setDefaultVolume = (e) => {
+    e.currentTarget.volume = 0.5;
+  };
+  // Filet de sécurité : si la boucle native s'interrompt (fin atteinte malgré
+  // l'attribut loop), on relance manuellement la lecture.
+  const restartIfEnded = (e) => {
+    const el = e.currentTarget;
+    el.currentTime = 0;
+    el.play().catch(() => {});
+  };
+
   if (type && type.includes('video')) {
-    return <video src={src} controls autoPlay loop className={sizingClasses} />;
+    return (
+      <video
+        src={src}
+        controls
+        autoPlay
+        loop
+        playsInline
+        onLoadedMetadata={setDefaultVolume}
+        onEnded={restartIfEnded}
+        className={sizingClasses}
+      />
+    );
   }
   if (type && type.includes('audio')) {
     return (
       <div className="flex flex-col items-center justify-center p-8 bg-gray-800 rounded-lg border-2 border-gray-700 w-full">
         <Music size={48} className="text-purple-400 mb-4 animate-bounce" />
-        <audio src={src} controls autoPlay className="w-full" />
+        <audio src={src} controls autoPlay loop onLoadedMetadata={setDefaultVolume} onEnded={restartIfEnded} className="w-full" />
       </div>
     );
   }
@@ -395,8 +467,32 @@ const Waiting = ({ label, sub, fun = false }) => {
   );
 };
 
+const ToggleRow = ({ label, hint, checked, disabled, onChange }) => (
+  <div className="flex items-center justify-between gap-3">
+    <div className="min-w-0">
+      <p className="text-gray-300">{label}</p>
+      {hint && <p className="text-[11px] text-gray-600">{hint}</p>}
+    </div>
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      aria-pressed={checked}
+      className={`relative shrink-0 w-11 h-6 rounded-full transition disabled:opacity-50 ${checked ? 'bg-purple-600' : 'bg-gray-700'}`}
+    >
+      <span
+        className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${checked ? 'translate-x-5' : ''}`}
+      />
+    </button>
+  </div>
+);
+
 const CountdownBadge = ({ seconds }) => (
-  <div className={`bg-gray-900 px-4 py-2 rounded-full font-bold font-mono border ${seconds <= 5 ? 'border-red-500 text-red-400' : 'border-gray-800'}`}>
+  <div
+    className={`bg-gray-900 px-4 py-2 rounded-full font-bold font-mono border transition-transform ${
+      seconds <= 5 && seconds > 0 ? 'border-red-500 text-red-400 animate-pulse scale-110' : 'border-gray-800'
+    }`}
+  >
     {seconds > 0 ? `⏳ ${seconds}s` : '⏰ Terminé'}
   </div>
 );
@@ -472,7 +568,7 @@ const MemeVoteCard = ({ media, caption, isMine, isSelected, disabled, onVote, on
         onClick={onVote}
         disabled={disabled}
         className={`w-full py-3 flex items-center justify-center gap-2 font-bold transition active:scale-95 ${
-          disabled ? 'bg-gray-800 text-gray-500 cursor-default' : 'bg-purple-600 hover:bg-purple-500 text-white'
+          disabled ? 'bg-gray-800 text-gray-500 cursor-default' : 'bg-purple-600 hover:bg-purple-500 shadow-md shadow-purple-900/40 text-white'
         }`}
       >
         {isSelected ? (
@@ -533,7 +629,7 @@ const CaptionChoiceCard = ({ caption, isMine, isSelected, disabled, onVote, show
         onClick={onVote}
         disabled={disabled}
         className={`px-6 py-3 rounded-lg font-bold flex items-center gap-2 transition active:scale-95 ${
-          disabled ? 'bg-gray-700 text-gray-500 cursor-default' : 'bg-purple-600 hover:bg-purple-500 text-white'
+          disabled ? 'bg-gray-700 text-gray-500 cursor-default' : 'bg-purple-600 hover:bg-purple-500 shadow-md shadow-purple-900/40 text-white'
         }`}
       >
         {isSelected ? (
@@ -668,11 +764,24 @@ export default function CaptionBattle() {
 
     channel.on('presence', { event: 'sync' }, () => {
       const state = channel.presenceState();
-      const list = Object.values(state)
+      // Dédoublonnage par id : après une reconnexion, l'ancienne connexion peut
+      // rester visible quelques secondes — on garde seulement la plus récente.
+      const byId = new Map();
+      Object.values(state)
         .flat()
-        .map((p) => ({ id: p.player_id, name: p.player_name, avatar: p.player_avatar, is_creator: p.is_creator, joined_at: p.joined_at }))
-        .sort((a, b) => a.joined_at - b.joined_at);
-      setPlayers(list);
+        .forEach((p) => {
+          const prev = byId.get(p.player_id);
+          if (!prev || p.joined_at > prev.joined_at) {
+            byId.set(p.player_id, {
+              id: p.player_id,
+              name: p.player_name,
+              avatar: p.player_avatar,
+              is_creator: p.is_creator,
+              joined_at: p.joined_at,
+            });
+          }
+        });
+      setPlayers([...byId.values()].sort((a, b) => a.joined_at - b.joined_at));
     });
 
     // Rattrapage : si un joueur rejoint alors que la partie est déjà lancée,
@@ -680,9 +789,12 @@ export default function CaptionBattle() {
     channel.on('presence', { event: 'join' }, ({ key }) => {
       if (key === playerId) return;
       if (!isHostRefValue.current) return;
+
+      // Les réglages sont toujours renvoyés (y compris dans le lobby), sinon un
+      // nouvel arrivant garderait les valeurs par défaut au lieu de celles du host.
+      channel.send({ type: 'broadcast', event: 'settings_update', payload: { settings: settingsRef.current } });
       if (gameStateRef.current === 'home' || gameStateRef.current === 'lobby') return;
 
-      channel.send({ type: 'broadcast', event: 'settings_update', payload: { settings: settingsRef.current } });
       mediasRef.current.forEach((media) => {
         channel.send({ type: 'broadcast', event: 'media_added', payload: { media } });
       });
@@ -695,7 +807,11 @@ export default function CaptionBattle() {
       votesRef.current.forEach((vote) => {
         channel.send({ type: 'broadcast', event: 'vote_cast', payload: { vote } });
       });
-      channel.send({ type: 'broadcast', event: 'scores_sync', payload: { scores: cumulativeScoresRef.current } });
+      channel.send({
+        type: 'broadcast',
+        event: 'scores_sync',
+        payload: { scores: cumulativeScoresRef.current, processedRound: processedRoundRef.current },
+      });
       channel.send({
         type: 'broadcast',
         event: 'game_update',
@@ -736,7 +852,14 @@ export default function CaptionBattle() {
       ]);
     });
 
-    channel.on('broadcast', { event: 'scores_sync' }, ({ payload }) => setCumulativeScores(payload.scores || {}));
+    channel.on('broadcast', { event: 'scores_sync' }, ({ payload }) => {
+      setCumulativeScores(payload.scores || {});
+      cumulativeScoresRef.current = payload.scores || {};
+      // Si le host a déjà compté ce round, on ne le recompte pas localement.
+      if (typeof payload.processedRound === 'number') {
+        processedRoundRef.current = Math.max(processedRoundRef.current, payload.processedRound);
+      }
+    });
 
     channel.on('broadcast', { event: 'new_game' }, () => {
       setMedias([]);
@@ -784,6 +907,7 @@ export default function CaptionBattle() {
     resetGameStateLocal();
     setPlayer((p) => ({ ...p, id: newPlayerId }));
     setRoom({ code });
+    writeSession({ code, id: newPlayerId, name: player.name.trim(), avatar: player.avatar });
     connectToRoom(code, newPlayerId, player.name.trim(), player.avatar, true);
     setGameState('lobby');
   };
@@ -791,10 +915,14 @@ export default function CaptionBattle() {
   const joinRoom = () => {
     const code = joinCode.trim().toUpperCase();
     if (!code || !player.name.trim()) return;
-    const newPlayerId = makeId('p');
+    // Même room que la session précédente de cet onglet : on reprend le même id
+    // pour retrouver ses points au lieu d'apparaître comme un nouveau joueur.
+    const saved = readSession();
+    const newPlayerId = saved && saved.code === code && saved.id ? saved.id : makeId('p');
     resetGameStateLocal();
     setPlayer((p) => ({ ...p, id: newPlayerId }));
     setRoom({ code });
+    writeSession({ code, id: newPlayerId, name: player.name.trim(), avatar: player.avatar });
     connectToRoom(code, newPlayerId, player.name.trim(), player.avatar, false);
     setGameState('lobby');
   };
@@ -804,11 +932,30 @@ export default function CaptionBattle() {
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
     }
+    clearSession();
     resetGameStateLocal();
     setRoom(null);
     setPlayer((p) => ({ ...p, id: null }));
     setGameState('home');
   };
+
+  // Reconnexion automatique après un rafraîchissement : on reprend la même
+  // identité (donc les mêmes points) et le host renvoie l'état de la partie.
+  useEffect(() => {
+    const saved = readSession();
+    if (!saved || !saved.code || !saved.id || !saved.name) return;
+    // Lien d'invitation vers une autre room : on n'écrase pas avec l'ancienne session
+    const urlRoom = new URLSearchParams(window.location.search).get('room');
+    if (urlRoom && urlRoom.toUpperCase() !== saved.code) {
+      clearSession();
+      return;
+    }
+    setPlayer({ id: saved.id, name: saved.name, avatar: saved.avatar });
+    setRoom({ code: saved.code });
+    connectToRoom(saved.code, saved.id, saved.name, saved.avatar, false);
+    setGameState('lobby');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const hostId = useMemo(() => {
     const creator = players.find((p) => p.is_creator);
@@ -863,25 +1010,22 @@ export default function CaptionBattle() {
   // ==========================================
   const startUploadPhase = () => goToState('upload');
 
-  const handleFileUpload = async (e) => {
-    pushDebug('onChange input fichier déclenché');
-    const inputEl = e.target;
-    const file = inputEl.files && inputEl.files[0];
-    setUploadError(null);
-    if (!file) {
-      pushDebug('aucun fichier dans la sélection');
-      return;
-    }
+  const [isDragging, setIsDragging] = useState(false);
 
-    // On passe en "uploading" tout de suite, avant même la moindre autre
-    // opération : si le spinner ne s'affiche pas après ça, c'est que
-    // onChange lui-même ne se déclenche pas (souci de rendu, pas réseau).
+  // Coeur de l'upload, partagé entre le sélecteur de fichier et le glisser-déposer.
+  const uploadFile = async (file, inputEl) => {
+    setUploadError(null);
+
+    // On passe en "uploading" tout de suite, avant même la moindre autre opération.
     setUploading(true);
     try {
       pushDebug(`fichier reçu : ${file.name} (${Math.round(file.size / 1024)}ko, ${file.type || 'type inconnu'})`);
 
-      if (file.size > MAX_FILE_MB * 1024 * 1024) {
-        throw new Error(`Ce fichier dépasse ${MAX_FILE_MB}Mo, choisis-en un plus léger.`);
+      if (!/^(image|video|audio)\//.test(file.type || '')) {
+        throw new Error('Type de fichier non supporté (image, vidéo ou audio uniquement)');
+      }
+      if (file.size > settings.maxFileMB * 1024 * 1024) {
+        throw new Error(`Ce fichier dépasse ${settings.maxFileMB}Mo, choisis-en un plus léger.`);
       }
       if (!room?.code) {
         throw new Error('Code de room manquant côté client (rejoins ou recrée une partie).');
@@ -928,6 +1072,21 @@ export default function CaptionBattle() {
     }
   };
 
+  const handleFileUpload = (e) => {
+    pushDebug('onChange input fichier déclenché');
+    const inputEl = e.target;
+    const file = inputEl.files && inputEl.files[0];
+    if (!file) return;
+    uploadFile(file, inputEl);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer?.files?.[0];
+    if (file) uploadFile(file, null);
+  };
+
   const [externalUrl, setExternalUrl] = useState('');
   const [externalType, setExternalType] = useState('image');
 
@@ -964,11 +1123,24 @@ export default function CaptionBattle() {
     players.every((p) => medias.filter((m) => m.owner_id === p.id).length >= settings.mediaPerPlayer);
 
   const launchGame = () => {
-    const queue = shuffle(medias.map((m) => m.id));
+    const ids = medias.map((m) => m.id);
+    const queue = settings.shuffleRounds ? shuffle(ids) : ids;
     broadcast('round_queue', { queue });
     setRoundQueue(queue);
     goToState('caption', { roundIndex: 0, phaseStartedAt: Date.now() });
   };
+
+  // Lancement automatique dès que tout le monde a fini d'uploader (le host
+  // n'a plus besoin de cliquer sur "Lancer les rounds").
+  const autoLaunchedRef = useRef(false);
+  useEffect(() => {
+    if (isHost && gameState === 'upload' && everyoneUploaded && !autoLaunchedRef.current) {
+      autoLaunchedRef.current = true;
+      launchGame();
+    }
+    if (gameState !== 'upload') autoLaunchedRef.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [everyoneUploaded, isHost, gameState]);
 
   // ==========================================
   // ROUND EN COURS
@@ -980,7 +1152,10 @@ export default function CaptionBattle() {
   const isMyMedia = currentMedia && currentMedia.owner_id === player.id;
   const iSubmittedCaption = captionsForRound.some((c) => c.author_id === player.id);
   // tout le monde sauf le posteur (et sauf ceux qui ont quitté la room)
-  const expectedCaptioners = currentMedia ? players.filter((p) => p.id !== currentMedia.owner_id).length : 0;
+  // Qui doit légender ce round : tout le monde (le posteur aussi si le réglage l'autorise)
+  const expectedCaptioners = currentMedia
+    ? players.filter((p) => settings.ownerCanCaption || p.id !== currentMedia.owner_id).length
+    : 0;
 
   const submitCaption = () => {
     if (!myCaption.trim() || !currentMedia) return;
@@ -1131,13 +1306,22 @@ export default function CaptionBattle() {
   useEffect(() => {
     if (gameState === 'round_result' && processedRoundRef.current !== currentRoundIndex) {
       processedRoundRef.current = currentRoundIndex;
-      setCumulativeScores((prev) => {
-        const next = { ...prev };
-        roundScoreboard.forEach((p) => {
-          next[p.id] = (next[p.id] || 0) + p.roundPoints;
-        });
-        return next;
+      // On calcule à partir de la dernière valeur connue (ref), puis le host
+      // diffuse le total : c'est lui la référence, ce qui corrige tout écart
+      // (joueur reconnecté, vote manqué...).
+      const next = { ...cumulativeScoresRef.current };
+      votesForRound.forEach((v) => {
+        next[v.caption_author_id] = (next[v.caption_author_id] || 0) + 1;
       });
+      cumulativeScoresRef.current = next;
+      setCumulativeScores(next);
+      if (isHostRefValue.current) {
+        broadcast('scores_sync', { scores: next, processedRound: currentRoundIndex });
+      }
+      // Petite pluie de confettis si quelqu'un a marqué des points ce round
+      if (votesForRound.length > 0) {
+        fireConfetti({ count: 50, duration: 1800 });
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameState, currentRoundIndex]);
@@ -1191,8 +1375,83 @@ export default function CaptionBattle() {
   // ==========================================
   // SIDEBAR PERSISTANTE (façon Discord : room + liste des joueurs en direct)
   // ==========================================
+  // Statut de chaque joueur pour la phase en cours (✅ fait / ⏳ en attente / null = non concerné)
+  const playerStatus = (p) => {
+    if (gameState === 'upload') {
+      const n = medias.filter((m) => m.owner_id === p.id).length;
+      return { done: n >= settings.mediaPerPlayer, label: `${n}/${settings.mediaPerPlayer}` };
+    }
+    if (gameState === 'caption' && currentMedia) {
+      if (!settings.ownerCanCaption && p.id === currentMedia.owner_id) return null;
+      return { done: captionsForRound.some((c) => c.author_id === p.id) };
+    }
+    if (gameState === 'vote' && currentMedia) {
+      if (!captionsForRound.some((c) => c.author_id !== p.id)) return null;
+      return { done: votesForRound.some((v) => v.voter_id === p.id) };
+    }
+    return null;
+  };
+
+  // Bandeau permanent : phase en cours, round X/Y, compteurs et barre d'avancement
+  const renderProgressHeader = () => {
+    const totalRounds = roundQueue.length;
+    const phases = {
+      lobby: { emoji: '🛋️', label: 'Lobby' },
+      upload: { emoji: '📤', label: 'Upload des memes' },
+      caption: { emoji: '✍️', label: 'Écriture des légendes' },
+      vote: { emoji: '🗳️', label: 'Vote' },
+      round_result: { emoji: '🏆', label: 'Résultats du round' },
+      final_results: { emoji: '🎉', label: 'Partie terminée' },
+    };
+    const phase = phases[gameState] || phases.lobby;
+    const completedRounds =
+      gameState === 'final_results' ? totalRounds : currentRoundIndex + (gameState === 'round_result' ? 1 : 0);
+    const progress = totalRounds > 0 ? Math.min(1, completedRounds / totalRounds) : 0;
+
+    return (
+      <div className="mb-4 bg-gray-900/80 border border-gray-800 rounded-2xl px-4 py-3">
+        <div className="flex items-center justify-between gap-3 text-sm flex-wrap">
+          <span className="font-bold">
+            {phase.emoji} {phase.label}
+          </span>
+          <span className="text-gray-400 font-mono text-xs flex items-center gap-3 flex-wrap">
+            {totalRounds > 0 && gameState !== 'final_results' && (
+              <span className="text-purple-300 font-bold">
+                Round {Math.min(currentRoundIndex + 1, totalRounds)}/{totalRounds}
+              </span>
+            )}
+            {gameState === 'upload' && (
+              <span>
+                📤 {medias.length}/{players.length * settings.mediaPerPlayer} médias
+              </span>
+            )}
+            {gameState === 'caption' && (
+              <span>
+                ✍️ {captionsForRound.length}/{expectedCaptioners} légendes
+              </span>
+            )}
+            {gameState === 'vote' && (
+              <span>
+                🗳️ {votesForRound.length}/{eligibleVoters.length} votes
+              </span>
+            )}
+            <span>👥 {players.length}</span>
+          </span>
+        </div>
+        {totalRounds > 0 && (
+          <div className="mt-2 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-500"
+              style={{ width: `${Math.round(progress * 100)}%` }}
+            />
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderSidebar = () => (
-    <div className="w-full md:w-72 shrink-0 bg-gray-900 rounded-2xl border border-gray-800 p-4 flex flex-col md:h-[calc(100vh-2rem)] md:sticky md:top-4">
+    <div className="w-full md:w-72 shrink-0 bg-gray-900 rounded-2xl border border-gray-800 shadow-xl shadow-black/30 p-4 flex flex-col md:h-[calc(100vh-2rem)] md:sticky md:top-4">
       <div className="flex items-center justify-between mb-1">
         <span className="text-gray-500 font-mono text-xs uppercase tracking-wide"># room-{room?.code}</span>
         <button onClick={copyCode} title="Copier le lien d'invitation" className="text-gray-500 hover:text-white transition">
@@ -1217,11 +1476,25 @@ export default function CaptionBattle() {
             <div
               key={p.id}
               className={`flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm transition ${
-                p.id === player.id ? 'bg-purple-900/40 border border-purple-600/60' : 'hover:bg-gray-800/70'
+                p.id === player.id ? 'bg-purple-900/40 border border-purple-600/60' : 'hover:bg-gray-800/70 hover:translate-x-0.5'
               }`}
             >
               <PlayerDot id={p.id} avatar={p.avatar} size="md" />
               <span className="font-bold truncate flex-1">{p.name}</span>
+              {(() => {
+                const st = playerStatus(p);
+                if (!st) return null;
+                return (
+                  <span className="flex items-center gap-1 shrink-0" title={st.done ? 'Fait' : 'En attente'}>
+                    {st.label && !st.done && <span className="text-[10px] text-gray-500 font-mono">{st.label}</span>}
+                    {st.done ? (
+                      <Check size={14} className="text-green-400" />
+                    ) : (
+                      <Loader2 size={12} className="text-gray-600 animate-spin" />
+                    )}
+                  </span>
+                );
+              })()}
               {i === 0 && (cumulativeScores[p.id] || 0) > 0 && <Crown size={13} className="text-yellow-400 shrink-0" />}
               {p.id === hostId && (
                 <span className="text-[9px] font-bold text-purple-400 bg-purple-900/40 px-1.5 py-0.5 rounded shrink-0">HOST</span>
@@ -1261,7 +1534,10 @@ export default function CaptionBattle() {
       )}
       <div className="w-full max-w-[100rem] flex flex-col md:flex-row gap-4">
         {renderSidebar()}
-        <div className="flex-1 min-w-0 flex flex-col">{mainContent}</div>
+        <div className="flex-1 min-w-0 flex flex-col">
+          {renderProgressHeader()}
+          <div key={gameState} className="flex-1 min-w-0 flex flex-col animate-fadein">{mainContent}</div>
+        </div>
       </div>
     </div>
   );
@@ -1315,7 +1591,7 @@ export default function CaptionBattle() {
             <button
               onClick={createRoom}
               disabled={!player.name.trim()}
-              className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold py-4 px-6 rounded-lg flex items-center justify-center gap-2 transition transform hover:scale-[1.02] active:scale-95"
+              className="w-full bg-purple-600 hover:bg-purple-500 shadow-md shadow-purple-900/40 disabled:opacity-50 text-white font-bold py-4 px-6 rounded-lg flex items-center justify-center gap-2 transition transform hover:scale-[1.02] active:scale-95"
             >
               <Play fill="currentColor" /> Créer une partie
             </button>
@@ -1352,6 +1628,7 @@ export default function CaptionBattle() {
       captionSeconds: [20, 30, 45, 60, 90],
       voteSeconds: [10, 15, 20, 30],
       mediaPerPlayer: [1, 2, 3],
+      maxFileMB: [10, 25, 50],
     };
     return renderAppShell(
       <div className="bg-gray-900 p-8 rounded-2xl w-full max-w-lg mx-auto shadow-2xl border border-gray-800 text-center">
@@ -1419,13 +1696,50 @@ export default function CaptionBattle() {
               </select>
             </div>
           </div>
+
+          <div className="mt-4 pt-4 border-t border-gray-800 space-y-2 text-sm">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-gray-300">Poids max par fichier</span>
+              <select
+                disabled={!isHost}
+                value={settings.maxFileMB}
+                onChange={(e) => updateSettings({ maxFileMB: Number(e.target.value) })}
+                className="bg-gray-800 border border-gray-700 rounded-lg p-1.5 font-bold disabled:opacity-60"
+              >
+                {settingOptions.maxFileMB.map((s) => (
+                  <option key={s} value={s}>{s} Mo</option>
+                ))}
+              </select>
+            </div>
+            <ToggleRow
+              label="Ordre des memes aléatoire"
+              hint="Sinon : dans l'ordre d'upload"
+              checked={settings.shuffleRounds}
+              disabled={!isHost}
+              onChange={(v) => updateSettings({ shuffleRounds: v })}
+            />
+            <ToggleRow
+              label="Légender son propre meme"
+              hint="Impossible de voter pour sa propre légende"
+              checked={settings.ownerCanCaption}
+              disabled={!isHost}
+              onChange={(v) => updateSettings({ ownerCanCaption: v })}
+            />
+            <ToggleRow
+              label="Autoriser l'ajout par lien"
+              hint="Lien direct ou Google Drive public"
+              checked={settings.allowExternalLink}
+              disabled={!isHost}
+              onChange={(v) => updateSettings({ allowExternalLink: v })}
+            />
+          </div>
         </div>
 
         {isHost ? (
           <button
             onClick={startUploadPhase}
             disabled={players.length < 2}
-            className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-50 active:scale-95 text-white font-black py-4 px-6 rounded-lg text-lg transition shadow-lg shadow-purple-500/20"
+            className="w-full bg-purple-600 hover:bg-purple-500 shadow-md shadow-purple-900/40 disabled:opacity-50 active:scale-95 text-white font-black py-4 px-6 rounded-lg text-lg transition shadow-lg shadow-purple-500/20"
           >
             {players.length < 2 ? "En attente d'au moins 2 joueurs..." : 'Lancer le jeu !'}
           </button>
@@ -1444,8 +1758,27 @@ export default function CaptionBattle() {
         <div className="bg-gray-900 p-8 rounded-2xl w-full shadow-2xl border border-gray-800 text-center flex-1 flex flex-col justify-center">
           <h2 className="font-heading text-3xl font-bold mb-2">Choisis ton arme</h2>
           <p className="text-gray-400 mb-8">
-            Upload {settings.mediaPerPlayer > 1 ? `${settings.mediaPerPlayer} médias` : 'un média'} (image, GIF, vidéo ou audio, {MAX_FILE_MB}Mo max). Chacun sera captionné par les autres !
+            Upload {settings.mediaPerPlayer > 1 ? `${settings.mediaPerPlayer} médias` : 'un média'} (image, GIF, vidéo ou audio, {settings.maxFileMB}Mo max). Chacun sera captionné par les autres !
           </p>
+
+          <div className="flex flex-wrap justify-center gap-2 mb-6">
+            {players.map((p) => {
+              const n = medias.filter((m) => m.owner_id === p.id).length;
+              const done = n >= settings.mediaPerPlayer;
+              return (
+                <span
+                  key={p.id}
+                  className={`flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full border transition ${
+                    done ? 'border-green-600 bg-green-900/30 text-green-300' : 'border-gray-700 bg-gray-800 text-gray-400'
+                  }`}
+                >
+                  <PlayerDot id={p.id} avatar={p.avatar} />
+                  {p.name}
+                  {done ? <Check size={12} /> : <span className="font-mono">⏳ {n}/{settings.mediaPerPlayer}</span>}
+                </span>
+              );
+            })}
+          </div>
 
           {USING_FALLBACK_SUPABASE && (
             <div className="mb-4 text-left bg-yellow-950/50 border border-yellow-700 text-yellow-300 text-sm rounded-lg p-4">
@@ -1479,15 +1812,26 @@ export default function CaptionBattle() {
           ) : (
             <div className="space-y-4">
               <label
-                onClick={() => pushDebug('label "uploader" cliqué (ouverture sélecteur système attendue)')}
-                className="relative flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-gray-600 hover:border-purple-500 hover:bg-purple-900/10 rounded-xl cursor-pointer transition group"
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDragging(true);
+                }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={handleDrop}
+                className={`relative flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-xl cursor-pointer transition group ${
+                  isDragging
+                    ? 'border-purple-400 bg-purple-900/30 scale-[1.02]'
+                    : 'border-gray-600 hover:border-purple-500 hover:bg-purple-900/10'
+                }`}
               >
                 <div className="flex gap-4 text-gray-400 group-hover:text-purple-400 mb-3">
                   <ImageIcon size={32} />
                   <Video size={32} />
                   <Music size={32} />
                 </div>
-                <span className="font-bold">Cliquer pour uploader un fichier ({myUploadCount}/{settings.mediaPerPlayer})</span>
+                <span className="font-bold">
+                  {isDragging ? 'Lâche ton fichier ici !' : `Clique ou glisse-dépose un fichier (${myUploadCount}/${settings.mediaPerPlayer})`}
+                </span>
                 <span className="text-xs text-gray-500 mt-2">JPG, PNG, GIF, MP4, MP3</span>
                 {/* sr-only plutôt que "hidden" (display:none) : certains navigateurs/webviews
                     refusent d'ouvrir le sélecteur système sur un input display:none,
@@ -1501,6 +1845,7 @@ export default function CaptionBattle() {
                 />
               </label>
 
+              {settings.allowExternalLink && (<>
               <div className="relative flex py-1 items-center">
                 <div className="flex-grow border-t border-gray-800"></div>
                 <span className="flex-shrink-0 mx-4 text-gray-600 font-bold text-xs">OU PAR LIEN</span>
@@ -1548,6 +1893,7 @@ export default function CaptionBattle() {
                   du site source) — le fichier brut sera proposé à la place dans ce cas.
                 </p>
               </div>
+              </>)}
             </div>
           )}
 
@@ -1555,9 +1901,11 @@ export default function CaptionBattle() {
             <button
               onClick={launchGame}
               disabled={!everyoneUploaded}
-              className="mt-6 w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white font-black py-4 px-6 rounded-lg text-lg transition active:scale-95"
+              className="mt-6 w-full bg-purple-600 hover:bg-purple-500 shadow-md shadow-purple-900/40 disabled:opacity-40 text-white font-black py-4 px-6 rounded-lg text-lg transition active:scale-95"
             >
-              {everyoneUploaded ? `Lancer les ${medias.length} rounds !` : `En attente des uploads (${medias.length}/${players.length * settings.mediaPerPlayer})`}
+              {everyoneUploaded
+                ? `Lancement automatique...`
+                : `En attente des uploads (${medias.length}/${players.length * settings.mediaPerPlayer})`}
             </button>
           )}
         </div>
@@ -1582,7 +1930,7 @@ export default function CaptionBattle() {
           <CountdownBadge seconds={secondsLeftFor(settings.captionSeconds)} />
         </div>
 
-        {isMyMedia ? (
+        {isMyMedia && !settings.ownerCanCaption ? (
           <Waiting
             label="C'est ton meme ! Les autres légendent..."
             sub={`${captionsForRound.length}/${expectedCaptioners} légendes reçues.`}
@@ -1598,8 +1946,13 @@ export default function CaptionBattle() {
           <div className="flex-1 flex flex-col items-center justify-center">
             <p className="text-gray-400 mb-3 text-sm flex items-center gap-1.5">
               Média envoyé par <PlayerDot id={currentMedia.owner_id} avatar={currentMedia.owner_avatar} />
-              <span className="text-purple-400 font-bold">{currentMedia.owner_name}</span>
+              <span className="text-purple-400 font-bold">{isMyMedia ? 'toi' : currentMedia.owner_name}</span>
             </p>
+            {isMyMedia && (
+              <p className="text-xs text-purple-300 bg-purple-900/30 border border-purple-800 rounded-full px-3 py-1 mb-3">
+                C'est ton meme ! Tu peux le légender aussi (mais tu ne pourras pas voter pour ta propre légende).
+              </p>
+            )}
             <div className="w-full bg-gray-900 p-4 rounded-2xl border border-gray-800 mb-6 shadow-2xl">
               <MediaWithDownload media={currentMedia} onDownload={downloadMedia} />
             </div>
@@ -1618,7 +1971,7 @@ export default function CaptionBattle() {
               <button
                 onClick={submitCaption}
                 disabled={!myCaption.trim()}
-                className="absolute right-3 top-3 bottom-3 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 rounded-lg px-4 flex items-center justify-center transition active:scale-95"
+                className="absolute right-3 top-3 bottom-3 bg-purple-600 hover:bg-purple-500 shadow-md shadow-purple-900/40 disabled:opacity-40 rounded-lg px-4 flex items-center justify-center transition active:scale-95"
               >
                 <Send size={20} />
               </button>
@@ -1766,7 +2119,7 @@ export default function CaptionBattle() {
           </div>
 
           {isHost ? (
-            <button onClick={nextRound} className="bg-purple-600 hover:bg-purple-500 font-bold py-3 px-8 rounded-full">
+            <button onClick={nextRound} className="bg-purple-600 hover:bg-purple-500 shadow-md shadow-purple-900/40 font-bold py-3 px-8 rounded-full">
               {hasNextRound ? 'Round suivant' : 'Voir le classement final'}
             </button>
           ) : (
@@ -1829,7 +2182,7 @@ export default function CaptionBattle() {
       )}
 
       {isHost ? (
-        <button onClick={newGame} className="bg-purple-600 hover:bg-purple-500 active:scale-95 font-bold py-3 px-8 rounded-full transition">
+        <button onClick={newGame} className="bg-purple-600 hover:bg-purple-500 shadow-md shadow-purple-900/40 active:scale-95 font-bold py-3 px-8 rounded-full transition">
           Nouvelle partie
         </button>
       ) : (
