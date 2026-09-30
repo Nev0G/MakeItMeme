@@ -362,7 +362,7 @@ const DEFAULT_SETTINGS = {
 const MAX_NAME_LEN = 20;
 const MAX_CAPTION_LEN = 140;
 // Incrémenter à chaque mise à jour livrée du jeu.
-const APP_VERSION = 'v24';
+const APP_VERSION = 'v25';
 
 const PLAYER_COLORS = ['#a855f7', '#ec4899', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#f43f5e'];
 const colorForPlayer = (id) => {
@@ -505,6 +505,70 @@ const SoundToggle = ({ on, onToggle, className = '' }) => (
   >
     {on ? <Volume2 size={16} /> : <VolumeX size={16} />}
   </button>
+);
+
+// ==========================================
+// BARRE DES JEUX (rail latéral façon Discord)
+// ==========================================
+// Pour ajouter un jeu : une ligne dans GAMES.
+//  - status 'live' : jouable. Mettre "href" pour y naviguer une fois qu'il existe.
+//  - status 'soon' : grisé, affiché "Bientôt" (les noms ci-dessous sont des exemples).
+const CURRENT_GAME_ID = 'caption-battle';
+const GAMES = [
+  { id: 'caption-battle', name: 'Caption Battle', emoji: '😂', status: 'live', gradient: 'from-purple-500 via-pink-500 to-orange-400' },
+  { id: 'quiz', name: 'Quiz', emoji: '🧠', status: 'soon' },
+  { id: 'dessin', name: 'Dessin', emoji: '🎨', status: 'soon' },
+  { id: 'blind-test', name: 'Blind test', emoji: '🎵', status: 'soon' },
+];
+
+const GamesRail = () => (
+  <nav
+    aria-label="Jeux"
+    className="fixed z-30 top-0 left-0 right-0 h-12 px-3 flex flex-row items-center gap-2 bg-gray-900/95 border-b border-gray-800 overflow-x-auto md:overflow-visible md:top-3 md:bottom-3 md:left-3 md:right-auto md:h-auto md:w-16 md:flex-col md:px-0 md:py-3 md:gap-3 md:rounded-2xl md:border md:shadow-xl md:shadow-black/30"
+  >
+    <span className="hidden md:block text-[9px] font-bold text-gray-600 uppercase tracking-widest">Jeux</span>
+    {GAMES.map((g) => {
+      const isCurrent = g.id === CURRENT_GAME_ID;
+      const soon = g.status === 'soon';
+      const tileClass = `w-10 h-10 md:w-11 md:h-11 flex items-center justify-center text-xl transition-all duration-200 ${
+        isCurrent
+          ? `bg-gradient-to-br ${g.gradient} rounded-xl shadow-lg shadow-purple-900/50`
+          : soon
+          ? 'rounded-2xl bg-gray-800/60 border border-dashed border-gray-700 opacity-60 grayscale cursor-not-allowed'
+          : 'rounded-2xl bg-gray-800 hover:bg-purple-600 hover:rounded-xl active:scale-95'
+      }`;
+      const label = soon ? `${g.name} (bientôt)` : g.name;
+      return (
+        <div key={g.id} className="group relative shrink-0 flex items-center justify-center">
+          {isCurrent && (
+            <span className="hidden md:block absolute md:-left-[10px] top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full bg-white" />
+          )}
+          {g.href && !isCurrent && !soon ? (
+            <a href={g.href} aria-label={label} className={tileClass}>
+              {g.emoji}
+            </a>
+          ) : (
+            <button
+              type="button"
+              disabled={soon}
+              aria-label={label}
+              aria-current={isCurrent ? 'page' : undefined}
+              className={tileClass}
+            >
+              {g.emoji}
+            </button>
+          )}
+          <span
+            role="tooltip"
+            className="hidden md:block pointer-events-none absolute left-full ml-4 top-1/2 -translate-y-1/2 whitespace-nowrap rounded-lg bg-black border border-gray-700 px-3 py-1.5 text-xs font-bold text-white opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-xl"
+          >
+            {g.name}
+            {soon && <span className="ml-2 text-purple-300">Bientôt</span>}
+          </span>
+        </div>
+      );
+    })}
+  </nav>
 );
 
 // ==========================================
@@ -2184,8 +2248,9 @@ export default function CaptionBattle() {
   // Fonction ordinaire (pas un composant <Tag>) — voir la note plus haut sur le
   // bug de remontage : la même règle s'applique ici.
   const renderAppShell = (mainContent) => (
-    <div className="min-h-screen md:h-[100dvh] md:overflow-hidden bg-gray-950/95 text-white relative z-10 flex justify-center p-4">
+    <div className="min-h-screen md:h-[100dvh] md:overflow-hidden bg-gray-950/95 text-white relative z-10 flex justify-center p-4 pt-16 md:pt-4 md:pl-24">
       <VersionBadge />
+      <GamesRail />
       {hostToast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[960] animate-fadein bg-gray-900 border border-purple-600 shadow-xl shadow-purple-900/40 text-white text-sm font-bold rounded-full px-5 py-2.5 flex items-center gap-2">
           <Crown size={16} className="text-yellow-400" /> {hostToast}
@@ -2234,8 +2299,9 @@ export default function CaptionBattle() {
   if (gameState === 'home') {
     return (
       <>
-      <div className="min-h-screen md:h-[100dvh] md:overflow-hidden bg-gray-950/95 text-white relative z-10 flex flex-col items-center justify-center p-4">
+      <div className="min-h-screen md:h-[100dvh] md:overflow-hidden bg-gray-950/95 text-white relative z-10 flex flex-col items-center justify-center p-4 pt-16 md:pt-4 md:pl-24">
         <VersionBadge />
+        <GamesRail />
         <h1
           className="font-heading text-6xl sm:text-7xl font-extrabold mb-2 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 bg-clip-text text-transparent animate-bob drop-shadow-sm"
           style={{ '--bob-rot': '-2deg' }}
