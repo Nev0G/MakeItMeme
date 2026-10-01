@@ -24,7 +24,8 @@ const WORD_PAIRS: [string, string][] = [
   ['École', 'Université'], ['Professeur', 'Directeur'], ['Boulanger', 'Pâtissier'], ['Coiffeur', 'Barbier'],
   ['Hôpital', 'Clinique'], ['Musée', 'Galerie'], ['Zoo', 'Cirque'], ['Camping', 'Randonnée'], ['Ski', 'Snowboard'],
   ['Natation', 'Plongée'], ['Boxe', 'Karaté'], ['Échecs', 'Dames'], ['Poker', 'Belote'], ['Guitare', 'Violon'],
-  ['Batterie', 'Tambour'], ['Micro', 'Haut-parleur'], ['Appareil photo', 'Caméra'], ['Parapluie', 'Imperméable'],
+  ['Batterie', 'Tambour'], ['Micro', 'Haut-parleur'], ['Appareil photo', 'Caméra'], ['Parapluie', 'Imperméable'], 
+  ['Surcoté', 'Sous-Coté'],['Vin rouge', 'Sang menstruel'], ['WC', 'Trône'],
 ];
 
 type WordPick = { civil: string; imposter: string };
