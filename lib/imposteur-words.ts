@@ -47,4 +47,29 @@ const normalizeWord = (s: string) =>
     .replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9]/g, '');
 
-export { WORD_PAIRS, pickWordPair, normalizeWord };
+// Mode "pseudo d'un joueur" : le mot des civils est le pseudo d'un joueur, celui de
+// l'imposteur le pseudo d'un autre. Retourne null s'il n'y a pas deux pseudos différents.
+const pickPlayerPair = (names: string[]): WordPick | null => {
+  const seen = new Set<string>();
+  const unique = names.filter((n) => {
+    const key = normalizeWord(n) || n.trim().toLowerCase();
+    if (!n.trim() || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  if (unique.length < 2) return null;
+  const a = Math.floor(Math.random() * unique.length);
+  let b = Math.floor(Math.random() * (unique.length - 1));
+  if (b >= a) b += 1;
+  return { civil: unique[a], imposter: unique[b] };
+};
+
+// Deux mots identiques ? (un pseudo en emojis ne contient aucun caractère comparable : on compare alors tel quel)
+const sameWord = (a: string, b: string) => {
+  const na = normalizeWord(a);
+  const nb = normalizeWord(b);
+  if (na && nb) return na === nb;
+  return (a || '').trim().toLowerCase() === (b || '').trim().toLowerCase() && !!(a || '').trim();
+};
+
+export { WORD_PAIRS, pickWordPair, pickPlayerPair, normalizeWord, sameWord };

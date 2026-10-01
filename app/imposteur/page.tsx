@@ -9,19 +9,20 @@ import {
   SoundToggle, GamesRail as SharedGamesRail, Waiting, ToggleRow, CountdownBadge, makeSessionStore, MAX_NAME_LEN,
   readIdentity, writeIdentity, useSoundAndClickFx, useDiscordAuth, AccountButton, AvatarPicker, AvatarGlyph, isImageAvatar,
 } from '@/lib/shared';
-import { pickWordPair, normalizeWord } from '@/lib/imposteur-words';
+import { pickWordPair, pickPlayerPair, sameWord } from '@/lib/imposteur-words';
 
 // ==========================================
 // RÈGLES ET RÉGLAGES
 // ==========================================
 // Incrémenter à chaque mise à jour livrée du jeu.
-const APP_VERSION = 'imposteur v3';
+const APP_VERSION = 'imposteur v4';
 const GUESS_SECONDS = 25;
 const MAX_CLUE_LEN = 30;
 const POINTS_CIVIL_WIN = 2;
 const POINTS_IMPOSTOR_WIN = 3;
 
 const DEFAULT_SETTINGS = {
+  wordSource: 'pairs', // 'pairs' : mots classiques — 'players' : pseudos des joueurs
   mode: 'close', // 'close' : l'imposteur a un mot proche — 'blank' : l'imposteur n'a aucun mot
   impostorCount: 1,
   clueSeconds: 30,
@@ -409,7 +410,7 @@ export default function Imposteur() {
     const cfg = settingsRef.current;
     const n = players.length;
     const impostorCount = Math.max(1, Math.min(cfg.impostorCount, Math.floor((n - 1) / 2)));
-    const pair = pickWordPair();
+    const pair = (cfg.wordSource === 'players' && pickPlayerPair(players.map((p) => p.name))) || pickWordPair();
     const impostors = new Set(shuffle(players.map((p) => p.id)).slice(0, impostorCount));
     const newRoles = {};
     players.forEach((p) => {
@@ -496,7 +497,7 @@ export default function Imposteur() {
     const m = metaRef.current;
     const entry = guessEntryRef.current;
     const text = entry && entry.id === m.guess?.id ? entry.text : '';
-    const correct = !!text && normalizeWord(text) === normalizeWord(civilWord);
+    const correct = !!text && sameWord(text, civilWord);
     const guess = { id: m.guess.id, round: m.guess.round, text: text || null, correct };
     if (correct) endGame('impostors', 'guessed', guess);
     else finishRound(guess);
@@ -516,7 +517,7 @@ export default function Imposteur() {
   const submitClue = () => {
     const text = myClue.trim();
     if (!text || speakerId !== player.id) return;
-    if (myRole?.word && normalizeWord(text) === normalizeWord(myRole.word)) {
+    if (myRole?.word && sameWord(text, myRole.word)) {
       setClueError('Tu ne peux pas écrire ton propre mot !');
       playSfx('error');
       return;
@@ -1002,6 +1003,18 @@ export default function Imposteur() {
           )}
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div className="col-span-2">
+              <label className="block text-gray-500 mb-1 text-xs">Mot à faire deviner</label>
+              <select
+                disabled={!isHost}
+                value={settings.wordSource}
+                onChange={(e) => updateSettings({ wordSource: e.target.value })}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 font-bold disabled:opacity-60"
+              >
+                <option value="pairs">Un mot classique (Pizza, Plage…)</option>
+                <option value="players">Le pseudo d'un joueur de la partie</option>
+              </select>
+            </div>
+            <div className="col-span-2">
               <label className="block text-gray-500 mb-1 text-xs">Carte de l'imposteur</label>
               <select
                 disabled={!isHost}
@@ -1009,7 +1022,7 @@ export default function Imposteur() {
                 onChange={(e) => updateSettings({ mode: e.target.value })}
                 className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 font-bold disabled:opacity-60"
               >
-                <option value="close">Un mot proche de celui des civils</option>
+                <option value="close">{settings.wordSource === 'players' ? "Le pseudo d'un autre joueur" : 'Un mot proche de celui des civils'}</option>
                 <option value="blank">Aucun mot (il doit bluffer)</option>
               </select>
             </div>
@@ -1128,6 +1141,9 @@ export default function Imposteur() {
                     </>
                   ) : (
                     <p className="font-heading font-extrabold text-2xl mt-2">Tu n'as aucun mot</p>
+                  )}
+                  {settings.wordSource === 'players' && (
+                    <p className="text-xs text-orange-300 mt-2">Le mot est le pseudo d'un joueur de la partie.</p>
                   )}
                   <p className="text-xs text-gray-400 mt-3">
                     {isImp
