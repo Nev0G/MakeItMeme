@@ -362,7 +362,7 @@ const DEFAULT_SETTINGS = {
 const MAX_NAME_LEN = 20;
 const MAX_CAPTION_LEN = 140;
 // Incrémenter à chaque mise à jour livrée du jeu.
-const APP_VERSION = 'v25';
+const APP_VERSION = 'v26';
 
 const PLAYER_COLORS = ['#a855f7', '#ec4899', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#f43f5e'];
 const colorForPlayer = (id) => {
@@ -1908,6 +1908,23 @@ export default function CaptionBattle() {
     autoSkipRef.current = '';
   };
 
+  // Résumé de chaque manche : le meme de la manche + sa légende gagnante (celle
+  // qui a reçu le plus de votes). Une manche sans vote n'a pas de gagnant.
+  const roundRecaps = useMemo(() => {
+    return roundQueue.map((mediaId, idx) => {
+      const media = medias.find((m) => m.id === mediaId);
+      const withPoints = captions
+        .filter((c) => c.media_id === mediaId)
+        .map((c) => ({
+          ...c,
+          points: votes.filter((v) => v.media_id === mediaId && v.caption_author_id === c.author_id).length,
+        }));
+      const winner = withPoints.reduce((best, c) => (!best || c.points > best.points ? c : best), null);
+      return { round: idx + 1, media, winner: winner && winner.points > 0 ? winner : null };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState === 'final_results']);
+
   // Meilleure légende de tout le match (toutes légendes/votes cumulés depuis le début de la partie)
   const bestCaptionOfGame = useMemo(() => {
     if (captions.length === 0) return null;
@@ -3043,6 +3060,44 @@ export default function CaptionBattle() {
             <p className="text-xs text-gray-400 flex items-center gap-1 mt-1">
               <PlayerDot id={bestCaptionOfGame.author_id} avatar={bestCaptionOfGame.author_avatar} /> {bestCaptionOfGame.author_name} · {bestCaptionOfGame.points} vote{bestCaptionOfGame.points > 1 ? 's' : ''}
             </p>
+          </div>
+        </div>
+      )}
+
+      {roundRecaps.length > 0 && (
+        <div className="w-full max-w-md mb-8">
+          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-2">📜 Résumé des manches</p>
+          <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+            {roundRecaps.map(({ round, media, winner }) => (
+              <div key={round} className="flex items-center gap-3 bg-gray-900 border border-gray-800 rounded-xl p-3 text-left">
+                <span className="shrink-0 text-xs font-black bg-gray-800 text-gray-400 w-6 h-6 flex items-center justify-center rounded-full">
+                  {round}
+                </span>
+                {media && isImageMedia(media) && (
+                  <img src={media.url} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />
+                )}
+                {media && isVideoMedia(media) && (
+                  <div className="w-12 h-12 rounded-lg bg-gray-800 flex items-center justify-center shrink-0">
+                    <Video size={18} className="text-gray-500" />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  {winner ? (
+                    <>
+                      <p className="font-heading font-bold text-sm leading-snug text-white break-words [overflow-wrap:anywhere]">
+                        “{winner.text}”
+                      </p>
+                      <p className="text-[11px] text-gray-400 flex items-center gap-1 mt-0.5">
+                        <PlayerDot id={winner.author_id} avatar={winner.author_avatar} /> {winner.author_name} · {winner.points} vote
+                        {winner.points > 1 ? 's' : ''}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-[11px] text-gray-500 italic">Pas de vote sur cette manche</p>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
