@@ -9,12 +9,17 @@ import {
   GamesRail as SharedGamesRail, ToggleRow, CountdownBadge, makeSessionStore, MAX_NAME_LEN, readIdentity,
   writeIdentity, useSoundAndClickFx, useDiscordAuth, AccountButton, AvatarPicker, AvatarGlyph, isImageAvatar,
   useRefState,
+  useRoomDirectory, VisibilityPicker, RoomOptions, useRoomExtras, ChatWidget, KickButton, toast,
 } from '@/lib/shared';
 import { pickQuestions } from '@/lib/quidenous-questions';
 
-const APP_VERSION = 'qui de nous v1';
+const APP_VERSION = 'qui de nous v2';
+const GAME_ID = 'qui-de-nous';
 
 const DEFAULT_SETTINGS = {
+  visibility: 'private', // 'private' : code seulement — 'public' : visible dans la liste des salons
+  roomName: '',
+  chatEnabled: true,
   rounds: 8,
   voteSeconds: 30,
   category: 'mix', // 'soft' | 'spicy' | 'mix'
@@ -84,6 +89,7 @@ export default function QuiDeNous() {
   }, [player.name, player.avatar]);
 
   const [room, setRoom] = useState(null);
+  const [createVisibility, setCreateVisibility] = useState('private');
   const [joinCode, setJoinCode] = useState('');
   const [showRules, setShowRules] = useState(false);
   const [players, setPlayers] = useState([]);
@@ -156,6 +162,7 @@ export default function QuiDeNous() {
     // Rattrapage : le host renvoie tout l'état de la partie à qui arrive en cours de route.
     channel.on('presence', { event: 'join' }, ({ key }) => {
       if (key === playerId || !isHostRef.current) return;
+      extras.onPresenceJoin(channel, key);
       channel.send({ type: 'broadcast', event: 'settings_update', payload: { settings: settingsRef.current } });
       channel.send({ type: 'broadcast', event: 'scores_sync', payload: { scores: scoresRef.current } });
       channel.send({ type: 'broadcast', event: 'roster', payload: { known: knownRef.current } });
@@ -180,6 +187,7 @@ export default function QuiDeNous() {
     channel.on('broadcast', { event: 'meta' }, ({ payload }) => setMeta(payload.meta));
     channel.on('broadcast', { event: 'vote' }, ({ payload }) => addVote(payload.vote));
 
+    extras.attach(channel);
     channel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
         await channel.track({ player_id: playerId, player_name: playerName, player_avatar: playerAvatar, is_creator: isCreator, joined_at: Date.now() });
@@ -189,6 +197,7 @@ export default function QuiDeNous() {
   };
 
   const resetLocalState = () => {
+    extras.reset();
     setPlayers([]);
     setSettings(DEFAULT_SETTINGS);
     setMeta(INITIAL_META);
@@ -201,6 +210,7 @@ export default function QuiDeNous() {
 
   const enterRoom = (code, playerId, isCreator) => {
     resetLocalState();
+    if (isCreator) setSettings((prev) => ({ ...prev, visibility: createVisibility }));
     setPlayer((p) => ({ ...p, id: playerId }));
     setRoom({ code });
     writeSession({ code, id: playerId, name: player.name.trim(), avatar: player.avatar });
@@ -249,6 +259,26 @@ export default function QuiDeNous() {
     return creator ? creator.id : players[0]?.id ?? null;
   }, [players]);
   const isHost = player.id !== null && player.id === hostId;
+  const extras = useRoomExtras({
+    channelRef,
+    me: player,
+    isHost,
+    hostId,
+    onKicked: () => {
+      leaveRoom();
+      toast('Tu as été expulsé du salon.');
+    },
+  });
+  useRoomDirectory({
+    enabled: !!room && isHost && settings.visibility === 'public',
+    game: GAME_ID,
+    code: room?.code,
+    roomName: settings.roomName,
+    hostName: player.name,
+    hostAvatar: player.avatar,
+    count: players.length,
+    started: meta.phase !== 'lobby',
+  });
   useEffect(() => {
     isHostRef.current = isHost;
   }, [isHost]);
@@ -492,6 +522,7 @@ export default function QuiDeNous() {
                   <PlayerDot id={p.id} avatar={p.avatar} size="md" />
                 </span>
                 <span className="font-bold truncate flex-1">{p.name}</span>
+                {isHost && p.id !== player.id && <KickButton onClick={() => extras.kick(p.id)} />}
                 {phase === 'vote' && (
                   <span className="shrink-0">
                     {voted ? <Check size={14} className="text-green-400" /> : <Loader2 size={12} className="text-gray-600 animate-spin" />}
@@ -526,6 +557,7 @@ export default function QuiDeNous() {
     <div className="min-h-screen md:h-[100dvh] md:overflow-hidden bg-gray-950/90 text-white relative z-10 flex justify-center p-4 pt-16 md:pt-4 md:pl-24">
       <VersionBadge />
       <GamesRail />
+      <ChatWidget extras={extras} me={player} enabled={settings.chatEnabled !== false} />
       {hostToast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[960] animate-fadein bg-gray-900 border border-purple-600 shadow-xl text-white text-sm font-bold rounded-full px-5 py-2.5 flex items-center gap-2">
           <Crown size={16} className="text-yellow-400" /> {hostToast}
@@ -597,6 +629,7 @@ export default function QuiDeNous() {
               onChange={(e) => setPlayer({ ...player, name: e.target.value })}
               className="w-full p-4 bg-gray-950 border border-gray-700 rounded-lg text-white font-bold text-lg text-center mb-6 focus:border-teal-500 focus:outline-none transition"
             />
+            <VisibilityPicker value={createVisibility} onChange={setCreateVisibility} />
             <div className="space-y-4">
               <button
                 onClick={createRoom}
@@ -662,6 +695,7 @@ export default function QuiDeNous() {
           <h3 className="flex items-center gap-2 text-gray-400 font-bold mb-3 uppercase text-sm">
             <Settings size={16} /> Paramètres de la partie
           </h3>
+          <RoomOptions settings={settings} updateSettings={updateSettings} isHost={isHost} />
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div className="col-span-2">
               <label className="block text-gray-500 mb-1 text-xs">Type de questions</label>

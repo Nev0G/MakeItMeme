@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { ArrowRight, Users, Clock, Sparkles } from 'lucide-react';
-import { SoundToggle, useSoundAndClickFx, useDiscordAuth, AccountButton } from '@/lib/shared';
+import { ArrowRight, Users, Clock, Sparkles, Radio } from 'lucide-react';
+import { SoundToggle, useSoundAndClickFx, useDiscordAuth, AccountButton, useDirectoryListing, PlayerDot } from '@/lib/shared';
 
 const LAST_GAME_KEY = 'makeitmeme-last-game';
 
@@ -51,6 +51,9 @@ export default function Home() {
   const [lastGame, setLastGame] = useState(null);
   const [code, setCode] = useState('');
   const [codeGame, setCodeGame] = useState('caption-battle');
+  const [filter, setFilter] = useState('all');
+  const directory = useDirectoryListing();
+  const visibleRooms = directory.rooms.filter((r) => filter === 'all' || r.game === filter);
 
   useEffect(() => {
     // Anciens liens d'invitation (/?room=XXXX) : ils pointaient vers Caption Battle
@@ -151,6 +154,72 @@ export default function Home() {
               );
             })}
           </div>
+        </section>
+
+        {/* Navigateur de salons ouverts */}
+        <section className="panel-worn mt-6 px-5 sm:px-8 pt-6 pb-8">
+          <div className="flex flex-wrap items-end justify-between gap-3 mb-5">
+            <div>
+              <p className="eyebrow flex items-center gap-2">
+                <Radio size={12} className="text-teal-300 animate-pulse" /> En direct
+              </p>
+              <h2 className="inline-block mt-2 bg-black/70 px-4 py-1.5 font-heading text-2xl text-purple-100 glow-brass">
+                Salons ouverts
+              </h2>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {[{ id: 'all', label: 'Tous' }, ...HOME_GAMES.map((g) => ({ id: g.id, label: `${g.emoji} ${g.name}` }))].map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setFilter(f.id)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold border transition active:scale-95 ${
+                    filter === f.id ? 'bg-purple-600 border-purple-400 text-white' : 'bg-gray-900 border-gray-700 text-gray-400 hover:text-white'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {!directory.ready ? (
+            <p className="text-sm text-gray-500">Recherche des salons…</p>
+          ) : visibleRooms.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-gray-700 px-4 py-8 text-center">
+              <p className="font-bold text-gray-300">Aucun salon ouvert pour le moment</p>
+              <p className="text-sm text-gray-500 mt-1">Crée le premier : choisis un jeu et active « Ouvert » avant de lancer ta partie.</p>
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {visibleRooms.map((r) => {
+                const game = HOME_GAMES.find((g) => g.id === r.game);
+                if (!game) return null;
+                return (
+                  <li key={`${r.game}-${r.code}`} className="animate-fadein flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-gray-800 bg-gray-900/80 px-4 py-3">
+                    <span className="text-2xl shrink-0">{game.emoji}</span>
+                    <div className="min-w-0 flex-1 basis-48">
+                      <p className="font-bold truncate">{r.name}</p>
+                      <p className="text-xs text-gray-500 flex items-center gap-1.5">
+                        {game.name} · <PlayerDot id={r.code} avatar={r.hostAvatar} /> {r.host}
+                      </p>
+                    </div>
+                    <span className="inline-flex items-center gap-1 text-sm text-gray-300"><Users size={14} /> {r.count}</span>
+                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${r.started ? 'bg-amber-900/50 text-amber-300' : 'bg-emerald-900/50 text-emerald-300'}`}>
+                      {r.started ? 'En cours' : 'En attente'}
+                    </span>
+                    <a
+                      href={`${game.href}?room=${encodeURIComponent(r.code)}`}
+                      onClick={() => rememberGame(game.id)}
+                      className="bg-purple-600 hover:bg-purple-500 font-bold text-sm px-4 py-2 rounded-lg transition active:scale-95 flex items-center gap-1.5"
+                    >
+                      Rejoindre <ArrowRight size={14} />
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </section>
 
         {/* Panneaux du bas */}

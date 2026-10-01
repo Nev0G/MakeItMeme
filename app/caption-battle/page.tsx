@@ -15,6 +15,7 @@ import {
   AVATAR_EMOJIS, randomAvatar, PlayerDot, playingMedia, setSfxSuspended, playSfx, SoundToggle,
   GamesRail as SharedGamesRail, Waiting, ToggleRow, CountdownBadge, makeSessionStore, MAX_NAME_LEN,
   useSoundAndClickFx, useDiscordAuth, AccountButton, AvatarPicker, AvatarGlyph, isImageAvatar,
+  useRoomDirectory, VisibilityPicker, RoomOptions, useRoomExtras, ChatWidget, KickButton, toast,
 } from '@/lib/shared';
 
 const { read: readSession, write: writeSession, clear: clearSession } = makeSessionStore('caption-battle-session');
@@ -257,6 +258,9 @@ const triggerBlobDownload = (blob, filename) => {
 };
 
 const DEFAULT_SETTINGS = {
+  visibility: 'private', // 'private' : code seulement — 'public' : visible dans la liste des salons
+  roomName: '',
+  chatEnabled: true,
   captionSeconds: 45,
   voteSeconds: 20,
   mediaPerPlayer: 1,
@@ -268,7 +272,7 @@ const DEFAULT_SETTINGS = {
 };
 const MAX_CAPTION_LEN = 140;
 // Incrémenter à chaque mise à jour livrée du jeu.
-const APP_VERSION = 'v29';
+const APP_VERSION = 'v30';
 
 const VersionBadge = () => (
   <div className="fixed bottom-2 right-3 text-[10px] text-gray-600 font-mono select-none pointer-events-none z-50">
@@ -820,6 +824,7 @@ export default function CaptionBattle() {
     }
   }, [player.name, player.avatar]);
   const [room, setRoom] = useState(null);
+  const [createVisibility, setCreateVisibility] = useState('private');
   const [joinCode, setJoinCode] = useState('');
   const [showRules, setShowRules] = useState(false);
   const [players, setPlayers] = useState([]);
@@ -923,6 +928,7 @@ export default function CaptionBattle() {
     channel.on('presence', { event: 'join' }, ({ key }) => {
       if (key === playerId) return;
       if (!isHostRefValue.current) return;
+      extras.onPresenceJoin(channel, key);
 
       // Les réglages sont toujours renvoyés (y compris dans le lobby), sinon un
       // nouvel arrivant garderait les valeurs par défaut au lieu de celles du host.
@@ -1023,6 +1029,7 @@ export default function CaptionBattle() {
       autoSkipRef.current = '';
     });
 
+    extras.attach(channel);
     channel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
         await channel.track({ player_id: playerId, player_name: playerName, player_avatar: playerAvatar, is_creator: isCreator, joined_at: Date.now() });
@@ -1033,6 +1040,7 @@ export default function CaptionBattle() {
   };
 
   const resetGameStateLocal = () => {
+    extras.reset();
     setCaptionOrder({ mediaId: null, order: [] });
     setPresentIndex(0);
     setPlayers([]);
@@ -1055,6 +1063,7 @@ export default function CaptionBattle() {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     const newPlayerId = auth.profile?.id || makeId('p');
     resetGameStateLocal();
+    setSettings((prev) => ({ ...prev, visibility: createVisibility }));
     setPlayer((p) => ({ ...p, id: newPlayerId }));
     setRoom({ code });
     writeSession({ code, id: newPlayerId, name: player.name.trim(), avatar: player.avatar });
@@ -1112,6 +1121,26 @@ export default function CaptionBattle() {
     return creator ? creator.id : players[0]?.id ?? null;
   }, [players]);
   const isHost = player.id !== null && player.id === hostId;
+  const extras = useRoomExtras({
+    channelRef,
+    me: player,
+    isHost,
+    hostId,
+    onKicked: () => {
+      leaveRoom();
+      toast('Tu as été expulsé du salon.');
+    },
+  });
+  useRoomDirectory({
+    enabled: !!room && isHost && settings.visibility === 'public',
+    game: 'caption-battle',
+    code: room?.code,
+    roomName: settings.roomName,
+    hostName: player.name,
+    hostAvatar: player.avatar,
+    count: players.length,
+    started: gameState !== 'lobby' && gameState !== 'home',
+  });
 
   // Transfert de host visible : le host actuel part → quelqu'un d'autre reprend
   // automatiquement la main (le plus ancien arrivé), avec une notif pour tous.
@@ -1795,6 +1824,7 @@ export default function CaptionBattle() {
                 <PlayerDot id={p.id} avatar={p.avatar} size="md" />
               </span>
               <span className="font-bold truncate flex-1">{p.name}</span>
+              {isHost && p.id !== player.id && <KickButton onClick={() => extras.kick(p.id)} />}
               {(() => {
                 const st = playerStatus(p);
                 if (!st) return null;
@@ -1861,6 +1891,7 @@ export default function CaptionBattle() {
     <div className="min-h-screen md:h-[100dvh] md:overflow-hidden bg-gray-950/95 text-white relative z-10 flex justify-center p-4 pt-16 md:pt-4 md:pl-24">
       <VersionBadge />
       <GamesRail />
+      <ChatWidget extras={extras} me={player} enabled={settings.chatEnabled !== false} />
       {hostToast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[960] animate-fadein bg-gray-900 border border-purple-600 shadow-xl shadow-purple-900/40 text-white text-sm font-bold rounded-full px-5 py-2.5 flex items-center gap-2">
           <Crown size={16} className="text-yellow-400" /> {hostToast}
@@ -1948,6 +1979,7 @@ export default function CaptionBattle() {
             className="w-full p-4 bg-gray-950 border border-gray-700 rounded-lg text-white font-bold text-lg text-center mb-6 focus:border-purple-500 focus:outline-none transition"
           />
 
+          <VisibilityPicker value={createVisibility} onChange={setCreateVisibility} />
           <div className="space-y-4">
             <button
               onClick={createRoom}
@@ -2017,9 +2049,10 @@ export default function CaptionBattle() {
         </div>
 
         <div className="text-left mb-8 bg-gray-950 border border-gray-800 rounded-xl p-4">
-          <h3 className="flex items-center gap-2 text-gray-400 font-bold mb-1 uppercase text-sm">
+          <h3 className="flex items-center gap-2 text-gray-400 font-bold mb-3 uppercase text-sm">
             <Settings size={16} /> Paramètres de la partie
           </h3>
+          <RoomOptions settings={settings} updateSettings={updateSettings} isHost={isHost} />
           {players.length > 0 && (
             <p className="text-xs text-gray-500 mb-3">
               → {players.length * settings.mediaPerPlayer} round{players.length * settings.mediaPerPlayer > 1 ? 's' : ''} au total

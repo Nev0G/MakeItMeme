@@ -1,4 +1,5 @@
 import './globals.css'
+import { ToastHost } from '@/lib/shared'
 
 export const metadata = {
   title: 'MakeItMeme',
@@ -57,6 +58,7 @@ export default function RootLayout({
           ))}
         </div>
         {children}
+        <ToastHost />
       </body>
     </html>
   )

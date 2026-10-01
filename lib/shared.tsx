@@ -4,7 +4,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { Loader2, Volume2, VolumeX, LogIn, LogOut } from 'lucide-react';
+import { Loader2, Volume2, VolumeX, LogIn, LogOut, MessageCircle, Send, X, Globe, Lock, Users } from 'lucide-react';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://hidtcsztkjpqngwlrzqy.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_CREIog57Ep_e7sUZ0rx-VA_8ooqaGTJ';
@@ -592,7 +592,375 @@ const useRefState = (initial) => {
   return [value, set, ref];
 };
 
+// ==========================================
+// NOTIFICATIONS (toast) — `toast('message')` depuis n'importe où, <ToastHost /> monté une fois dans le layout
+// ==========================================
+const toastSubscribers = new Set();
+const toast = (message) => toastSubscribers.forEach((fn) => fn(message));
+
+const ToastHost = () => {
+  const [items, setItems] = useState([]);
+  useEffect(() => {
+    const onToast = (message) => {
+      const id = Math.random().toString(36).slice(2);
+      setItems((prev) => [...prev, { id, message }]);
+      setTimeout(() => setItems((prev) => prev.filter((t) => t.id !== id)), 4500);
+    };
+    toastSubscribers.add(onToast);
+    return () => {
+      toastSubscribers.delete(onToast);
+    };
+  }, []);
+  return (
+    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[990] flex flex-col items-center gap-2 pointer-events-none">
+      {items.map((t) => (
+        <div key={t.id} className="animate-fadein bg-gray-900 border border-purple-500/60 shadow-xl text-white text-sm font-bold rounded-full px-5 py-2.5">
+          {t.message}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// ==========================================
+// SALONS : visibilité, nom, annuaire des salons ouverts
+// ==========================================
+const ROOM_NAME_MAX = 30;
+const DIRECTORY_CHANNEL = 'directory';
+
+// Les salons ouverts s'annoncent dans un channel de présence commun : quand le host
+// part (ou ferme l'onglet), l'annonce disparaît toute seule — aucune base de données.
+const useRoomDirectory = ({ enabled, game, code, roomName, hostName, hostAvatar, count, started }) => {
+  const chRef = React.useRef(null);
+  const readyRef = React.useRef(false);
+  const dataRef = React.useRef(null);
+  dataRef.current = {
+    game,
+    code,
+    name: (roomName || '').trim().slice(0, ROOM_NAME_MAX) || `Salon de ${hostName}`,
+    host: hostName,
+    hostAvatar,
+    count,
+    started: !!started,
+  };
+
+  useEffect(() => {
+    if (!enabled || !code) return;
+    const channel = supabase.channel(DIRECTORY_CHANNEL, { config: { presence: { key: code } } });
+    chRef.current = channel;
+    readyRef.current = false;
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        readyRef.current = true;
+        channel.track(dataRef.current);
+      }
+    });
+    return () => {
+      readyRef.current = false;
+      chRef.current = null;
+      supabase.removeChannel(channel);
+    };
+  }, [enabled, code]);
+
+  useEffect(() => {
+    if (enabled && readyRef.current && chRef.current) chRef.current.track(dataRef.current);
+  }, [enabled, game, code, roomName, hostName, hostAvatar, count, started]);
+};
+
+// Pour la page d'accueil : écoute l'annuaire (sans s'y inscrire)
+const useDirectoryListing = () => {
+  const [rooms, setRooms] = useState([]);
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const channel = supabase.channel(DIRECTORY_CHANNEL);
+    channel.on('presence', { event: 'sync' }, () => {
+      const list = [];
+      Object.entries(channel.presenceState()).forEach(([key, metas]) => {
+        const m = (metas as any[])[(metas as any[]).length - 1];
+        if (!m || !m.code || !m.game) return;
+        list.push({
+          code: String(m.code),
+          game: String(m.game),
+          name: String(m.name || '').slice(0, ROOM_NAME_MAX),
+          host: String(m.host || '').slice(0, MAX_NAME_LEN),
+          hostAvatar: m.hostAvatar,
+          count: Number(m.count) || 0,
+          started: !!m.started,
+        });
+      });
+      list.sort((a, b) => Number(a.started) - Number(b.started) || b.count - a.count);
+      setRooms(list);
+      setReady(true);
+    });
+    channel.subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+  return { rooms, ready };
+};
+
+// Choix du type de salon avant la création (accueil des jeux)
+const VisibilityPicker = ({ value, onChange }) => (
+  <div className="grid grid-cols-2 gap-2 mb-3 text-sm">
+    {[
+      { id: 'private', icon: <Lock size={14} />, label: 'Fermé', hint: 'Avec un code' },
+      { id: 'public', icon: <Globe size={14} />, label: 'Ouvert', hint: 'Dans la liste' },
+    ].map((o) => (
+      <button
+        key={o.id}
+        type="button"
+        onClick={() => onChange(o.id)}
+        className={`rounded-lg border-2 px-3 py-2 text-left transition active:scale-95 ${
+          value === o.id ? 'border-purple-400 bg-purple-900/40' : 'border-gray-700 bg-gray-950 hover:border-gray-500'
+        }`}
+      >
+        <span className="flex items-center gap-1.5 font-bold">{o.icon} {o.label}</span>
+        <span className="block text-[11px] text-gray-500">{o.hint}</span>
+      </button>
+    ))}
+  </div>
+);
+
+// Réglages communs d'un salon, dans le lobby : visibilité, nom, chat
+const RoomOptions = ({ settings, updateSettings, isHost }) => (
+  <div className="mb-4 pb-4 border-b border-gray-800 space-y-3 text-sm">
+    <div>
+      <label className="block text-gray-500 mb-1 text-xs">Type de salon</label>
+      <div className="grid grid-cols-2 gap-2">
+        {[
+          { id: 'private', icon: <Lock size={14} />, label: 'Fermé (code)' },
+          { id: 'public', icon: <Globe size={14} />, label: 'Ouvert (liste)' },
+        ].map((o) => (
+          <button
+            key={o.id}
+            type="button"
+            disabled={!isHost}
+            onClick={() => updateSettings({ visibility: o.id })}
+            className={`flex items-center justify-center gap-1.5 rounded-lg border-2 px-3 py-2 font-bold transition active:scale-95 disabled:opacity-60 ${
+              settings.visibility === o.id ? 'border-purple-400 bg-purple-900/40' : 'border-gray-700 bg-gray-900'
+            }`}
+          >
+            {o.icon} {o.label}
+          </button>
+        ))}
+      </div>
+      {settings.visibility === 'public' && (
+        <p className="text-[11px] text-purple-300 mt-1.5">🌍 Ton salon est visible par tout le monde sur la page d'accueil.</p>
+      )}
+    </div>
+    {settings.visibility === 'public' && (
+      <div>
+        <label className="block text-gray-500 mb-1 text-xs">Nom du salon</label>
+        <input
+          type="text"
+          disabled={!isHost}
+          maxLength={ROOM_NAME_MAX}
+          value={settings.roomName || ''}
+          placeholder="Salon de…"
+          onChange={(e) => updateSettings({ roomName: e.target.value })}
+          className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 font-bold disabled:opacity-60"
+        />
+      </div>
+    )}
+    <ToggleRow
+      label="Chat écrit"
+      hint="Une bulle de discussion pour tous les joueurs"
+      checked={settings.chatEnabled !== false}
+      disabled={!isHost}
+      onChange={(v) => updateSettings({ chatEnabled: v })}
+    />
+  </div>
+);
+
+// ==========================================
+// CHAT ÉCRIT + EXPULSION (partagés par tous les jeux)
+// ==========================================
+const CHAT_KEEP = 100;
+const CHAT_TEXT_MAX = 200;
+
+const cleanChatMessage = (m) =>
+  m && typeof m.id === 'string' && typeof m.text === 'string'
+    ? {
+        id: m.id.slice(0, 40),
+        from: String(m.from || '').slice(0, 60),
+        name: String(m.name || '???').slice(0, MAX_NAME_LEN),
+        avatar: typeof m.avatar === 'string' ? m.avatar.slice(0, 300) : '',
+        text: m.text.slice(0, CHAT_TEXT_MAX),
+        t: Number(m.t) || Date.now(),
+      }
+    : null;
+
+const useRoomExtras = ({ channelRef, me, isHost, hostId, onKicked }) => {
+  const [messages, setMessages] = useState([]);
+  const messagesRef = React.useRef([]);
+  const kickedRef = React.useRef(new Set());
+  const lastSendRef = React.useRef(0);
+  const live = React.useRef({});
+  live.current = { me, isHost, hostId, onKicked };
+
+  const addMessages = (list) => {
+    const known = new Set(messagesRef.current.map((x) => x.id));
+    const fresh = list.map(cleanChatMessage).filter((m) => m && !known.has(m.id));
+    if (!fresh.length) return;
+    messagesRef.current = [...messagesRef.current, ...fresh].sort((a, b) => a.t - b.t).slice(-CHAT_KEEP);
+    setMessages(messagesRef.current);
+  };
+
+  // À appeler dans connectToRoom, avant channel.subscribe()
+  const attach = (channel) => {
+    channel.on('broadcast', { event: 'chat' }, ({ payload }) => addMessages([payload?.msg]));
+    channel.on('broadcast', { event: 'chat_history' }, ({ payload }) => addMessages(Array.isArray(payload?.messages) ? payload.messages : []));
+    channel.on('broadcast', { event: 'kick' }, ({ payload }) => {
+      const l = live.current;
+      if (payload?.id && payload.id === l.me.id && payload.by === l.hostId) l.onKicked && l.onKicked();
+    });
+  };
+
+  // À appeler dans le handler presence "join" (le host renvoie l'historique, et re-expulse un joueur déjà expulsé)
+  const onPresenceJoin = (channel, key) => {
+    if (!live.current.isHost) return;
+    if (messagesRef.current.length) {
+      channel.send({ type: 'broadcast', event: 'chat_history', payload: { messages: messagesRef.current.slice(-30) } });
+    }
+    if (kickedRef.current.has(key)) {
+      channel.send({ type: 'broadcast', event: 'kick', payload: { id: key, by: live.current.me.id } });
+    }
+  };
+
+  const send = (text) => {
+    const clean = (text || '').trim().slice(0, CHAT_TEXT_MAX);
+    const nowMs = Date.now();
+    if (!clean || nowMs - lastSendRef.current < 600) return false;
+    lastSendRef.current = nowMs;
+    const msg = {
+      id: `${live.current.me.id}-${nowMs}-${Math.random().toString(36).slice(2, 6)}`,
+      from: live.current.me.id,
+      name: live.current.me.name,
+      avatar: live.current.me.avatar,
+      text: clean,
+      t: nowMs,
+    };
+    addMessages([msg]);
+    channelRef.current?.send({ type: 'broadcast', event: 'chat', payload: { msg } });
+    return true;
+  };
+
+  const kick = (id) => {
+    if (!live.current.isHost || id === live.current.me.id) return;
+    kickedRef.current.add(id);
+    channelRef.current?.send({ type: 'broadcast', event: 'kick', payload: { id, by: live.current.me.id } });
+  };
+
+  const reset = () => {
+    messagesRef.current = [];
+    setMessages([]);
+  };
+
+  return { messages, send, kick, attach, onPresenceJoin, reset };
+};
+
+const ChatWidget = ({ extras, me, enabled }) => {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState('');
+  const [seen, setSeen] = useState(0);
+  const listRef = React.useRef(null);
+  const msgs = extras.messages;
+
+  useEffect(() => {
+    if (open) {
+      setSeen(msgs.length);
+      if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
+    }
+  }, [open, msgs.length]);
+
+  if (!enabled) return null;
+  const unread = open ? 0 : Math.max(0, msgs.length - seen);
+  const submit = (e) => {
+    e.preventDefault();
+    if (extras.send(text)) setText('');
+  };
+
+  return (
+    <div className="fixed bottom-6 right-4 z-[940] flex flex-col items-end gap-2">
+      {open && (
+        <div className="w-[min(20rem,calc(100vw-2rem))] h-96 max-h-[60vh] bg-gray-900 border border-purple-500/30 rounded-2xl shadow-2xl shadow-black/60 flex flex-col animate-fadein overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-800">
+            <span className="font-bold text-sm flex items-center gap-2"><MessageCircle size={15} className="text-purple-300" /> Chat du salon</span>
+            <button type="button" onClick={() => setOpen(false)} className="text-gray-500 hover:text-white transition"><X size={16} /></button>
+          </div>
+          <div ref={listRef} className="flex-1 overflow-y-auto px-3 py-2 space-y-2">
+            {msgs.length === 0 && <p className="text-xs text-gray-600 text-center mt-6">Aucun message pour l'instant. Dis bonjour 👋</p>}
+            {msgs.map((m) => {
+              const mine = m.from === me.id;
+              return (
+                <div key={m.id} className={`flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
+                  <span className="text-[10px] text-gray-500 flex items-center gap-1 mb-0.5">
+                    {!mine && <PlayerDot id={m.from} avatar={m.avatar} />}
+                    {mine ? 'Toi' : m.name}
+                  </span>
+                  <p className={`max-w-[85%] rounded-xl px-3 py-1.5 text-sm break-words [overflow-wrap:anywhere] ${mine ? 'bg-purple-700/70 text-white' : 'bg-gray-800 text-gray-100'}`}>
+                    {m.text}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+          <form onSubmit={submit} className="flex gap-2 p-2 border-t border-gray-800">
+            <input
+              type="text"
+              value={text}
+              maxLength={CHAT_TEXT_MAX}
+              placeholder="Écrire un message…"
+              onChange={(e) => setText(e.target.value)}
+              className="flex-1 min-w-0 bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:border-purple-400 focus:outline-none"
+            />
+            <button type="submit" data-sfx="off" disabled={!text.trim()} className="bg-purple-600 hover:bg-purple-500 disabled:opacity-50 rounded-lg px-3 active:scale-95 transition">
+              <Send size={15} />
+            </button>
+          </form>
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        title="Chat du salon"
+        className="relative w-12 h-12 rounded-full bg-purple-600 hover:bg-purple-500 shadow-lg shadow-black/50 flex items-center justify-center transition active:scale-90"
+      >
+        <MessageCircle size={20} />
+        {unread > 0 && (
+          <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-red-500 text-[11px] font-black flex items-center justify-center animate-pop">
+            {unread > 9 ? '9+' : unread}
+          </span>
+        )}
+      </button>
+    </div>
+  );
+};
+
+// Petit bouton "expulser" pour la liste des joueurs (visible par le host uniquement)
+const KickButton = ({ onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    title="Expulser ce joueur"
+    className="shrink-0 text-gray-600 hover:text-red-400 transition active:scale-90"
+  >
+    <X size={13} />
+  </button>
+);
+
 export {
+  toast,
+  ToastHost,
+  ROOM_NAME_MAX,
+  useRoomDirectory,
+  useDirectoryListing,
+  VisibilityPicker,
+  RoomOptions,
+  useRoomExtras,
+  ChatWidget,
+  KickButton,
   useRefState,
   useDiscordAuth,
   AccountButton,

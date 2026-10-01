@@ -8,6 +8,7 @@ import {
   supabase, makeId, fireConfetti, shuffle, colorForPlayer, AVATAR_EMOJIS, randomAvatar, PlayerDot, playSfx,
   SoundToggle, GamesRail as SharedGamesRail, Waiting, ToggleRow, CountdownBadge, makeSessionStore, MAX_NAME_LEN,
   readIdentity, writeIdentity, useSoundAndClickFx, useDiscordAuth, AccountButton, AvatarPicker, AvatarGlyph, isImageAvatar, useRefState,
+  useRoomDirectory, VisibilityPicker, RoomOptions, useRoomExtras, ChatWidget, KickButton, toast,
 } from '@/lib/shared';
 import { pickWordPair, pickPlayerPair, sameWord } from '@/lib/imposteur-words';
 
@@ -15,13 +16,17 @@ import { pickWordPair, pickPlayerPair, sameWord } from '@/lib/imposteur-words';
 // RÈGLES ET RÉGLAGES
 // ==========================================
 // Incrémenter à chaque mise à jour livrée du jeu.
-const APP_VERSION = 'imposteur v5';
+const APP_VERSION = 'imposteur v6';
+const GAME_ID = 'imposteur';
 const GUESS_SECONDS = 25;
 const MAX_CLUE_LEN = 30;
 const POINTS_CIVIL_WIN = 2;
 const POINTS_IMPOSTOR_WIN = 3;
 
 const DEFAULT_SETTINGS = {
+  visibility: 'private', // 'private' : code seulement — 'public' : visible dans la liste des salons
+  roomName: '',
+  chatEnabled: true,
   wordSource: 'pairs', // 'pairs' : mots classiques — 'players' : pseudos des joueurs
   mode: 'close', // 'close' : l'imposteur a un mot proche — 'blank' : l'imposteur n'a aucun mot
   impostorCount: 1,
@@ -103,6 +108,7 @@ export default function Imposteur() {
   }, [player.name, player.avatar]);
 
   const [room, setRoom] = useState(null);
+  const [createVisibility, setCreateVisibility] = useState('private');
   const [joinCode, setJoinCode] = useState('');
   const [showRules, setShowRules] = useState(false);
   const [players, setPlayers] = useState([]); // présence en direct
@@ -210,6 +216,7 @@ export default function Imposteur() {
     // Rattrapage : le host renvoie tout l'état de la partie à qui arrive en cours de route.
     channel.on('presence', { event: 'join' }, ({ key }) => {
       if (key === playerId || !isHostRef.current) return;
+      extras.onPresenceJoin(channel, key);
       channel.send({ type: 'broadcast', event: 'settings_update', payload: { settings: settingsRef.current } });
       channel.send({ type: 'broadcast', event: 'scores_sync', payload: { scores: scoresRef.current } });
       const phase = metaRef.current.phase;
@@ -234,6 +241,7 @@ export default function Imposteur() {
     channel.on('broadcast', { event: 'vote' }, ({ payload }) => addVote(payload.vote));
     channel.on('broadcast', { event: 'guess' }, ({ payload }) => setGuessEntry(payload.entry));
 
+    extras.attach(channel);
     channel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
         await channel.track({ player_id: playerId, player_name: playerName, player_avatar: playerAvatar, is_creator: isCreator, joined_at: Date.now() });
@@ -244,6 +252,7 @@ export default function Imposteur() {
   };
 
   const resetLocalState = () => {
+    extras.reset();
     setPlayers([]);
     setSettings(DEFAULT_SETTINGS);
     setMeta(INITIAL_META);
@@ -261,6 +270,7 @@ export default function Imposteur() {
 
   const enterRoom = (code, playerId, isCreator) => {
     resetLocalState();
+    if (isCreator) setSettings((prev) => ({ ...prev, visibility: createVisibility }));
     setPlayer((p) => ({ ...p, id: playerId }));
     setRoom({ code });
     writeSession({ code, id: playerId, name: player.name.trim(), avatar: player.avatar });
@@ -312,6 +322,26 @@ export default function Imposteur() {
     return creator ? creator.id : players[0]?.id ?? null;
   }, [players]);
   const isHost = player.id !== null && player.id === hostId;
+  const extras = useRoomExtras({
+    channelRef,
+    me: player,
+    isHost,
+    hostId,
+    onKicked: () => {
+      leaveRoom();
+      toast('Tu as été expulsé du salon.');
+    },
+  });
+  useRoomDirectory({
+    enabled: !!room && isHost && settings.visibility === 'public',
+    game: GAME_ID,
+    code: room?.code,
+    roomName: settings.roomName,
+    hostName: player.name,
+    hostAvatar: player.avatar,
+    count: players.length,
+    started: meta.phase !== 'lobby',
+  });
   useEffect(() => {
     isHostRef.current = isHost;
   }, [isHost]);
@@ -744,6 +774,7 @@ export default function Imposteur() {
                   <PlayerDot id={p.id} avatar={p.avatar} size="md" />
                 </span>
                 <span className={`font-bold truncate flex-1 ${st?.dead ? 'line-through' : ''}`}>{p.name}</span>
+                {isHost && p.id !== player.id && <KickButton onClick={() => extras.kick(p.id)} />}
                 {st?.dead && <span title="Éliminé">💀</span>}
                 {st?.turn && <span className="text-[10px] font-bold text-orange-300">🎤</span>}
                 {st && !st.dead && !st.turn && (
@@ -781,6 +812,7 @@ export default function Imposteur() {
     <div className="min-h-screen md:h-[100dvh] md:overflow-hidden bg-gray-950/95 text-white relative z-10 flex justify-center p-4 pt-16 md:pt-4 md:pl-24">
       <VersionBadge />
       <GamesRail />
+      <ChatWidget extras={extras} me={player} enabled={settings.chatEnabled !== false} />
       {hostToast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[960] animate-fadein bg-gray-900 border border-purple-600 shadow-xl shadow-purple-900/40 text-white text-sm font-bold rounded-full px-5 py-2.5 flex items-center gap-2">
           <Crown size={16} className="text-yellow-400" /> {hostToast}
@@ -916,6 +948,7 @@ export default function Imposteur() {
               onChange={(e) => setPlayer({ ...player, name: e.target.value })}
               className="w-full p-4 bg-gray-950 border border-gray-700 rounded-lg text-white font-bold text-lg text-center mb-6 focus:border-orange-500 focus:outline-none transition"
             />
+            <VisibilityPicker value={createVisibility} onChange={setCreateVisibility} />
             <div className="space-y-4">
               <button
                 onClick={createRoom}
@@ -979,9 +1012,10 @@ export default function Imposteur() {
         </div>
 
         <div className="text-left mb-8 bg-gray-950 border border-gray-800 rounded-xl p-4">
-          <h3 className="flex items-center gap-2 text-gray-400 font-bold mb-1 uppercase text-sm">
+          <h3 className="flex items-center gap-2 text-gray-400 font-bold mb-3 uppercase text-sm">
             <Settings size={16} /> Paramètres de la partie
           </h3>
+          <RoomOptions settings={settings} updateSettings={updateSettings} isHost={isHost} />
           {players.length >= 3 && (
             <p className="text-xs text-gray-500 mb-3">
               → {effectiveImpostors} imposteur{effectiveImpostors > 1 ? 's' : ''} sur {players.length} joueurs
