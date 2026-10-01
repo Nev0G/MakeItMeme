@@ -37,7 +37,7 @@ const fireConfetti = ({ count = 140, duration = 3200 } = {}) => {
   if (!ctx) return; // canvas indisponible : pas de confettis, mais pas d'erreur
   document.body.appendChild(canvas);
 
-  const colors = ['#a855f7', '#ec4899', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6'];
+  const colors = ['#d6a948', '#43bfaa', '#f97316', '#eab308', '#7fb069', '#e3c27a', '#2aa897'];
   const pieces = Array.from({ length: count }, () => ({
     x: Math.random() * canvas.width,
     y: -20 - Math.random() * canvas.height * 0.5,
@@ -83,7 +83,7 @@ const shuffle = (arr) => {
   return a;
 };
 
-const PLAYER_COLORS = ['#a855f7', '#ec4899', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#f43f5e'];
+const PLAYER_COLORS = ['#d6a948', '#43bfaa', '#f97316', '#9bc87a', '#e0705f', '#6aa6d6', '#c58ad6', '#e3c27a'];
 const colorForPlayer = (id) => {
   if (!id) return PLAYER_COLORS[0];
   let hash = 0;
@@ -240,58 +240,48 @@ const SoundToggle = ({ on, onToggle, className = '' }) => (
 //  - status 'live' : jouable. Mettre "href" pour y naviguer une fois qu'il existe.
 //  - status 'soon' : grisé, affiché "Bientôt" (les noms ci-dessous sont des exemples).
 const GAMES = [
-  { id: 'caption-battle', name: 'Caption Battle', emoji: '😂', status: 'live', href: '/', gradient: 'from-purple-500 via-pink-500 to-orange-400' },
+  { id: 'home', name: 'Accueil', emoji: '🏠', status: 'live', href: '/', gradient: 'from-purple-600 to-purple-400' },
+  { id: 'caption-battle', name: 'Caption Battle', emoji: '😂', status: 'live', href: '/caption-battle', gradient: 'from-purple-500 via-pink-500 to-orange-400' },
   { id: 'imposteur', name: 'Imposteur', emoji: '🕵️', status: 'live', href: '/imposteur', gradient: 'from-red-500 via-orange-500 to-yellow-400' },
-  { id: 'quiz', name: 'Quiz', emoji: '🧠', status: 'soon' },
-  { id: 'dessin', name: 'Dessin', emoji: '🎨', status: 'soon' },
-  { id: 'blind-test', name: 'Blind test', emoji: '🎵', status: 'soon' },
+  { id: 'qui-de-nous', name: 'Qui de nous ?', emoji: '🫵', status: 'live', href: '/qui-de-nous', gradient: 'from-teal-500 via-emerald-500 to-lime-400' },
 ];
 
 const GamesRail = ({ currentId }) => (
   <nav
     aria-label="Jeux"
-    className="fixed z-30 top-0 left-0 right-0 h-12 px-3 flex flex-row items-center gap-2 bg-gray-900/95 border-b border-gray-800 overflow-x-auto md:overflow-visible md:top-3 md:bottom-3 md:left-3 md:right-auto md:h-auto md:w-16 md:flex-col md:px-0 md:py-3 md:gap-3 md:rounded-2xl md:border md:shadow-xl md:shadow-black/30"
+    className="fixed z-30 top-0 left-0 right-0 h-12 px-3 flex flex-row items-center gap-2 bg-gray-900/95 border-b border-purple-500/20 overflow-x-auto md:overflow-visible md:top-3 md:bottom-3 md:left-3 md:right-auto md:h-auto md:w-16 md:flex-col md:px-0 md:py-3 md:gap-3 md:rounded-2xl md:border md:shadow-xl md:shadow-black/40"
   >
-    <span className="hidden md:block text-[9px] font-bold text-gray-600 uppercase tracking-widest">Jeux</span>
-    {GAMES.map((g) => {
+    {GAMES.map((g, i) => {
       const isCurrent = g.id === currentId;
-      const soon = g.status === 'soon';
       const tileClass = `w-10 h-10 md:w-11 md:h-11 flex items-center justify-center text-xl transition-all duration-200 ${
         isCurrent
-          ? `bg-gradient-to-br ${g.gradient} rounded-xl shadow-lg shadow-purple-900/50`
-          : soon
-          ? 'rounded-2xl bg-gray-800/60 border border-dashed border-gray-700 opacity-60 grayscale cursor-not-allowed'
+          ? `bg-gradient-to-br ${g.gradient} rounded-xl shadow-lg shadow-black/50`
           : 'rounded-2xl bg-gray-800 hover:bg-purple-600 hover:rounded-xl active:scale-95'
       }`;
-      const label = soon ? `${g.name} (bientôt)` : g.name;
       return (
-        <div key={g.id} className="group relative shrink-0 flex items-center justify-center">
-          {isCurrent && (
-            <span className="hidden md:block absolute md:-left-[10px] top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full bg-white" />
-          )}
-          {g.href && !isCurrent && !soon ? (
-            <a href={g.href} aria-label={label} className={tileClass}>
-              {g.emoji}
-            </a>
-          ) : (
-            <button
-              type="button"
-              disabled={soon}
-              aria-label={label}
-              aria-current={isCurrent ? 'page' : undefined}
-              className={tileClass}
+        <React.Fragment key={g.id}>
+          <div className="group relative shrink-0 flex items-center justify-center">
+            {isCurrent && (
+              <span className="hidden md:block absolute md:-left-[10px] top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full bg-purple-300" />
+            )}
+            {isCurrent ? (
+              <button type="button" aria-label={g.name} aria-current="page" className={tileClass}>
+                {g.emoji}
+              </button>
+            ) : (
+              <a href={g.href} aria-label={g.name} className={tileClass}>
+                {g.emoji}
+              </a>
+            )}
+            <span
+              role="tooltip"
+              className="hidden md:block pointer-events-none absolute left-full ml-4 top-1/2 -translate-y-1/2 whitespace-nowrap rounded-lg bg-black border border-purple-500/30 px-3 py-1.5 text-xs font-bold text-white opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-xl"
             >
-              {g.emoji}
-            </button>
-          )}
-          <span
-            role="tooltip"
-            className="hidden md:block pointer-events-none absolute left-full ml-4 top-1/2 -translate-y-1/2 whitespace-nowrap rounded-lg bg-black border border-gray-700 px-3 py-1.5 text-xs font-bold text-white opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-xl"
-          >
-            {g.name}
-            {soon && <span className="ml-2 text-purple-300">Bientôt</span>}
-          </span>
-        </div>
+              {g.name}
+            </span>
+          </div>
+          {i === 0 && <span className="shrink-0 w-px h-6 md:w-7 md:h-px bg-purple-500/30" />}
+        </React.Fragment>
       );
     })}
   </nav>
@@ -551,12 +541,12 @@ const AvatarPicker = ({ auth, avatar, onPick, activeClass }) => (
   </div>
 );
 
-const AccountButton = ({ auth }) => {
+const AccountButton = ({ auth, className = 'mb-4' }) => {
   const [error, setError] = useState(null);
-  if (!auth.ready) return <div className="h-11 mb-4" />;
+  if (!auth.ready) return <div className={`h-11 ${className}`} />;
   if (auth.profile) {
     return (
-      <div className="flex items-center justify-between gap-3 bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 mb-4">
+      <div className={`flex items-center justify-between gap-3 bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 ${className}`}>
         <span className="flex items-center gap-2 min-w-0">
           {auth.profile.avatarUrl && (
             <img src={auth.profile.avatarUrl} alt="" referrerPolicy="no-referrer" className="w-7 h-7 rounded-full shrink-0" />
@@ -576,7 +566,7 @@ const AccountButton = ({ auth }) => {
     );
   }
   return (
-    <div className="mb-4">
+    <div className={className}>
       <button
         type="button"
         onClick={async () => setError(await auth.signIn())}
@@ -589,7 +579,21 @@ const AccountButton = ({ auth }) => {
   );
 };
 
+// État + ref mise à jour en même temps : les listeners du channel (posés une seule
+// fois) et les enchaînements immédiats lisent toujours la valeur la plus fraîche.
+const useRefState = (initial) => {
+  const [value, setValue] = useState(initial);
+  const ref = React.useRef(initial);
+  const set = (updater) => {
+    const next = typeof updater === 'function' ? updater(ref.current) : updater;
+    ref.current = next;
+    setValue(next);
+  };
+  return [value, set, ref];
+};
+
 export {
+  useRefState,
   useDiscordAuth,
   AccountButton,
   AvatarPicker,

@@ -7,7 +7,7 @@ import {
 import {
   supabase, makeId, fireConfetti, shuffle, colorForPlayer, AVATAR_EMOJIS, randomAvatar, PlayerDot, playSfx,
   SoundToggle, GamesRail as SharedGamesRail, Waiting, ToggleRow, CountdownBadge, makeSessionStore, MAX_NAME_LEN,
-  readIdentity, writeIdentity, useSoundAndClickFx, useDiscordAuth, AccountButton, AvatarPicker, AvatarGlyph, isImageAvatar,
+  readIdentity, writeIdentity, useSoundAndClickFx, useDiscordAuth, AccountButton, AvatarPicker, AvatarGlyph, isImageAvatar, useRefState,
 } from '@/lib/shared';
 import { pickWordPair, pickPlayerPair, sameWord } from '@/lib/imposteur-words';
 
@@ -15,7 +15,7 @@ import { pickWordPair, pickPlayerPair, sameWord } from '@/lib/imposteur-words';
 // RÈGLES ET RÉGLAGES
 // ==========================================
 // Incrémenter à chaque mise à jour livrée du jeu.
-const APP_VERSION = 'imposteur v4';
+const APP_VERSION = 'imposteur v5';
 const GUESS_SECONDS = 25;
 const MAX_CLUE_LEN = 30;
 const POINTS_CIVIL_WIN = 2;
@@ -84,20 +84,6 @@ const RulesModal = ({ onClose }) => (
     </div>
   </div>
 );
-
-// État partagé : on garde une ref à jour en même temps que l'état, pour que les
-// listeners du channel (posés une seule fois) et les enchaînements immédiats lisent
-// toujours la valeur la plus fraîche.
-const useRefState = (initial) => {
-  const [value, setValue] = useState(initial);
-  const ref = useRef(initial);
-  const set = (updater) => {
-    const next = typeof updater === 'function' ? updater(ref.current) : updater;
-    ref.current = next;
-    setValue(next);
-  };
-  return [value, set, ref];
-};
 
 // ==========================================
 // APPLICATION PRINCIPALE
