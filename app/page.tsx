@@ -14,7 +14,7 @@ import {
   supabase, USING_FALLBACK_SUPABASE, withTimeout, makeId, fireConfetti, shuffle, colorForPlayer,
   AVATAR_EMOJIS, randomAvatar, PlayerDot, playingMedia, setSfxSuspended, playSfx, SoundToggle,
   GamesRail as SharedGamesRail, Waiting, ToggleRow, CountdownBadge, makeSessionStore, MAX_NAME_LEN,
-  useSoundAndClickFx,
+  useSoundAndClickFx, useDiscordAuth, AccountButton,
 } from '@/lib/shared';
 
 const { read: readSession, write: writeSession, clear: clearSession } = makeSessionStore('caption-battle-session');
@@ -268,7 +268,7 @@ const DEFAULT_SETTINGS = {
 };
 const MAX_CAPTION_LEN = 140;
 // Incrémenter à chaque mise à jour livrée du jeu.
-const APP_VERSION = 'v26';
+const APP_VERSION = 'v27';
 
 const VersionBadge = () => (
   <div className="fixed bottom-2 right-3 text-[10px] text-gray-600 font-mono select-none pointer-events-none z-50">
@@ -806,6 +806,8 @@ export default function CaptionBattle() {
     const saved = readIdentity();
     return { id: null, name: saved?.name || '', avatar: saved?.avatar || randomAvatar() };
   });
+  // Compte Discord (optionnel) : préremplit le pseudo, sauf si on est déjà dans une room
+  const auth = useDiscordAuth((profile) => setPlayer((p) => (p.id ? p : { ...p, name: profile.name })));
   useEffect(() => {
     if (!player.name.trim()) return;
     try {
@@ -1048,7 +1050,7 @@ export default function CaptionBattle() {
   const createRoom = () => {
     if (!player.name.trim()) return;
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const newPlayerId = makeId('p');
+    const newPlayerId = auth.profile?.id || makeId('p');
     resetGameStateLocal();
     setPlayer((p) => ({ ...p, id: newPlayerId }));
     setRoom({ code });
@@ -1063,7 +1065,7 @@ export default function CaptionBattle() {
     // Même room que la session précédente de cet onglet : on reprend le même id
     // pour retrouver ses points au lieu d'apparaître comme un nouveau joueur.
     const saved = readSession();
-    const newPlayerId = saved && saved.code === code && saved.id ? saved.id : makeId('p');
+    const newPlayerId = auth.profile?.id || (saved && saved.code === code && saved.id ? saved.id : makeId('p'));
     resetGameStateLocal();
     setPlayer((p) => ({ ...p, id: newPlayerId }));
     setRoom({ code });
@@ -1917,6 +1919,7 @@ export default function CaptionBattle() {
 
         <div className="relative bg-gray-900 p-8 rounded-2xl w-full max-w-md shadow-2xl border border-gray-800">
           <SoundToggle on={soundOn} onToggle={toggleSound} className="absolute top-3 right-3" />
+          <AccountButton auth={auth} />
           <div className="flex justify-center mb-4">
             <span
               className="w-16 h-16 flex items-center justify-center rounded-full text-3xl"

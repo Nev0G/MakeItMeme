@@ -4,7 +4,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { Loader2, Volume2, VolumeX } from 'lucide-react';
+import { Loader2, Volume2, VolumeX, LogIn, LogOut } from 'lucide-react';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://hidtcsztkjpqngwlrzqy.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_CREIog57Ep_e7sUZ0rx-VA_8ooqaGTJ';
@@ -456,7 +456,95 @@ const useSoundAndClickFx = () => {
   return { soundOn, toggleSound };
 };
 
+// Connexion (optionnelle) avec Discord via Supabase Auth. Le compte sert à
+// préremplir le pseudo et à garder le même identifiant de joueur d'une partie à l'autre.
+const useDiscordAuth = (onProfile) => {
+  const [user, setUser] = useState(null);
+  const [ready, setReady] = useState(false);
+  const onProfileRef = React.useRef(onProfile);
+  onProfileRef.current = onProfile;
+  const announcedRef = React.useRef(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setUser(data.session?.user ?? null);
+      setReady(true);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setReady(true);
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  const profile = React.useMemo(() => {
+    if (!user) return null;
+    const meta = user.user_metadata || {};
+    const name = meta.custom_claims?.global_name || meta.full_name || meta.name || meta.user_name || 'Joueur Discord';
+    return { id: `u_${user.id}`, name: String(name).slice(0, MAX_NAME_LEN), avatarUrl: meta.avatar_url || null };
+  }, [user]);
+
+  // Une seule fois par compte : le pseudo Discord remplace celui du champ (modifiable ensuite)
+  useEffect(() => {
+    if (!profile || announcedRef.current === profile.id) return;
+    announcedRef.current = profile.id;
+    if (onProfileRef.current) onProfileRef.current(profile);
+  }, [profile]);
+
+  const signIn = async () => {
+    const redirectTo = `${window.location.origin}${window.location.pathname}${window.location.search}`;
+    const { error } = await supabase.auth.signInWithOAuth({ provider: 'discord', options: { redirectTo } });
+    return error ? error.message : null;
+  };
+  const signOut = async () => {
+    announcedRef.current = null;
+    await supabase.auth.signOut();
+  };
+
+  return { ready, profile, signIn, signOut };
+};
+
+const AccountButton = ({ auth }) => {
+  const [error, setError] = useState(null);
+  if (!auth.ready) return <div className="h-11 mb-4" />;
+  if (auth.profile) {
+    return (
+      <div className="flex items-center justify-between gap-3 bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 mb-4">
+        <span className="flex items-center gap-2 min-w-0">
+          {auth.profile.avatarUrl && (
+            <img src={auth.profile.avatarUrl} alt="" referrerPolicy="no-referrer" className="w-7 h-7 rounded-full shrink-0" />
+          )}
+          <span className="text-sm font-bold truncate">{auth.profile.name}</span>
+          <span className="text-[10px] font-bold text-[#8c95ff] bg-[#5865F2]/20 px-1.5 py-0.5 rounded shrink-0">Discord</span>
+        </span>
+        <button
+          type="button"
+          onClick={auth.signOut}
+          title="Se déconnecter"
+          className="text-gray-500 hover:text-red-400 transition active:scale-90 shrink-0"
+        >
+          <LogOut size={16} />
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="mb-4">
+      <button
+        type="button"
+        onClick={async () => setError(await auth.signIn())}
+        className="w-full flex items-center justify-center gap-2 bg-[#5865F2] hover:bg-[#4752c4] text-white font-bold py-2.5 rounded-lg transition active:scale-95"
+      >
+        <LogIn size={16} /> Se connecter avec Discord
+      </button>
+      {error && <p className="text-xs text-red-400 mt-2">Connexion Discord impossible : {error}</p>}
+    </div>
+  );
+};
+
 export {
+  useDiscordAuth,
+  AccountButton,
   supabase,
   USING_FALLBACK_SUPABASE,
   withTimeout,

@@ -7,7 +7,7 @@ import {
 import {
   supabase, makeId, fireConfetti, shuffle, colorForPlayer, AVATAR_EMOJIS, randomAvatar, PlayerDot, playSfx,
   SoundToggle, GamesRail as SharedGamesRail, Waiting, ToggleRow, CountdownBadge, makeSessionStore, MAX_NAME_LEN,
-  readIdentity, writeIdentity, useSoundAndClickFx,
+  readIdentity, writeIdentity, useSoundAndClickFx, useDiscordAuth, AccountButton,
 } from '@/lib/shared';
 import { pickWordPair, normalizeWord } from '@/lib/imposteur-words';
 
@@ -15,7 +15,7 @@ import { pickWordPair, normalizeWord } from '@/lib/imposteur-words';
 // RÈGLES ET RÉGLAGES
 // ==========================================
 // Incrémenter à chaque mise à jour livrée du jeu.
-const APP_VERSION = 'imposteur v1';
+const APP_VERSION = 'imposteur v2';
 const GUESS_SECONDS = 25;
 const MAX_CLUE_LEN = 30;
 const POINTS_CIVIL_WIN = 2;
@@ -106,6 +106,8 @@ export default function Imposteur() {
     const saved = readIdentity();
     return { id: null, name: saved?.name || '', avatar: saved?.avatar || randomAvatar() };
   });
+  // Compte Discord (optionnel) : préremplit le pseudo, sauf si on est déjà dans une room
+  const auth = useDiscordAuth((profile) => setPlayer((p) => (p.id ? p : { ...p, name: profile.name })));
   useEffect(() => {
     if (player.name.trim()) writeIdentity(player.name, player.avatar);
   }, [player.name, player.avatar]);
@@ -278,14 +280,14 @@ export default function Imposteur() {
 
   const createRoom = () => {
     if (!player.name.trim()) return;
-    enterRoom(Math.random().toString(36).substring(2, 8).toUpperCase(), makeId('p'), true);
+    enterRoom(Math.random().toString(36).substring(2, 8).toUpperCase(), auth.profile?.id || makeId('p'), true);
   };
 
   const joinRoom = () => {
     const code = joinCode.trim().toUpperCase();
     if (!code || !player.name.trim()) return;
     const saved = readSession();
-    enterRoom(code, saved && saved.code === code && saved.id ? saved.id : makeId('p'), false);
+    enterRoom(code, auth.profile?.id || (saved && saved.code === code && saved.id ? saved.id : makeId('p')), false);
   };
 
   const leaveRoom = () => {
@@ -900,6 +902,7 @@ export default function Imposteur() {
 
           <div className="relative bg-gray-900 p-8 rounded-2xl w-full max-w-md shadow-2xl border border-gray-800">
             <SoundToggle on={soundOn} onToggle={toggleSound} className="absolute top-3 right-3" />
+            <AccountButton auth={auth} />
             <div className="flex justify-center mb-4">
               <span
                 className="w-16 h-16 flex items-center justify-center rounded-full text-3xl"
