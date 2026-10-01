@@ -14,7 +14,7 @@ import {
   supabase, USING_FALLBACK_SUPABASE, withTimeout, makeId, fireConfetti, shuffle, colorForPlayer,
   AVATAR_EMOJIS, randomAvatar, PlayerDot, playingMedia, setSfxSuspended, playSfx, SoundToggle,
   GamesRail as SharedGamesRail, Waiting, ToggleRow, CountdownBadge, makeSessionStore, MAX_NAME_LEN,
-  useSoundAndClickFx, useDiscordAuth, AccountButton,
+  useSoundAndClickFx, useDiscordAuth, AccountButton, AvatarPicker, AvatarGlyph, isImageAvatar,
 } from '@/lib/shared';
 
 const { read: readSession, write: writeSession, clear: clearSession } = makeSessionStore('caption-battle-session');
@@ -268,7 +268,7 @@ const DEFAULT_SETTINGS = {
 };
 const MAX_CAPTION_LEN = 140;
 // Incrémenter à chaque mise à jour livrée du jeu.
-const APP_VERSION = 'v27';
+const APP_VERSION = 'v28';
 
 const VersionBadge = () => (
   <div className="fixed bottom-2 right-3 text-[10px] text-gray-600 font-mono select-none pointer-events-none z-50">
@@ -774,7 +774,7 @@ const CursorLayer = React.memo(function CursorLayer({ channelRef, me, allowed, s
                 className="absolute left-4 top-4 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold text-white whitespace-nowrap shadow-lg"
                 style={{ backgroundColor: col }}
               >
-                {c.avatar} {c.name}
+                <span className="inline-flex w-4 h-4 items-center justify-center"><AvatarGlyph avatar={c.avatar} fallback="" /></span> {c.name}
               </span>
             </div>
           );
@@ -807,7 +807,10 @@ export default function CaptionBattle() {
     return { id: null, name: saved?.name || '', avatar: saved?.avatar || randomAvatar() };
   });
   // Compte Discord (optionnel) : préremplit le pseudo, sauf si on est déjà dans une room
-  const auth = useDiscordAuth((profile) => setPlayer((p) => (p.id ? p : { ...p, name: profile.name })));
+  const auth = useDiscordAuth(
+    (profile) => setPlayer((p) => (p.id ? p : { ...p, name: profile.name, avatar: profile.avatarUrl || p.avatar })),
+    () => setPlayer((p) => (!p.id && isImageAvatar(p.avatar) ? { ...p, avatar: randomAvatar() } : p))
+  );
   useEffect(() => {
     if (!player.name.trim()) return;
     try {
@@ -1925,22 +1928,15 @@ export default function CaptionBattle() {
               className="w-16 h-16 flex items-center justify-center rounded-full text-3xl"
               style={{ backgroundColor: `${colorForPlayer(player.avatar)}33`, border: `2px solid ${colorForPlayer(player.avatar)}` }}
             >
-              {player.avatar}
+              <AvatarGlyph avatar={player.avatar} />
             </span>
           </div>
-          <div className="flex flex-wrap justify-center gap-2 mb-5">
-            {AVATAR_EMOJIS.map((emoji) => (
-              <button
-                key={emoji}
-                onClick={() => setPlayer((p) => ({ ...p, avatar: emoji }))}
-                className={`w-9 h-9 flex items-center justify-center rounded-full text-lg transition active:scale-90 ${
-                  player.avatar === emoji ? 'bg-purple-600 scale-110' : 'bg-gray-800 hover:bg-gray-700'
-                }`}
-              >
-                {emoji}
-              </button>
-            ))}
-          </div>
+          <AvatarPicker
+            auth={auth}
+            avatar={player.avatar}
+            activeClass="bg-purple-600"
+            onPick={(avatar) => setPlayer((p) => ({ ...p, avatar }))}
+          />
 
           <input
             type="text"
@@ -2623,7 +2619,7 @@ export default function CaptionBattle() {
             return (
               <div key={p.id} className="flex-1 flex flex-col items-center">
                 <span className="text-3xl mb-1">{medals[place]}</span>
-                <span className="text-2xl mb-1">{p.avatar || '🙂'}</span>
+                <span className="text-2xl mb-1 w-8 h-8 inline-flex items-center justify-center"><AvatarGlyph avatar={p.avatar} /></span>
                 <span className="font-bold text-sm truncate max-w-full">{p.name}</span>
                 <span className="font-heading font-bold text-purple-300 text-lg mb-2">{cumulativeScores[p.id] || 0} pts</span>
                 <div

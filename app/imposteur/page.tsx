@@ -7,7 +7,7 @@ import {
 import {
   supabase, makeId, fireConfetti, shuffle, colorForPlayer, AVATAR_EMOJIS, randomAvatar, PlayerDot, playSfx,
   SoundToggle, GamesRail as SharedGamesRail, Waiting, ToggleRow, CountdownBadge, makeSessionStore, MAX_NAME_LEN,
-  readIdentity, writeIdentity, useSoundAndClickFx, useDiscordAuth, AccountButton,
+  readIdentity, writeIdentity, useSoundAndClickFx, useDiscordAuth, AccountButton, AvatarPicker, AvatarGlyph, isImageAvatar,
 } from '@/lib/shared';
 import { pickWordPair, normalizeWord } from '@/lib/imposteur-words';
 
@@ -15,7 +15,7 @@ import { pickWordPair, normalizeWord } from '@/lib/imposteur-words';
 // RÈGLES ET RÉGLAGES
 // ==========================================
 // Incrémenter à chaque mise à jour livrée du jeu.
-const APP_VERSION = 'imposteur v2';
+const APP_VERSION = 'imposteur v3';
 const GUESS_SECONDS = 25;
 const MAX_CLUE_LEN = 30;
 const POINTS_CIVIL_WIN = 2;
@@ -107,7 +107,10 @@ export default function Imposteur() {
     return { id: null, name: saved?.name || '', avatar: saved?.avatar || randomAvatar() };
   });
   // Compte Discord (optionnel) : préremplit le pseudo, sauf si on est déjà dans une room
-  const auth = useDiscordAuth((profile) => setPlayer((p) => (p.id ? p : { ...p, name: profile.name })));
+  const auth = useDiscordAuth(
+    (profile) => setPlayer((p) => (p.id ? p : { ...p, name: profile.name, avatar: profile.avatarUrl || p.avatar })),
+    () => setPlayer((p) => (!p.id && isImageAvatar(p.avatar) ? { ...p, avatar: randomAvatar() } : p))
+  );
   useEffect(() => {
     if (player.name.trim()) writeIdentity(player.name, player.avatar);
   }, [player.name, player.avatar]);
@@ -908,22 +911,15 @@ export default function Imposteur() {
                 className="w-16 h-16 flex items-center justify-center rounded-full text-3xl"
                 style={{ backgroundColor: `${colorForPlayer(player.avatar)}33`, border: `2px solid ${colorForPlayer(player.avatar)}` }}
               >
-                {player.avatar}
+                <AvatarGlyph avatar={player.avatar} />
               </span>
             </div>
-            <div className="flex flex-wrap justify-center gap-2 mb-5">
-              {AVATAR_EMOJIS.map((emoji) => (
-                <button
-                  key={emoji}
-                  onClick={() => setPlayer((p) => ({ ...p, avatar: emoji }))}
-                  className={`w-9 h-9 flex items-center justify-center rounded-full text-lg transition active:scale-90 ${
-                    player.avatar === emoji ? 'bg-orange-600 scale-110' : 'bg-gray-800 hover:bg-gray-700'
-                  }`}
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
+            <AvatarPicker
+              auth={auth}
+              avatar={player.avatar}
+              activeClass="bg-orange-600"
+              onPick={(avatar) => setPlayer((p) => ({ ...p, avatar }))}
+            />
             <input
               type="text"
               placeholder="Ton Pseudo..."
@@ -1189,7 +1185,7 @@ export default function Imposteur() {
           </div>
           {speakerId ? (
             <>
-              <p className="text-3xl mb-1">{avatarOf(speakerId)}</p>
+              <p className="text-3xl mb-1 w-12 h-12 mx-auto flex items-center justify-center"><AvatarGlyph avatar={avatarOf(speakerId)} fallback="" /></p>
               <h2 className="font-heading text-2xl font-bold mb-4">
                 {isMyTurn ? "C'est à toi !" : `Au tour de ${nameOf(speakerId)}`}
               </h2>
@@ -1303,7 +1299,7 @@ export default function Imposteur() {
           >
             <p className="text-5xl mb-2">{wasImp ? '🎯' : '💀'}</p>
             <h2 className="font-heading text-2xl font-bold">
-              {avatarOf(eliminatedNow.id)} {nameOf(eliminatedNow.id)} est éliminé(e)
+              <span className="inline-flex w-8 h-8 align-middle items-center justify-center"><AvatarGlyph avatar={avatarOf(eliminatedNow.id)} fallback="" /></span> {nameOf(eliminatedNow.id)} est éliminé(e)
             </h2>
             <p className="text-lg mt-1 font-bold">{wasImp ? "C'était un IMPOSTEUR !" : "C'était un civil… ce n'était pas l'imposteur."}</p>
           </div>
@@ -1383,7 +1379,7 @@ export default function Imposteur() {
           ) : (
             <>
               <h2 className="font-heading text-2xl font-bold mb-1">
-                {avatarOf(guesserId)} {nameOf(guesserId)} tente sa dernière chance…
+                <span className="inline-flex w-8 h-8 align-middle items-center justify-center"><AvatarGlyph avatar={avatarOf(guesserId)} fallback="" /></span> {nameOf(guesserId)} tente sa dernière chance…
               </h2>
               <p className="text-gray-400 text-sm">Il/elle essaie de deviner le mot des civils.</p>
               <Loader2 size={28} className="text-orange-400 animate-spin mx-auto mt-4" />

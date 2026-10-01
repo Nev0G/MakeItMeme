@@ -93,6 +93,16 @@ const colorForPlayer = (id) => {
 const AVATAR_EMOJIS = ['😂', '🔥', '👻', '🐸', '🦄', '🍕', '🎃', '🐙', '🤡', '👽', '🦖', '🍔', '🐵', '💀', '🥸', '🦊'];
 const randomAvatar = () => AVATAR_EMOJIS[Math.floor(Math.random() * AVATAR_EMOJIS.length)];
 
+const isImageAvatar = (avatar) => typeof avatar === 'string' && /^https:\/\/cdn\.discordapp\.com\//.test(avatar);
+
+// Affiche un avatar : l'emoji tel quel, ou la photo Discord qui remplit son conteneur.
+const AvatarGlyph = ({ avatar, fallback = '🙂' }) =>
+  isImageAvatar(avatar) ? (
+    <img src={avatar} alt="" referrerPolicy="no-referrer" className="w-full h-full rounded-full object-cover" />
+  ) : (
+    <>{avatar || fallback}</>
+  );
+
 const PlayerDot = ({ id, avatar, size = 'sm' }) => {
   const dims = size === 'lg' ? 'w-9 h-9 text-lg' : size === 'md' ? 'w-6 h-6 text-xs' : 'w-4 h-4 text-[10px]';
   if (avatar) {
@@ -101,7 +111,7 @@ const PlayerDot = ({ id, avatar, size = 'sm' }) => {
         className={`inline-flex items-center justify-center rounded-full shrink-0 ${dims}`}
         style={{ backgroundColor: `${colorForPlayer(id)}33`, border: `1.5px solid ${colorForPlayer(id)}` }}
       >
-        {avatar}
+        <AvatarGlyph avatar={avatar} />
       </span>
     );
   }
@@ -458,11 +468,13 @@ const useSoundAndClickFx = () => {
 
 // Connexion (optionnelle) avec Discord via Supabase Auth. Le compte sert à
 // préremplir le pseudo et à garder le même identifiant de joueur d'une partie à l'autre.
-const useDiscordAuth = (onProfile) => {
+const useDiscordAuth = (onProfile, onSignedOut) => {
   const [user, setUser] = useState(null);
   const [ready, setReady] = useState(false);
   const onProfileRef = React.useRef(onProfile);
   onProfileRef.current = onProfile;
+  const onSignedOutRef = React.useRef(onSignedOut);
+  onSignedOutRef.current = onSignedOut;
   const announcedRef = React.useRef(null);
 
   useEffect(() => {
@@ -491,6 +503,11 @@ const useDiscordAuth = (onProfile) => {
     if (onProfileRef.current) onProfileRef.current(profile);
   }, [profile]);
 
+  // Pas (ou plus) connecté : une éventuelle photo Discord mémorisée repasse en emoji
+  useEffect(() => {
+    if (ready && !profile && onSignedOutRef.current) onSignedOutRef.current();
+  }, [ready, profile]);
+
   const signIn = async () => {
     const redirectTo = `${window.location.origin}${window.location.pathname}${window.location.search}`;
     const { error } = await supabase.auth.signInWithOAuth({ provider: 'discord', options: { redirectTo } });
@@ -503,6 +520,36 @@ const useDiscordAuth = (onProfile) => {
 
   return { ready, profile, signIn, signOut };
 };
+
+// Pastille ronde du sélecteur d'avatar : la photo Discord (si connecté) puis les emojis.
+const AvatarPicker = ({ auth, avatar, onPick, activeClass }) => (
+  <div className="flex flex-wrap justify-center gap-2 mb-5">
+    {auth.profile?.avatarUrl && isImageAvatar(auth.profile.avatarUrl) && (
+      <button
+        type="button"
+        title="Ma photo Discord"
+        onClick={() => onPick(auth.profile.avatarUrl)}
+        className={`w-9 h-9 rounded-full overflow-hidden transition active:scale-90 ${
+          avatar === auth.profile.avatarUrl ? `${activeClass} scale-110` : 'bg-gray-800 hover:bg-gray-700'
+        }`}
+      >
+        <AvatarGlyph avatar={auth.profile.avatarUrl} />
+      </button>
+    )}
+    {AVATAR_EMOJIS.map((emoji) => (
+      <button
+        key={emoji}
+        type="button"
+        onClick={() => onPick(emoji)}
+        className={`w-9 h-9 flex items-center justify-center rounded-full text-lg transition active:scale-90 ${
+          avatar === emoji ? `${activeClass} scale-110` : 'bg-gray-800 hover:bg-gray-700'
+        }`}
+      >
+        {emoji}
+      </button>
+    ))}
+  </div>
+);
 
 const AccountButton = ({ auth }) => {
   const [error, setError] = useState(null);
@@ -545,6 +592,9 @@ const AccountButton = ({ auth }) => {
 export {
   useDiscordAuth,
   AccountButton,
+  AvatarPicker,
+  AvatarGlyph,
+  isImageAvatar,
   supabase,
   USING_FALLBACK_SUPABASE,
   withTimeout,
