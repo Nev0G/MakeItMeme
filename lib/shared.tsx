@@ -276,7 +276,7 @@ const GamesRail = ({ currentId }) => (
             )}
             <span
               role="tooltip"
-              className="hidden md:block pointer-events-none absolute left-full ml-4 top-1/2 -translate-y-1/2 whitespace-nowrap rounded-lg bg-[#1a140b] border border-[#1a140b] px-3 py-1.5 text-xs font-bold text-[#f1e7c9] opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-xl"
+              className="hidden md:block pointer-events-none absolute left-full ml-4 top-1/2 -translate-y-1/2 whitespace-nowrap rounded-lg bg-gray-950 border border-purple-500/60 px-3 py-1.5 text-xs font-bold text-purple-200 opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-xl"
             >
               {g.name}
             </span>

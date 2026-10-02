@@ -1,16 +1,6 @@
-const defaultColors = require('tailwindcss/colors');
-
 /** @type {import('tailwindcss').Config} */
-// Thème "vieux journal" : le site a été écrit pour un fond sombre (bg-gray-900, text-white,
-// text-purple-300...). Plutôt que de réécrire chaque classe, on INVERSE les échelles de
-// couleurs : les teintes sombres deviennent du papier, les claires deviennent de l'encre.
-const STEPS = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
-const reverse = (scale) =>
-  Object.fromEntries(STEPS.map((step, i) => [step, scale[STEPS[STEPS.length - 1 - i]]]));
-
-const families = ['red', 'orange', 'amber', 'yellow', 'lime', 'green', 'emerald', 'teal', 'cyan', 'sky', 'blue', 'indigo', 'violet', 'fuchsia', 'rose'];
-const inverted = Object.fromEntries(families.map((name) => [name, reverse(defaultColors[name])]));
-
+// Ambiance "Deadlock" : New York occulte années 20, noir profond, or art déco, lueurs turquoise.
+// On redéfinit les échelles gray / purple / pink (et white) pour restyler tout le site d'un coup.
 module.exports = {
   content: [
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
@@ -21,38 +11,37 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        ...inverted,
-        white: '#1a140b', // l'encre
-        // papier -> encre
+        white: '#efe4c6', // blanc cassé chaud, comme de l'ivoire
+        // noir bleuté, un peu de vert (nuit new-yorkaise)
         gray: {
-          50: '#14100a', 100: '#1d180e', 200: '#2a2316', 300: '#3a3120', 400: '#4f442b',
-          500: '#6a5d3c', 600: '#85774f', 700: '#a89868', 800: '#d3c496', 900: '#e6d9b4', 950: '#f4ecd3',
+          50: '#f4efe2', 100: '#e6dfcc', 200: '#d0c7ae', 300: '#b9b199', 400: '#a5a28f',
+          500: '#8a8b7d', 600: '#5f696b', 700: '#2e3a3e', 800: '#1b2529', 900: '#10171a', 950: '#080c0e',
         },
-        // or fané / laiton (action principale) : texte sombre aux petites valeurs, fond clair aux grandes
+        // or art déco (couleur d'action principale)
         purple: {
-          50: '#2b1d04', 100: '#3d2a08', 200: '#55390a', 300: '#6f4a0c', 400: '#8f620e',
-          500: '#c99a2e', 600: '#d8ad45', 700: '#e6c872', 800: '#efdba0', 900: '#f5e8bd', 950: '#faf1d6',
+          50: '#fbf6e6', 100: '#f6ebc3', 200: '#efd995', 300: '#e8c66a', 400: '#dcae45',
+          500: '#c99a2e', 600: '#a8751f', 700: '#865a1a', 800: '#5f4116', 900: '#3d2a12', 950: '#241808',
         },
-        // vert-de-gris / encre bleu-vert
+        // âmes turquoise (accent secondaire)
         pink: {
-          50: '#06201d', 100: '#0a2e2a', 200: '#0f423c', 300: '#14584f', 400: '#1b7367',
-          500: '#3fa293', 600: '#5db8aa', 700: '#8bd0c4', 800: '#b8e2da', 900: '#d6efe9', 950: '#eaf7f4',
+          50: '#ecfaf7', 100: '#cdf2ea', 200: '#9fe5d7', 300: '#6fd4c3', 400: '#43bfaa',
+          500: '#2aa897', 600: '#1f8a7c', 700: '#1b6e65', 800: '#17524d', 900: '#123a38', 950: '#0a2322',
         },
       },
       fontFamily: {
         mono: ['"Courier Prime"', '"Courier New"', 'monospace'],
       },
       borderRadius: {
-        none: '0', sm: '1px', DEFAULT: '2px', md: '2px', lg: '2px', xl: '3px', '2xl': '3px', '3xl': '4px', full: '9999px',
+        none: '0', sm: '1px', DEFAULT: '2px', md: '2px', lg: '3px', xl: '4px', '2xl': '4px', '3xl': '6px', full: '9999px',
       },
       boxShadow: {
-        // ombres "imprimées" : décalées, nettes
-        DEFAULT: '2px 2px 0 rgba(26, 20, 11, 0.25)',
-        sm: '1px 1px 0 rgba(26, 20, 11, 0.25)',
-        md: '2px 2px 0 rgba(26, 20, 11, 0.28)',
-        lg: '3px 3px 0 rgba(26, 20, 11, 0.3)',
-        xl: '4px 4px 0 rgba(26, 20, 11, 0.32)',
-        '2xl': '5px 5px 0 rgba(26, 20, 11, 0.35)',
+        // ombres profondes avec une pointe de lueur dorée
+        DEFAULT: '0 2px 8px rgba(0, 0, 0, 0.55)',
+        sm: '0 1px 4px rgba(0, 0, 0, 0.5)',
+        md: '0 3px 12px rgba(0, 0, 0, 0.55)',
+        lg: '0 6px 20px rgba(0, 0, 0, 0.6), 0 0 14px rgba(201, 154, 46, 0.08)',
+        xl: '0 10px 28px rgba(0, 0, 0, 0.65), 0 0 18px rgba(201, 154, 46, 0.1)',
+        '2xl': '0 16px 40px rgba(0, 0, 0, 0.7), 0 0 24px rgba(201, 154, 46, 0.12)',
       },
     },
   },

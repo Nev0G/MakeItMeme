@@ -167,7 +167,7 @@ export default function Home() {
                 key={g.id}
                 href={g.href}
                 onClick={() => rememberGame(g.id)}
-                className={`group relative block px-5 py-6 transition-colors hover:bg-purple-900/60 ${i > 0 ? 'md:col-rule border-t md:border-t-0 border-white/40' : ''} ${isLast ? 'bg-purple-900/70' : ''}`}
+                className={`group deco-card relative block px-5 py-6 transition-colors hover:bg-purple-900/40 ${i > 0 ? 'md:col-rule border-t md:border-t-0 border-white/40' : ''} ${isLast ? 'bg-purple-900/70' : ''}`}
               >
                 {isLast && (
                   <span className="stamp absolute right-4 top-3 z-10 text-xs sm:text-sm">Ton dernier jeu</span>
@@ -179,7 +179,7 @@ export default function Home() {
                     {g.emoji}
                   </span>
                 </div>
-                <p className="text-[11px] italic text-gray-500 mt-1">Photo : la rédaction, en plein jeu</p>
+                <p className="text-[11px] italic text-gray-500 mt-1">Cliché : la rédaction, en plein jeu</p>
                 <p className="dropcap text-[15px] leading-snug mt-3 text-justify hyphens-auto" lang="fr">{g.text}</p>
                 <div className="flex items-center gap-4 text-[11px] font-bold uppercase tracking-wider text-gray-500 mt-3">
                   <span className="inline-flex items-center gap-1"><Users size={12} /> {g.players}</span>
@@ -239,7 +239,7 @@ export default function Home() {
                         </p>
                       </div>
                       <span className="inline-flex items-center gap-1 text-sm"><Users size={14} /> {r.count}</span>
-                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 border ${r.started ? 'border-[#7a4b00] text-[#7a4b00]' : 'border-[#1f5a2b] text-[#1f5a2b]'}`}>
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 border ${r.started ? 'border-[#e0903a] text-[#f0b060]' : 'border-[#43bfaa] text-[#6fd4c3]'}`}>
                         {r.started ? 'En cours' : 'Ouvert'}
                       </span>
                       <a
@@ -328,7 +328,7 @@ export default function Home() {
             ))}
           </ol>
           <p className="text-center text-[11px] uppercase tracking-[0.2em] text-gray-500 mt-8 pb-8">
-            ✦ Imprimé sur du pixel recyclé · Aucun imposteur n’a été blessé pendant la rédaction ✦
+            ✦ Gravé dans l’or et la nuit · Aucun imposteur n’a été blessé pendant la rédaction ✦
           </p>
         </section>
       </div>

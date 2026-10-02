@@ -585,8 +585,8 @@ export default function QuiDeNous() {
   // La question, sur un parchemin
   const renderQuestionCard = () => (
     <div className="paper px-6 py-8 sm:px-10 text-center mb-5">
-      <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#5b4a2c]">Qui est le plus susceptible de…</p>
-      <h2 className="font-heading text-2xl sm:text-4xl mt-3 leading-tight text-[#2a2114] break-words [overflow-wrap:anywhere]">
+      <p className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">Qui est le plus susceptible de…</p>
+      <h2 className="font-heading text-2xl sm:text-4xl mt-3 leading-tight text-white break-words [overflow-wrap:anywhere]">
         {question}&nbsp;?
       </h2>
     </div>
