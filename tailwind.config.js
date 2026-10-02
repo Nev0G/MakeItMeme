@@ -1,5 +1,5 @@
 /** @type {import('tailwindcss').Config} */
-// Ambiance "Deadlock" : New York occulte années 20, noir profond, or art déco, lueurs turquoise.
+// Ambiance "Observatoire" (inspirée de Deadlock) : vert nuit, verre dépoli, accent citron, touches d'or.
 // On redéfinit les échelles gray / purple / pink (et white) pour restyler tout le site d'un coup.
 module.exports = {
   content: [
@@ -11,16 +11,16 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        white: '#efe4c6', // blanc cassé chaud, comme de l'ivoire
-        // noir bleuté, un peu de vert (nuit new-yorkaise)
+        white: '#f1e9d0', // crème
+        // vert-noir (nuit)
         gray: {
-          50: '#f4efe2', 100: '#e6dfcc', 200: '#d0c7ae', 300: '#b9b199', 400: '#a5a28f',
-          500: '#8a8b7d', 600: '#5f696b', 700: '#2e3a3e', 800: '#1b2529', 900: '#10171a', 950: '#080c0e',
+          50: '#f6f8f4', 100: '#e8eee9', 200: '#d3dcd6', 300: '#b8c5be', 400: '#9fb0a8',
+          500: '#7f918a', 600: '#51635f', 700: '#2a3a39', 800: '#182524', 900: '#0e1818', 950: '#060d0d',
         },
-        // or art déco (couleur d'action principale)
+        // citron (couleur d'action principale)
         purple: {
-          50: '#fbf6e6', 100: '#f6ebc3', 200: '#efd995', 300: '#e8c66a', 400: '#dcae45',
-          500: '#c99a2e', 600: '#a8751f', 700: '#865a1a', 800: '#5f4116', 900: '#3d2a12', 950: '#241808',
+          50: '#f8fded', 100: '#eefac6', 200: '#e4f7a4', 300: '#d9f891', 400: '#c8ee6a',
+          500: '#a9d44a', 600: '#7fa22d', 700: '#5f7d22', 800: '#42591a', 900: '#2b3b13', 950: '#161f0a',
         },
         // âmes turquoise (accent secondaire)
         pink: {
@@ -32,16 +32,15 @@ module.exports = {
         mono: ['"Courier Prime"', '"Courier New"', 'monospace'],
       },
       borderRadius: {
-        none: '0', sm: '1px', DEFAULT: '2px', md: '2px', lg: '3px', xl: '4px', '2xl': '4px', '3xl': '6px', full: '9999px',
+        none: '0', sm: '4px', DEFAULT: '6px', md: '8px', lg: '12px', xl: '16px', '2xl': '20px', '3xl': '28px', full: '9999px',
       },
       boxShadow: {
-        // ombres profondes avec une pointe de lueur dorée
-        DEFAULT: '0 2px 8px rgba(0, 0, 0, 0.55)',
-        sm: '0 1px 4px rgba(0, 0, 0, 0.5)',
-        md: '0 3px 12px rgba(0, 0, 0, 0.55)',
-        lg: '0 6px 20px rgba(0, 0, 0, 0.6), 0 0 14px rgba(201, 154, 46, 0.08)',
-        xl: '0 10px 28px rgba(0, 0, 0, 0.65), 0 0 18px rgba(201, 154, 46, 0.1)',
-        '2xl': '0 16px 40px rgba(0, 0, 0, 0.7), 0 0 24px rgba(201, 154, 46, 0.12)',
+        DEFAULT: '0 2px 8px rgba(0, 0, 0, 0.4)',
+        sm: '0 1px 4px rgba(0, 0, 0, 0.4)',
+        md: '0 4px 14px rgba(0, 0, 0, 0.45)',
+        lg: '0 10px 28px rgba(0, 0, 0, 0.5)',
+        xl: '0 16px 40px rgba(0, 0, 0, 0.55)',
+        '2xl': '0 24px 60px rgba(0, 0, 0, 0.6)',
       },
     },
   },

@@ -151,7 +151,7 @@ const Bomb = ({ syllable, ratio, boom }) => (
           x="100"
           y="136"
           textAnchor="middle"
-          fontFamily="'Cinzel', Georgia, serif"
+          fontFamily="'Unbounded', system-ui, sans-serif"
           fontWeight="800"
           fontSize={syllable.length > 3 ? 40 : 52}
           fill="url(#bp-gold)"

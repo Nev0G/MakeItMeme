@@ -14,6 +14,7 @@ const SIGN_KEY = 'makeitmeme-sign';
 const HOME_GAMES = [
   {
     id: 'caption-battle',
+    glow: '#43bfaa',
     href: '/caption-battle',
     kicker: 'Concours de légendes',
     name: 'Caption Battle',
@@ -24,6 +25,7 @@ const HOME_GAMES = [
   },
   {
     id: 'imposteur',
+    glow: '#f08a3a',
     href: '/imposteur',
     kicker: 'Enquête',
     name: 'Imposteur',
@@ -34,6 +36,7 @@ const HOME_GAMES = [
   },
   {
     id: 'bomb-party',
+    glow: '#e3b955',
     href: '/bomb-party',
     kicker: 'Course contre la montre',
     name: 'Bomb Party',
@@ -44,6 +47,7 @@ const HOME_GAMES = [
   },
   {
     id: 'qui-de-nous',
+    glow: '#d9f891',
     href: '/qui-de-nous',
     kicker: 'Sondage',
     name: 'Qui de nous ?',
@@ -118,97 +122,82 @@ export default function Home() {
   const advised = HOME_GAMES.find((g) => g.id === fortune.game);
 
   return (
-    <div className="relative z-10 min-h-screen px-3 sm:px-6 py-4 md:py-6 md:overflow-y-auto md:h-[100dvh] text-white">
+    <div className="relative z-10 min-h-screen px-4 sm:px-8 py-4 md:py-6 md:overflow-y-auto md:h-[100dvh] text-white">
       <div className="max-w-[92rem] mx-auto">
-        {/* Ligne de date */}
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-y border-white/70 py-1.5 text-[11px] uppercase tracking-[0.18em] font-bold">
-          <span>Vol. I · N° {paper.edition}</span>
-          <span className="text-center">New York · {paper.date || ' '}</span>
-          <span>Édition du soir · 1 $</span>
-        </div>
-
-        {/* Titre du journal */}
-        <header className="grid items-center gap-4 py-4 md:grid-cols-[1fr_auto_1fr]">
-          <div className="hidden md:block border border-white/70 p-3 text-left">
-            <p className="eyebrow">Météo du salon</p>
-            <p className="font-heading text-sm leading-snug mt-1">{paper.weather || ' '}</p>
-          </div>
-
-          <div className="text-center">
-            <h1 className="font-masthead text-5xl sm:text-7xl md:text-8xl leading-none tracking-tight">
-              <span className="twinkle text-2xl sm:text-4xl align-middle mr-3">✦</span>
-              MakeItMeme
-              <span className="twinkle text-2xl sm:text-4xl align-middle ml-3" style={{ animationDelay: '1.4s' }}>✦</span>
-            </h1>
-            <p className="font-heading italic text-sm sm:text-base mt-2 text-gray-500">
-              « Tous les jeux dignes d’être joués »
-            </p>
-          </div>
-
-          <div className="border border-white/70 p-3 text-left">
-            <p className="eyebrow">Abonnez-vous</p>
-            <div className="flex items-center gap-3 mt-1.5">
-              <div className="flex-1 min-w-0">
-                <AccountButton auth={auth} className="" />
-              </div>
-              <SoundToggle on={soundOn} onToggle={toggleSound} />
+        {/* Barre du haut */}
+        <header className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-gray-800 bg-gray-900/60 backdrop-blur px-4 sm:px-6 py-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <GameArt id="bomb-party" className="w-10 h-9 shrink-0" />
+            <div className="min-w-0">
+              <p className="font-masthead text-2xl sm:text-3xl leading-none">MakeItMeme</p>
+              <p className="text-[11px] text-gray-500 mt-1 truncate">Les jeux entre potes · {paper.weather || ' '}</p>
             </div>
+          </div>
+          <div className="flex items-center gap-3 w-full sm:w-auto sm:min-w-[22rem]">
+            <div className="flex-1 min-w-0">
+              <AccountButton auth={auth} className="" />
+            </div>
+            <SoundToggle on={soundOn} onToggle={toggleSound} />
           </div>
         </header>
 
-        <div className="rule-double" />
-
-        {/* Gros titre */}
-        <section className="text-center pt-6 pb-5">
-          <p className="eyebrow">Édition spéciale</p>
-          <h2 className="font-heading text-4xl sm:text-6xl leading-[0.98] mt-2 ink-in">
-            À quel jeu joue-t-on ce soir&nbsp;?
-          </h2>
-          <p className="italic text-gray-500 mt-3 text-base sm:text-lg">
+        {/* Hero */}
+        <section className="text-center pt-10 pb-8 sm:pt-14">
+          <p className="eyebrow">Jeux entre potes · édition n° {paper.edition}</p>
+          <h1 className="text-4xl sm:text-6xl lg:text-7xl mt-4 ink-in">À quel jeu joue-t-on ce soir&nbsp;?</h1>
+          <p className="text-gray-400 mt-5 text-base sm:text-lg max-w-2xl mx-auto">
             Quatre jeux, zéro excuse. Crée un salon, invite la bande, et que le meilleur gagne.
           </p>
+          <div className="flex flex-wrap items-center justify-center gap-2 mt-6 text-xs font-bold">
+            <span className="rounded-full border border-gray-800 bg-gray-900/60 px-3 py-1.5">4 jeux</span>
+            <span className="rounded-full border border-gray-800 bg-gray-900/60 px-3 py-1.5">2 à 16 joueurs</span>
+            <span className="rounded-full border border-purple-400/40 bg-purple-400/10 text-purple-300 px-3 py-1.5 inline-flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-purple-300 animate-pulse" />
+              {directory.ready ? `${directory.rooms.length} salon${directory.rooms.length > 1 ? 's' : ''} ouvert${directory.rooms.length > 1 ? 's' : ''}` : 'connexion…'}
+            </span>
+          </div>
         </section>
 
-        {/* Les jeux, en colonnes */}
-        <section className="grid gap-0 sm:grid-cols-2 xl:grid-cols-4 border-y-[3px] border-double border-white/80">
-          {HOME_GAMES.map((g, i) => {
+        {/* Les jeux */}
+        <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+          {HOME_GAMES.map((g) => {
             const isLast = lastGame === g.id;
             return (
               <a
                 key={g.id}
                 href={g.href}
                 onClick={() => rememberGame(g.id)}
-                className={`group deco-card relative block px-5 py-6 transition-colors hover:bg-purple-900/40 ${i > 0 ? 'xl:col-rule' : ''} ${i % 2 === 1 ? 'sm:col-rule xl:col-rule' : ''} ${i > 0 ? 'border-t xl:border-t-0 border-white/40' : ''} ${i === 1 ? 'sm:border-t-0' : ''} ${isLast ? 'bg-purple-900/70' : ''}`}
+                style={{ '--glow': g.glow } as React.CSSProperties}
+                className="group deco-card relative flex flex-col p-4"
               >
-                {isLast && (
-                  <span className="stamp absolute right-4 top-3 z-10 text-xs sm:text-sm">Ton dernier jeu</span>
-                )}
-                <p className="eyebrow">{g.kicker}</p>
-                <h3 className="font-heading text-3xl mt-1 leading-tight">{g.name}</h3>
-                <div className="print-photo mt-3 h-44 flex items-center justify-center border border-white/80">
-                  <GameArt id={g.id} title={g.name} className="print-subject h-full w-full p-2 transition-transform duration-500 group-hover:scale-110" />
+                {isLast && <span className="stamp absolute right-4 top-4 z-10">Ton dernier jeu</span>}
+                <div className="print-photo h-48 flex items-center justify-center">
+                  <GameArt id={g.id} title={g.name} className="print-subject h-full w-full p-3 transition-transform duration-500 group-hover:scale-110" />
                 </div>
-                <p className="text-[11px] italic text-gray-500 mt-1">Cliché : la rédaction, en plein jeu</p>
-                <p className="dropcap text-[15px] leading-snug mt-3 text-justify hyphens-auto" lang="fr">{g.text}</p>
-                <div className="flex items-center gap-4 text-[11px] font-bold uppercase tracking-wider text-gray-500 mt-3">
-                  <span className="inline-flex items-center gap-1"><Users size={12} /> {g.players}</span>
-                  <span className="inline-flex items-center gap-1"><Clock size={12} /> ~{g.duration}</span>
-                </div>
-                <div className="tag-dark mt-4 py-2.5 text-center flex items-center justify-center gap-2 group-hover:tracking-[0.22em] transition-all">
-                  Jouer <ArrowRight size={13} />
+                <div className="px-1 pt-4 flex-1 flex flex-col">
+                  <p className="eyebrow">{g.kicker}</p>
+                  <h3 className="font-heading text-2xl mt-1.5 leading-tight">{g.name}</h3>
+                  <p className="text-sm leading-relaxed text-gray-400 mt-2 flex-1">{g.text}</p>
+                  <div className="flex items-center gap-4 text-[11px] font-semibold text-gray-500 mt-4">
+                    <span className="inline-flex items-center gap-1.5"><Users size={13} /> {g.players}</span>
+                    <span className="inline-flex items-center gap-1.5"><Clock size={13} /> ~{g.duration}</span>
+                  </div>
+                  <div className="tag-dark mt-4 py-3 text-center flex items-center justify-center gap-2">
+                    Jouer <ArrowRight size={14} />
+                  </div>
                 </div>
               </a>
             );
           })}
         </section>
 
-        {/* Petites annonces + horoscope / code */}
-        <section className="grid gap-8 lg:grid-cols-[2fr_1fr] mt-8">
-          <div>
-            <div className="flex flex-wrap items-end justify-between gap-3 border-b-2 border-white pb-2">
+        {/* Salons ouverts + horoscope / code */}
+        <section className="grid gap-6 lg:grid-cols-[2fr_1fr] mt-8">
+          <div className="paper p-5 sm:p-6">
+            <div className="flex flex-wrap items-end justify-between gap-3 pb-4 border-b border-gray-800">
               <div>
-                <p className="eyebrow">En direct · salons ouverts</p>
-                <h3 className="font-heading text-3xl leading-none mt-1">Petites annonces</h3>
+                <p className="eyebrow">En direct</p>
+                <h2 className="font-heading text-2xl leading-none mt-1.5">Salons ouverts</h2>
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {[{ id: 'all', label: 'Tous' }, ...HOME_GAMES.map((g) => ({ id: g.id, label: g.name }))].map((f) => (
@@ -216,8 +205,8 @@ export default function Home() {
                     key={f.id}
                     type="button"
                     onClick={() => setFilter(f.id)}
-                    className={`px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide border transition active:scale-95 ${
-                      filter === f.id ? 'bg-white text-gray-950 border-white' : 'border-white/50 text-gray-500 hover:text-white'
+                    className={`px-3 py-1.5 text-xs font-bold rounded-full border transition active:scale-95 ${
+                      filter === f.id ? 'bg-purple-300 text-gray-950 border-purple-300' : 'border-gray-700 text-gray-400 hover:text-white hover:border-gray-600'
                     }`}
                   >
                     {f.label}
@@ -227,34 +216,34 @@ export default function Home() {
             </div>
 
             {!directory.ready ? (
-              <p className="text-sm italic text-gray-500 mt-4">Recherche des annonces…</p>
+              <p className="text-sm text-gray-500 mt-5">Recherche des salons…</p>
             ) : visibleRooms.length === 0 ? (
-              <div className="mt-4 border border-dashed border-white/60 px-4 py-8 text-center">
-                <p className="font-heading text-lg">Aucune annonce pour le moment</p>
-                <p className="text-sm italic text-gray-500 mt-1">Passe la première : choisis un jeu, active « Ouvert » et lance ton salon.</p>
+              <div className="mt-5 rounded-xl border border-dashed border-gray-700 px-4 py-10 text-center">
+                <p className="font-heading text-lg">Aucun salon pour le moment</p>
+                <p className="text-sm text-gray-500 mt-1">Sois le premier : choisis un jeu, active « Ouvert » et lance ton salon.</p>
               </div>
             ) : (
-              <ul className="mt-3 divide-y divide-dotted divide-white/60">
+              <ul className="mt-2 divide-y divide-gray-800">
                 {visibleRooms.map((r) => {
                   const game = HOME_GAMES.find((g) => g.id === r.game);
                   if (!game) return null;
                   return (
-                    <li key={`${r.game}-${r.code}`} className="animate-fadein flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
-                      <GameArt id={game.id} className="w-14 h-10 shrink-0" />
+                    <li key={`${r.game}-${r.code}`} className="animate-fadein flex flex-wrap items-center gap-x-4 gap-y-2 py-3.5">
+                      <GameArt id={game.id} className="w-14 h-10 shrink-0 rounded-lg bg-gray-950/60" />
                       <div className="min-w-0 flex-1 basis-48">
-                        <p className="font-heading text-lg leading-tight truncate">{r.name}</p>
-                        <p className="text-xs italic text-gray-500 flex items-center gap-1.5">
+                        <p className="font-heading text-base leading-tight truncate">{r.name}</p>
+                        <p className="text-xs text-gray-500 flex items-center gap-1.5">
                           {game.name} · <PlayerDot id={r.code} avatar={r.hostAvatar} /> {r.host}
                         </p>
                       </div>
-                      <span className="inline-flex items-center gap-1 text-sm"><Users size={14} /> {r.count}</span>
-                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 border ${r.started ? 'border-[#e0903a] text-[#f0b060]' : 'border-[#43bfaa] text-[#6fd4c3]'}`}>
+                      <span className="inline-flex items-center gap-1 text-sm text-gray-300"><Users size={14} /> {r.count}</span>
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border ${r.started ? 'border-orange-400/50 text-orange-300 bg-orange-400/10' : 'border-purple-400/50 text-purple-300 bg-purple-400/10'}`}>
                         {r.started ? 'En cours' : 'Ouvert'}
                       </span>
                       <a
                         href={`${game.href}?room=${encodeURIComponent(r.code)}`}
                         onClick={() => rememberGame(game.id)}
-                        className="tag-dark px-4 py-2 flex items-center gap-1.5 hover:tracking-[0.2em] transition-all active:scale-95"
+                        className="tag-dark px-4 py-2.5 flex items-center gap-1.5 active:scale-95"
                       >
                         Rejoindre <ArrowRight size={13} />
                       </a>
@@ -267,37 +256,37 @@ export default function Home() {
 
           <aside className="space-y-6">
             {/* Horoscope */}
-            <div className="border-[3px] border-double border-white/80 p-4 bg-gray-950/50">
+            <div className="paper p-5">
               <p className="eyebrow flex items-center gap-1.5"><span className="twinkle">✦</span> Horoscope du joueur</p>
-              <div className="flex items-center gap-2 mt-2">
+              <div className="flex items-center gap-2 mt-3">
                 <select
                   value={sign}
                   onChange={(e) => changeSign(Number(e.target.value))}
-                  className="bg-gray-950 border border-white/60 px-2 py-1 text-sm font-bold"
+                  className="bg-gray-950 border border-gray-700 rounded-lg px-2.5 py-1.5 text-sm font-bold"
                   aria-label="Ton signe"
                 >
                   {SIGNS.map((name, idx) => (
                     <option key={name} value={idx}>{name}</option>
                   ))}
                 </select>
-                <span className="text-xs italic text-gray-500">prévisions du jour</span>
+                <span className="text-xs text-gray-500">prévisions du jour</span>
               </div>
-              <p className="font-heading text-[17px] leading-snug mt-3 italic">« {fortune.text} »</p>
+              <p className="font-heading text-base leading-snug mt-4 text-gray-200">« {fortune.text} »</p>
               {advised && (
-                <a href={advised.href} onClick={() => rememberGame(advised.id)} className="inline-flex items-center gap-1.5 mt-3 text-sm font-bold underline decoration-dotted underline-offset-4 hover:text-purple-300">
-                  Jeu conseillé : {advised.name} <ArrowRight size={13} />
+                <a href={advised.href} onClick={() => rememberGame(advised.id)} className="inline-flex items-center gap-1.5 mt-4 text-sm font-bold text-purple-300 hover:text-purple-200 transition">
+                  Jeu conseillé : {advised.name} <ArrowRight size={14} />
                 </a>
               )}
             </div>
 
             {/* Code */}
-            <form onSubmit={joinWithCode} className="border border-white/70 p-4">
+            <form onSubmit={joinWithCode} className="paper p-5">
               <p className="eyebrow">Un correspondant vous attend</p>
-              <p className="font-heading text-xl leading-tight mt-1">Tu as un code ?</p>
+              <p className="font-heading text-xl leading-tight mt-1.5">Tu as un code ?</p>
               <select
                 value={codeGame}
                 onChange={(e) => setCodeGame(e.target.value)}
-                className="w-full bg-gray-950 border border-white/60 p-2 font-bold mt-3 mb-2"
+                className="w-full bg-gray-950 border border-gray-700 rounded-lg p-2.5 font-bold mt-3 mb-2"
               >
                 {HOME_GAMES.map((g) => (
                   <option key={g.id} value={g.id}>{g.name}</option>
@@ -309,12 +298,12 @@ export default function Home() {
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
                   placeholder="CODE"
-                  className="min-w-0 flex-1 p-2 bg-gray-950 border border-white/60 text-center font-mono uppercase font-bold"
+                  className="min-w-0 flex-1 p-2.5 bg-gray-950 border border-gray-700 rounded-lg text-center font-mono uppercase font-bold"
                 />
                 <button
                   type="submit"
                   disabled={!code.trim()}
-                  className="tag-dark px-4 flex items-center gap-1.5 disabled:opacity-40 active:scale-95"
+                  className="tag-dark px-5 flex items-center gap-1.5 disabled:opacity-40 active:scale-95"
                 >
                   <Sparkles size={13} /> Go
                 </button>
@@ -324,20 +313,20 @@ export default function Home() {
         </section>
 
         {/* Mode d'emploi + pied de page */}
-        <section className="mt-10 border-t-[3px] border-double border-white/80 pt-4">
-          <ol className="grid gap-4 sm:grid-cols-3">
-            {STEPS.map((s) => (
-              <li key={s.n} className="flex items-baseline gap-3">
-                <span className="font-heading text-3xl text-purple-300 w-10 shrink-0">{s.n}.</span>
+        <section className="mt-10 border-t border-gray-800 pt-8">
+          <ol className="grid gap-6 sm:grid-cols-3">
+            {STEPS.map((s, i) => (
+              <li key={s.n} className="flex items-start gap-4">
+                <span className="font-masthead text-3xl w-10 shrink-0 leading-none">{i + 1}</span>
                 <div>
                   <p className="font-heading text-lg leading-tight">{s.title}</p>
-                  <p className="text-sm italic text-gray-500">{s.text}</p>
+                  <p className="text-sm text-gray-500 mt-1">{s.text}</p>
                 </div>
               </li>
             ))}
           </ol>
-          <p className="text-center text-[11px] uppercase tracking-[0.2em] text-gray-500 mt-8 pb-8">
-            ✦ Gravé dans l’or et la nuit · Aucun imposteur n’a été blessé pendant la rédaction ✦
+          <p className="text-center text-[11px] uppercase tracking-[0.2em] text-gray-600 mt-10 pb-8">
+            Aucun imposteur n’a été blessé pendant la conception de ce site
           </p>
         </section>
       </div>

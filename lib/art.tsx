@@ -114,7 +114,7 @@ const QuiDeNousArt = ({ p }) => {
       <Bust x={148} lit={false} />
       <Bust x={100} lit />
       {/* point d'interrogation doré */}
-      <text x="100" y="62" textAnchor="middle" fontFamily="'Cinzel Decorative', Georgia, serif" fontWeight="900" fontSize="40" fill={`url(#${p}-gold)`} stroke="#5f4116" strokeWidth="0.8">?</text>
+      <text x="100" y="62" textAnchor="middle" fontFamily="'Unbounded', system-ui, sans-serif" fontWeight="900" fontSize="40" fill={`url(#${p}-gold)`} stroke="#5f4116" strokeWidth="0.8">?</text>
       {/* index qui désigne */}
       <g fill={`url(#${p}-gold)`} stroke="#7a5410" strokeWidth="1">
         <path d="M30 40 L46 46 L44 52 L26 48 Z" />
@@ -142,7 +142,7 @@ const BombPartyArt = ({ p }) => (
     <rect x="84" y="38" width="24" height="14" rx="3" fill={`url(#${p}-gold)`} stroke="#7a5410" />
     <rect x="80" y="48" width="32" height="5" fill={`url(#${p}-gold)`} />
     {/* syllabe gravée */}
-    <text x="96" y="97" textAnchor="middle" fontFamily="'Cinzel', Georgia, serif" fontWeight="800" fontSize="30" fill={`url(#${p}-gold)`} stroke="#5f4116" strokeWidth="0.6">tion</text>
+    <text x="96" y="97" textAnchor="middle" fontFamily="'Unbounded', system-ui, sans-serif" fontWeight="800" fontSize="30" fill={`url(#${p}-gold)`} stroke="#5f4116" strokeWidth="0.6">tion</text>
     {/* braises */}
     <g fill="#f08a3a">
       <circle cx="160" cy="46" r="2.2" />
