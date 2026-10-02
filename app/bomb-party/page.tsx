@@ -94,7 +94,7 @@ const RulesModal = ({ onClose }) => (
         <X size={20} />
       </button>
       <h2 className="font-heading text-2xl mb-5 flex items-center gap-2">
-        <BookOpen size={22} className="text-orange-400" /> Comment jouer ?
+        <BookOpen size={22} className="text-purple-300" /> Comment jouer ?
       </h2>
       <div className="space-y-4">
         {RULES_STEPS.map((s, i) => (
@@ -109,7 +109,7 @@ const RulesModal = ({ onClose }) => (
       </div>
       <button
         onClick={onClose}
-        className="mt-6 w-full bg-orange-600 hover:bg-orange-500 text-white font-bold py-3 rounded-lg transition active:scale-95"
+        className="mt-6 w-full bg-purple-300 hover:bg-purple-200 !text-gray-950 text-white font-bold py-3 rounded-lg transition active:scale-95"
       >
         Compris !
       </button>
@@ -125,9 +125,9 @@ const Bomb = ({ syllable, ratio, boom }) => (
       <svg viewBox="0 0 200 200" className="w-full h-full overflow-visible" aria-hidden="true">
         <defs>
           <linearGradient id="bp-gold" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#fbeeb8" />
-            <stop offset="0.5" stopColor="#dcae45" />
-            <stop offset="1" stopColor="#8a5c14" />
+            <stop offset="0" stopColor="#f7ffd0" />
+            <stop offset="0.5" stopColor="#c8ee6a" />
+            <stop offset="1" stopColor="#6f8f22" />
           </linearGradient>
           <radialGradient id="bp-body" cx="0.38" cy="0.32" r="0.8">
             <stop offset="0" stopColor="#25343a" />
@@ -138,14 +138,14 @@ const Bomb = ({ syllable, ratio, boom }) => (
             <stop offset="1" stopColor="#f08a3a" stopOpacity="0" />
           </radialGradient>
         </defs>
-        <path d="M112 44 C120 26 138 24 150 10" stroke="#c9a15a" strokeWidth="5" fill="none" strokeLinecap="round" />
+        <path d="M112 44 C120 26 138 24 150 10" stroke="#b9d46a" strokeWidth="5" fill="none" strokeLinecap="round" />
         <g transform="translate(152 10)">
           <circle r={14 + (1 - ratio) * 10} fill="url(#bp-spark)" />
           <path d="M0 -10 L3 -3 L10 0 L3 3 L0 10 L-3 3 L-10 0 L-3 -3 Z" fill="#fff3c4" />
         </g>
-        <circle cx="100" cy="118" r="70" fill="url(#bp-body)" stroke="#d6a948" strokeOpacity="0.8" strokeWidth="2.5" />
+        <circle cx="100" cy="118" r="70" fill="url(#bp-body)" stroke="#c8ee6a" strokeOpacity="0.8" strokeWidth="2.5" />
         <path d="M58 92 A52 52 0 0 1 100 66" stroke="#fff" strokeOpacity="0.35" strokeWidth="7" fill="none" strokeLinecap="round" />
-        <rect x="84" y="42" width="32" height="18" rx="4" fill="url(#bp-gold)" stroke="#7a5410" />
+        <rect x="84" y="42" width="32" height="18" rx="4" fill="url(#bp-gold)" stroke="#4d6a14" />
         <rect x="78" y="56" width="44" height="7" fill="url(#bp-gold)" />
         <text
           x="100"
@@ -155,7 +155,7 @@ const Bomb = ({ syllable, ratio, boom }) => (
           fontWeight="800"
           fontSize={syllable.length > 3 ? 40 : 52}
           fill="url(#bp-gold)"
-          stroke="#5f4116"
+          stroke="#3f5810"
           strokeWidth="0.8"
         >
           {syllable}
@@ -643,7 +643,7 @@ export default function BombParty() {
           {phase === 'play' ? 'La bombe tourne' : phase === 'final' ? 'Fin de la partie' : 'Lobby'}
         </span>
         <span className="text-gray-400 font-mono text-xs flex items-center gap-3 flex-wrap">
-          {phase === 'play' && <span className="text-orange-300 font-bold">{aliveCount} en vie</span>}
+          {phase === 'play' && <span className="text-purple-300 font-bold">{aliveCount} en vie</span>}
           {phase === 'play' && <span>Syllabe n°{bp.round + 1}</span>}
           <span className="inline-flex items-center gap-1"><Users size={12} /> {players.length}</span>
         </span>
@@ -672,7 +672,7 @@ export default function BombParty() {
             <div
               key={p.id}
               className={`flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm transition ${
-                p.id === player.id ? 'bg-orange-900/30 border border-orange-600/50' : 'hover:bg-gray-800/70'
+                p.id === player.id ? 'bg-purple-900/30 border border-purple-400/40' : 'hover:bg-gray-800/70'
               } ${out ? 'opacity-50' : ''}`}
             >
               <span className="wiggle-hover inline-flex cursor-default">
@@ -770,7 +770,7 @@ export default function BombParty() {
               <button
                 onClick={createRoom}
                 disabled={!player.name.trim()}
-                className="w-full bg-orange-600 hover:bg-orange-500 shadow-md disabled:opacity-50 text-white font-bold py-4 px-6 rounded-lg flex items-center justify-center gap-2 transition transform hover:scale-[1.02] active:scale-95"
+                className="w-full bg-purple-300 hover:bg-purple-200 !text-gray-950 shadow-md disabled:opacity-50 text-white font-bold py-4 px-6 rounded-lg flex items-center justify-center gap-2 transition transform hover:scale-[1.02] active:scale-95"
               >
                 <Play fill="currentColor" /> Créer une partie
               </button>
@@ -799,7 +799,7 @@ export default function BombParty() {
             </div>
             <button
               onClick={() => setShowRules(true)}
-              className="mt-5 w-full flex items-center justify-center gap-1.5 text-gray-500 hover:text-orange-300 text-sm font-bold transition"
+              className="mt-5 w-full flex items-center justify-center gap-1.5 text-gray-500 hover:text-purple-300 text-sm font-bold transition"
             >
               <BookOpen size={15} /> Comment jouer ?
             </button>
@@ -816,7 +816,7 @@ export default function BombParty() {
         <GameArt id="bomb-party" className="h-28 mx-auto -mt-2 mb-2" />
         <h2 className="font-heading text-2xl mb-2">Code de la Room</h2>
         <div className="relative mb-8">
-          <div className="text-6xl font-black font-mono tracking-widest text-orange-400 bg-gray-950 py-4 rounded-xl border border-gray-800">
+          <div className="text-6xl font-black font-mono tracking-widest text-purple-300 bg-gray-950 py-4 rounded-xl border border-gray-800">
             {room?.code}
           </div>
           <button
@@ -890,7 +890,7 @@ export default function BombParty() {
           <button
             onClick={startGame}
             disabled={players.length < 2}
-            className="w-full bg-orange-600 hover:bg-orange-500 shadow-md disabled:opacity-50 active:scale-95 text-white font-black py-4 px-6 rounded-lg text-lg transition"
+            className="w-full bg-purple-300 hover:bg-purple-200 !text-gray-950 shadow-md disabled:opacity-50 active:scale-95 text-white font-black py-4 px-6 rounded-lg text-lg transition"
           >
             {players.length < 2 ? "En attente d'au moins 2 joueurs..." : 'Allumer la mèche !'}
           </button>
@@ -955,7 +955,7 @@ export default function BombParty() {
               <div
                 key={id}
                 className={`rounded-xl p-3 border-2 flex flex-col items-center gap-1.5 transition ${
-                  isTurn ? 'border-orange-400 bg-orange-900/30 shadow-lg scale-[1.03]' : lives === 0 ? 'border-gray-800 bg-gray-950 opacity-40' : 'border-gray-700 bg-gray-900'
+                  isTurn ? 'border-purple-300 bg-purple-900/30 shadow-lg scale-[1.03]' : lives === 0 ? 'border-gray-800 bg-gray-950 opacity-40' : 'border-gray-700 bg-gray-900'
                 }`}
               >
                 <span
@@ -1004,7 +1004,7 @@ export default function BombParty() {
           <div
             key={id}
             className={`animate-rise flex items-center gap-3 rounded-xl px-4 py-3 border text-left ${
-              id === bp.winner ? 'bg-gradient-to-r from-orange-900/50 to-amber-900/30 border-orange-500/60' : 'bg-gray-900 border-gray-800'
+              id === bp.winner ? 'bg-gradient-to-r from-purple-900/50 to-gray-900 border-purple-400/50' : 'bg-gray-900 border-gray-800'
             }`}
             style={{ animationDelay: `${i * 70}ms` }}
           >
@@ -1021,7 +1021,7 @@ export default function BombParty() {
           <button
             onClick={startGame}
             disabled={players.length < 2}
-            className="flex items-center gap-2 bg-orange-600 hover:bg-orange-500 disabled:opacity-50 shadow-md active:scale-95 font-bold py-3 px-6 rounded-full transition"
+            className="flex items-center gap-2 bg-purple-300 hover:bg-purple-200 !text-gray-950 disabled:opacity-50 shadow-md active:scale-95 font-bold py-3 px-6 rounded-full transition"
           >
             <RotateCcw size={16} /> Rejouer
           </button>

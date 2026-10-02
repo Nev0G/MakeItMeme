@@ -36,7 +36,7 @@ const HOME_GAMES = [
   },
   {
     id: 'bomb-party',
-    glow: '#e3b955',
+    glow: '#d9f891',
     href: '/bomb-party',
     kicker: 'Course contre la montre',
     name: 'Bomb Party',
@@ -47,7 +47,7 @@ const HOME_GAMES = [
   },
   {
     id: 'qui-de-nous',
-    glow: '#d9f891',
+    glow: '#7fe0a8',
     href: '/qui-de-nous',
     kicker: 'Sondage',
     name: 'Qui de nous ?',
