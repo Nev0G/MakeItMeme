@@ -30,6 +30,8 @@ const DEFAULT_SETTINGS = {
   chatEnabled: true,
   wordSource: 'pairs', // 'pairs' : mots classiques — 'players' : pseudos des joueurs
   mode: 'close', // 'close' : l'imposteur a un mot proche — 'blank' : l'imposteur n'a aucun mot
+  blind: true, // l'imposteur ne sait pas qu'il est l'imposteur (il croit être civil)
+  words: 3, // nombre de mots (donc de parties) par manche
   impostorCount: 1,
   clueSeconds: 30,
   voteSeconds: 45,
@@ -37,7 +39,7 @@ const DEFAULT_SETTINGS = {
   lastChance: true,
 };
 
-const INITIAL_META = { phase: 'home', round: 0, turnIndex: 0, startedAt: null, eliminated: [], winner: null, reason: null, guess: null, delta: {} };
+const INITIAL_META = { phase: 'home', round: 0, turnIndex: 0, startedAt: null, eliminated: [], winner: null, reason: null, guess: null, delta: {}, wordIndex: 0, history: [] };
 
 const { read: readSession, write: writeSession, clear: clearSession } = makeSessionStore('imposteur-session');
 const GamesRail = () => <SharedGamesRail currentId="imposteur" />;
@@ -48,10 +50,11 @@ const VersionBadge = () => (
 );
 
 const RULES_STEPS = [
-  { emoji: '🃏', title: 'Chacun reçoit une carte secrète', text: "Les civils ont tous le même mot. L'imposteur a un mot proche (mode « mot proche ») ou rien du tout (mode « sans mot »)." },
+  { emoji: '🃏', title: 'Chacun reçoit une carte secrète', text: "Les civils ont tous le même mot. L'imposteur a un mot proche du leur, et par défaut il ne sait pas qu'il est l'imposteur : il se croit civil !" },
   { emoji: '💬', title: 'Un indice chacun son tour', text: "À ton tour, écris UN mot ou une courte expression qui évoque ton mot, sans jamais le dire. L'imposteur doit deviner et faire semblant." },
   { emoji: '🗳️', title: 'Tout le monde vote', text: "Après les indices, chacun désigne qui lui paraît louche. Le plus voté est éliminé et son rôle est révélé (égalité : personne ne sort)." },
   { emoji: '🎯', title: 'Dernière chance', text: "Un imposteur démasqué peut tenter de deviner le mot des civils : s'il trouve, il gagne quand même !" },
+  { emoji: '🔁', title: 'Plusieurs mots par manche', text: "Une manche enchaîne plusieurs mots (3 par défaut), avec de nouveaux rôles à chaque fois. Les points se cumulent jusqu'au bilan final." },
   { emoji: '🏆', title: 'Qui gagne ?', text: "Les civils gagnent s'ils éliminent tous les imposteurs. L'imposteur gagne s'il survit à tous les tours, s'il reste autant d'imposteurs que de civils, ou s'il devine le mot." },
 ];
 
@@ -422,7 +425,7 @@ export default function Imposteur() {
   // ==========================================
   // ACTIONS DU HOST
   // ==========================================
-  const startGame = ({ resetScores = false } = {}) => {
+  const startGame = ({ resetScores = false, nextWord = false } = {}) => {
     if (!isHost || players.length < 3) return;
     const cfg = settingsRef.current;
     const n = players.length;
@@ -432,7 +435,7 @@ export default function Imposteur() {
     const newRoles = {};
     players.forEach((p) => {
       newRoles[p.id] = impostors.has(p.id)
-        ? { role: 'imposteur', word: cfg.mode === 'close' ? pair.imposter : null }
+        ? { role: 'imposteur', word: cfg.blind || cfg.mode === 'close' ? pair.imposter : null }
         : { role: 'civil', word: pair.civil };
     });
     const payload = {
@@ -445,7 +448,9 @@ export default function Imposteur() {
     applyGameStart(payload);
     broadcast('game_start', payload);
     autoRef.current = '';
-    commitMeta({ ...INITIAL_META, phase: 'reveal', startedAt: Date.now() });
+    const prev = metaRef.current;
+    const carry = nextWord ? { wordIndex: prev.wordIndex + 1, history: prev.history } : {};
+    commitMeta({ ...INITIAL_META, ...carry, phase: 'reveal', startedAt: Date.now() });
   };
 
   const backToLobby = () => commitMeta({ ...INITIAL_META, phase: 'lobby' });
@@ -464,7 +469,17 @@ export default function Imposteur() {
     });
     setScores(nextScores);
     broadcast('scores_sync', { scores: nextScores });
-    commitMeta({ phase: 'game_over', winner, reason, delta, guess: guess ?? metaRef.current.guess, startedAt: Date.now() });
+    const m = metaRef.current;
+    const finalGuess = guess ?? m.guess;
+    const entry = {
+      word: civilWord,
+      impWord: impostorWord,
+      impostors: impostorIds.map(nameOf),
+      winner,
+      reason,
+      guess: finalGuess ? { name: nameOf(finalGuess.id), text: finalGuess.text, correct: !!finalGuess.correct } : null,
+    };
+    commitMeta({ phase: 'game_over', winner, reason, delta, guess: finalGuess, history: [...m.history, entry], startedAt: Date.now() });
   };
 
   // Après un tour : on regarde qui a gagné, sinon on enchaîne sur le tour suivant
@@ -693,7 +708,7 @@ export default function Imposteur() {
     vote: { emoji: '🗳️', label: 'Vote' },
     vote_result: { emoji: '💀', label: 'Résultat du vote' },
     guess: { emoji: '🎯', label: 'Dernière chance' },
-    game_over: { emoji: '🎉', label: 'Partie terminée' },
+    game_over: { emoji: '🎉', label: meta.wordIndex + 1 < settings.words ? 'Mot terminé' : 'Fin de la manche' },
   };
 
   const playerStatus = (p) => {
@@ -720,6 +735,11 @@ export default function Imposteur() {
             {info.emoji} {info.label}
           </span>
           <span className="text-gray-400 font-mono text-xs flex items-center gap-3 flex-wrap">
+            {inGame && settings.words > 1 && (
+              <span className="text-purple-300 font-bold">
+                Mot {Math.min(meta.wordIndex + 1, settings.words)}/{settings.words}
+              </span>
+            )}
             {inGame && phase !== 'game_over' && phase !== 'reveal' && (
               <span className="text-orange-300 font-bold">
                 Tour {Math.min(meta.round + 1, settings.maxRounds)}/{settings.maxRounds}
@@ -834,7 +854,7 @@ export default function Imposteur() {
   // Rappel discret de sa carte, utilisable pendant tout le jeu
   const renderMyWordChip = () => {
     if (!myRole) return null;
-    const isImp = myRole.role === 'imposteur';
+    const isImp = myRole.role === 'imposteur' && !settings.blind;
     return (
       <div className="flex items-center justify-between gap-3 bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 mb-4">
         <div className="min-w-0 text-left">
@@ -1033,6 +1053,7 @@ export default function Imposteur() {
                 <option value="players">Le pseudo d'un joueur de la partie</option>
               </select>
             </div>
+            {!settings.blind && (
             <div className="col-span-2">
               <label className="block text-gray-500 mb-1 text-xs">Carte de l'imposteur</label>
               <select
@@ -1043,6 +1064,20 @@ export default function Imposteur() {
               >
                 <option value="close">{settings.wordSource === 'players' ? "Le pseudo d'un autre joueur" : 'Un mot proche de celui des civils'}</option>
                 <option value="blank">Aucun mot (il doit bluffer)</option>
+              </select>
+            </div>
+            )}
+            <div>
+              <label className="block text-gray-500 mb-1 text-xs">Mots par manche</label>
+              <select
+                disabled={!isHost}
+                value={settings.words}
+                onChange={(e) => updateSettings({ words: Number(e.target.value) })}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 font-bold disabled:opacity-60"
+              >
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
               </select>
             </div>
             <div>
@@ -1098,7 +1133,14 @@ export default function Imposteur() {
               </select>
             </div>
           </div>
-          <div className="mt-4 pt-4 border-t border-gray-800 text-sm">
+          <div className="mt-4 pt-4 border-t border-gray-800 text-sm space-y-3">
+            <ToggleRow
+              label="Imposteur à l'aveugle"
+              hint="L'imposteur reçoit un mot proche et ne sait pas qu'il est l'imposteur"
+              checked={settings.blind}
+              disabled={!isHost}
+              onChange={(v) => updateSettings({ blind: v })}
+            />
             <ToggleRow
               label="Dernière chance"
               hint="Un imposteur démasqué peut deviner le mot des civils pour gagner"
@@ -1125,7 +1167,7 @@ export default function Imposteur() {
   }
 
   if (phase === 'reveal') {
-    const isImp = myRole?.role === 'imposteur';
+    const isImp = myRole?.role === 'imposteur' && !settings.blind; // à l'aveugle : l'imposteur se croit civil
     const iAmReady = readyIds.includes(player.id);
     const readyCount = participants.filter((p) => readyIds.includes(p.id)).length;
     return renderAppShell(
@@ -1155,7 +1197,7 @@ export default function Imposteur() {
                   <p className="font-bold text-lg">{isImp ? "Tu es l'IMPOSTEUR" : 'Tu es CIVIL'}</p>
                   {myRole.word ? (
                     <>
-                      <p className="text-xs text-gray-400 mt-2">{isImp ? 'Ton mot (proche du vrai)' : 'Ton mot'}</p>
+                      <p className="text-xs text-gray-400 mt-2">Ton mot</p>
                       <p className="font-heading font-extrabold text-4xl mt-1 break-words [overflow-wrap:anywhere]">{myRole.word}</p>
                     </>
                   ) : (
@@ -1427,6 +1469,7 @@ export default function Imposteur() {
 
   // phase === 'game_over'
   const winnerCivils = meta.winner === 'civils';
+  const isLastWord = meta.wordIndex + 1 >= settings.words;
   const reasonText = {
     found: 'Tous les imposteurs ont été démasqués.',
     outnumbered: "Il ne reste plus assez de civils pour gagner : les imposteurs l'emportent.",
@@ -1434,91 +1477,164 @@ export default function Imposteur() {
     guessed: `${meta.guess ? nameOf(meta.guess.id) : "L'imposteur"} a deviné le mot des civils (« ${civilWord} ») !`,
   }[meta.reason] || '';
   const ranking = [...participants].sort((a, b) => (scores[b.id] || 0) - (scores[a.id] || 0));
+  const guessInfo = meta.guess
+    ? { name: nameOf(meta.guess.id), text: meta.guess.text, correct: !!meta.guess.correct }
+    : null;
+
+  // Le mot tenté par l'imposteur lors du repêchage
+  const renderGuess = (g, small = false) =>
+    g ? (
+      <div className={`rounded-xl border text-left ${small ? 'px-3 py-2 text-sm' : 'p-4'} ${g.correct ? 'bg-green-900/30 border-green-700/60' : 'bg-gray-900 border-gray-800'}`}>
+        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">🎯 Repêchage de {g.name}</p>
+        {g.text ? (
+          <p className={`font-heading font-extrabold break-words [overflow-wrap:anywhere] ${small ? 'text-base' : 'text-2xl'}`}>
+            « {g.text} » <span className={`text-sm font-bold ${g.correct ? 'text-green-400' : 'text-red-400'}`}>{g.correct ? '✓ trouvé !' : '✗ raté'}</span>
+          </p>
+        ) : (
+          <p className="text-gray-500 italic">Aucune réponse à temps.</p>
+        )}
+      </div>
+    ) : null;
+
+  const wordCards = (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full mb-6">
+      <div className="bg-green-900/30 border border-green-700/60 rounded-xl p-4">
+        <p className="text-[10px] font-bold text-green-300 uppercase tracking-wide">Mot des civils</p>
+        <p className="font-heading font-extrabold text-2xl break-words [overflow-wrap:anywhere]">{civilWord}</p>
+      </div>
+      <div className="bg-red-900/30 border border-red-700/60 rounded-xl p-4">
+        <p className="text-[10px] font-bold text-red-300 uppercase tracking-wide">Mot de l'imposteur</p>
+        <p className="font-heading font-extrabold text-2xl break-words [overflow-wrap:anywhere]">
+          {impostorWord || <span className="text-gray-500 text-lg">aucun</span>}
+        </p>
+      </div>
+      {guessInfo ? renderGuess(guessInfo) : (
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 text-left">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">🎯 Repêchage</p>
+          <p className="text-gray-500 italic mt-1">Personne n'a tenté sa chance.</p>
+        </div>
+      )}
+    </div>
+  );
+
+  const rankingList = (
+    <div className="w-full space-y-2 mb-6">
+      {ranking.map((p, i) => {
+        const isImp = roles[p.id]?.role === 'imposteur';
+        const pts = meta.delta?.[p.id] || 0;
+        return (
+          <div
+            key={p.id}
+            className={`animate-rise flex items-center gap-3 rounded-xl px-4 py-3 border text-left ${
+              isImp ? 'bg-red-900/20 border-red-700/50' : 'bg-gray-900 border-gray-800'
+            }`}
+            style={{ animationDelay: `${i * 70}ms` }}
+          >
+            <PlayerDot id={p.id} avatar={p.avatar} size="md" />
+            <span className="font-bold truncate flex-1">{p.name}</span>
+            <span className={`text-xs font-bold px-2 py-0.5 rounded ${isImp ? 'bg-red-600/70' : 'bg-gray-700'}`}>
+              {isImp ? '🕵️ Imposteur' : 'Civil'}
+            </span>
+            {eliminatedIds.has(p.id) && <span title="Éliminé">💀</span>}
+            {pts > 0 && <span className="text-green-400 font-bold text-sm animate-pop">+{pts}</span>}
+            <span className="font-black text-purple-300 w-8 text-right">{scores[p.id] || 0}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
 
   return renderAppShell(
     <div className="flex flex-col items-center text-center max-w-4xl w-full mx-auto py-2">
-      <FrontPage
-        front={imposteurFront({
-          winner: meta.winner,
-          reason: meta.reason,
-          impostorNames: impostorIds.map(nameOf),
-          word: civilWord,
-          rounds: Math.max(0, ...clues.map((c) => c.round)) + 1,
-          guesserName: meta.guess ? nameOf(meta.guess.id) : '',
-          seed: game.gameId || 'imposteur',
-        })}
-        avatar={avatarOf(impostorIds[0])}
-        photoCaption={winnerCivils ? 'Le suspect, à sa sortie du tribunal.' : 'Le suspect, le sourire aux lèvres.'}
-      >
-        <p className="mt-3">
-          <span className="stamp text-base">{winnerCivils ? 'Les civils gagnent' : "L'imposteur gagne"}</span>
-        </p>
-        <p className="text-xs italic text-gray-500 mt-2">{reasonText}</p>
-      </FrontPage>
-
-      <div className="grid grid-cols-2 gap-3 w-full mb-6">
-        <div className="bg-green-900/30 border border-green-700/60 rounded-xl p-4">
-          <p className="text-[10px] font-bold text-green-300 uppercase tracking-wide">Mot des civils</p>
-          <p className="font-heading font-extrabold text-2xl break-words [overflow-wrap:anywhere]">{civilWord}</p>
-        </div>
-        <div className="bg-red-900/30 border border-red-700/60 rounded-xl p-4">
-          <p className="text-[10px] font-bold text-red-300 uppercase tracking-wide">Mot de l'imposteur</p>
-          <p className="font-heading font-extrabold text-2xl break-words [overflow-wrap:anywhere]">
-            {impostorWord || <span className="text-gray-500 text-lg">aucun</span>}
+      {isLastWord ? (
+        <FrontPage
+          front={imposteurFront({
+            winner: meta.winner,
+            reason: meta.reason,
+            impostorNames: impostorIds.map(nameOf),
+            word: civilWord,
+            rounds: Math.max(0, ...clues.map((c) => c.round)) + 1,
+            guesserName: meta.guess ? nameOf(meta.guess.id) : '',
+            seed: game.gameId || 'imposteur',
+          })}
+          avatar={avatarOf(impostorIds[0])}
+          photoCaption={winnerCivils ? 'Le suspect, à sa sortie du tribunal.' : 'Le suspect, le sourire aux lèvres.'}
+        >
+          <p className="mt-3">
+            <span className="stamp text-base">{winnerCivils ? 'Les civils gagnent' : "L'imposteur gagne"}</span>
           </p>
+          <p className="text-xs italic text-gray-500 mt-2">{reasonText}</p>
+        </FrontPage>
+      ) : (
+        <div className="paper w-full px-6 py-6 mb-6 animate-fadein">
+          <p className="eyebrow">Mot {meta.wordIndex + 1} sur {settings.words}</p>
+          <h2 className="font-heading text-3xl mt-2">{winnerCivils ? 'Les civils gagnent ce mot' : "L'imposteur gagne ce mot"}</h2>
+          <p className="text-sm text-gray-400 mt-2">{reasonText}</p>
+          <p className="text-sm text-gray-500 mt-1">Imposteur{impostorIds.length > 1 ? 's' : ''} : {impostorIds.map(nameOf).join(', ')}</p>
         </div>
-      </div>
+      )}
 
-      <div className="w-full space-y-2 mb-6">
-        {ranking.map((p, i) => {
-          const isImp = roles[p.id]?.role === 'imposteur';
-          const pts = meta.delta?.[p.id] || 0;
-          return (
-            <div
-              key={p.id}
-              className={`animate-rise flex items-center gap-3 rounded-xl px-4 py-3 border text-left ${
-                isImp ? 'bg-red-900/20 border-red-700/50' : 'bg-gray-900 border-gray-800'
-              }`}
-              style={{ animationDelay: `${i * 70}ms` }}
-            >
-              <PlayerDot id={p.id} avatar={p.avatar} size="md" />
-              <span className="font-bold truncate flex-1">{p.name}</span>
-              <span className={`text-xs font-bold px-2 py-0.5 rounded ${isImp ? 'bg-red-600/70' : 'bg-gray-700'}`}>
-                {isImp ? '🕵️ Imposteur' : 'Civil'}
-              </span>
-              {eliminatedIds.has(p.id) && <span title="Éliminé">💀</span>}
-              {pts > 0 && <span className="text-green-400 font-bold text-sm animate-pop">+{pts}</span>}
-              <span className="font-black text-purple-300 w-8 text-right">{scores[p.id] || 0}</span>
-            </div>
-          );
-        })}
-      </div>
+      {wordCards}
+      {rankingList}
+
+      {isLastWord && meta.history.length > 1 && (
+        <div className="w-full mb-6 text-left">
+          <p className="eyebrow mb-2">Récap des mots de la manche</p>
+          <div className="space-y-2">
+            {meta.history.map((h, i) => (
+              <div key={i} className="bg-gray-900 border border-gray-800 rounded-xl p-3">
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <span className="text-xs text-gray-500">Mot {i + 1}</span>
+                  <span className="font-heading font-extrabold text-lg">{h.word}</span>
+                  <span className="text-xs text-gray-500">vs</span>
+                  <span className="font-heading font-bold text-lg text-gray-300">{h.impWord || '—'}</span>
+                  <span className={`ml-auto text-xs font-bold px-2 py-0.5 rounded ${h.winner === 'civils' ? 'bg-green-700/60' : 'bg-red-700/60'}`}>
+                    {h.winner === 'civils' ? 'Civils' : 'Imposteur'}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">🕵️ {h.impostors.join(', ')}</p>
+                {h.guess && <div className="mt-2">{renderGuess(h.guess, true)}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="w-full mb-6 text-left">
-        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-2">📜 Récap des indices</p>
+        <p className="eyebrow mb-2">Récap des indices</p>
         {renderClueTable(Math.max(0, ...clues.map((c) => c.round)))}
       </div>
 
       {isHost ? (
-        <div className="flex flex-wrap items-center justify-center gap-3">
+        isLastWord ? (
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <button
+              onClick={() => startGame({ resetScores: false })}
+              disabled={players.length < 3}
+              className="flex items-center gap-2 bg-orange-600 hover:bg-orange-500 disabled:opacity-50 shadow-md shadow-orange-900/40 active:scale-95 font-bold py-3 px-6 rounded-full transition"
+            >
+              <RotateCcw size={16} /> Nouvelle manche (scores conservés)
+            </button>
+            <button
+              onClick={() => startGame({ resetScores: true })}
+              disabled={players.length < 3}
+              className="bg-gray-800 hover:bg-gray-700 disabled:opacity-50 active:scale-95 font-bold py-3 px-6 rounded-full transition"
+            >
+              Scores à zéro
+            </button>
+            <button onClick={backToLobby} className="text-sm text-gray-500 hover:text-white font-bold transition px-2">
+              Changer les réglages
+            </button>
+          </div>
+        ) : (
           <button
-            onClick={() => startGame({ resetScores: false })}
+            onClick={() => startGame({ nextWord: true })}
             disabled={players.length < 3}
-            className="flex items-center gap-2 bg-orange-600 hover:bg-orange-500 disabled:opacity-50 shadow-md shadow-orange-900/40 active:scale-95 font-bold py-3 px-6 rounded-full transition"
+            className="bg-orange-600 hover:bg-orange-500 disabled:opacity-50 shadow-md shadow-orange-900/40 active:scale-95 font-bold py-3 px-8 rounded-full transition"
           >
-            <RotateCcw size={16} /> Rejouer (scores conservés)
+            Mot suivant ({meta.wordIndex + 2}/{settings.words})
           </button>
-          <button
-            onClick={() => startGame({ resetScores: true })}
-            disabled={players.length < 3}
-            className="bg-gray-800 hover:bg-gray-700 disabled:opacity-50 active:scale-95 font-bold py-3 px-6 rounded-full transition"
-          >
-            Nouvelle partie (scores à zéro)
-          </button>
-          <button onClick={backToLobby} className="text-sm text-gray-500 hover:text-white font-bold transition px-2">
-            Changer les réglages
-          </button>
-        </div>
+        )
       ) : (
         waitingForHost
       )}
