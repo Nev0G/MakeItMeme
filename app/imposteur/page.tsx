@@ -21,6 +21,7 @@ const APP_VERSION = 'imposteur v6';
 const GAME_ID = 'imposteur';
 const GUESS_SECONDS = 25;
 const MAX_CLUE_LEN = 30;
+const SKIP_ID = 'skip'; // vote « je passe » : ne désigne personne
 const POINTS_CIVIL_WIN = 2;
 const POINTS_IMPOSTOR_WIN = 3;
 
@@ -53,7 +54,7 @@ const VersionBadge = () => (
 const RULES_STEPS = [
   { emoji: '🃏', title: 'Chacun reçoit une carte secrète', text: "Les civils ont tous le même mot. L'imposteur a un mot proche du leur, et par défaut il ne sait pas qu'il est l'imposteur : il se croit civil !" },
   { emoji: '💬', title: 'Un indice chacun son tour', text: "À ton tour, écris UN mot ou une courte expression qui évoque ton mot, sans jamais le dire. L'imposteur doit deviner et faire semblant." },
-  { emoji: '🗳️', title: 'Tout le monde vote', text: "Après les indices, chacun désigne qui lui paraît louche. Le plus voté est éliminé et son rôle est révélé (égalité : personne ne sort)." },
+  { emoji: '🗳️', title: 'Tout le monde vote', text: "Après les indices, chacun désigne qui lui paraît louche. Le plus voté est éliminé et son rôle est révélé (égalité, ou autant de joueurs qui préfèrent passer : personne ne sort)." },
   { emoji: '🎯', title: 'Dernière chance', text: "Un imposteur démasqué peut tenter de deviner le mot des civils : s'il trouve, il gagne quand même !" },
   { emoji: '🔁', title: 'Plusieurs mots par manche', text: "Une manche enchaîne plusieurs mots (3 par défaut), avec de nouveaux rôles à chaque fois. Les points se cumulent jusqu'au bilan final." },
   { emoji: '🏆', title: 'Qui gagne ?', text: "Les civils gagnent s'ils éliminent tous les imposteurs. L'imposteur gagne s'il survit à tous les tours, s'il reste autant d'imposteurs que de civils, ou s'il devine le mot." },
@@ -504,9 +505,11 @@ export default function Imposteur() {
       .forEach((v) => {
         tally[v.target_id] = (tally[v.target_id] || 0) + 1;
       });
+    const skips = votesRef.current.filter((v) => v.round === m.round && v.target_id === SKIP_ID && aliveIds.has(v.voter_id)).length;
     const max = Math.max(0, ...Object.values(tally).map(Number));
     const leaders = Object.keys(tally).filter((id) => tally[id] === max);
-    const eliminatedId = max > 0 && leaders.length === 1 ? leaders[0] : null;
+    // Personne n'est éliminé en cas d'égalité, ou si autant (ou plus) de joueurs préfèrent passer
+    const eliminatedId = max > 0 && leaders.length === 1 && max > skips ? leaders[0] : null;
     commitMeta({
       phase: 'vote_result',
       startedAt: Date.now(),
@@ -1384,6 +1387,19 @@ export default function Imposteur() {
               );
             })}
           </div>
+          {iAmAlive && (
+            <button
+              data-sfx="off"
+              onClick={() => castVote(SKIP_ID)}
+              className={`mt-4 w-full rounded-xl border-2 border-dashed px-4 py-3 text-sm font-bold transition active:scale-[0.98] ${
+                myVote?.target_id === SKIP_ID
+                  ? 'border-orange-400 bg-orange-900/40 text-orange-200'
+                  : 'border-gray-700 text-gray-400 hover:text-white hover:border-gray-500'
+              }`}
+            >
+              {myVote?.target_id === SKIP_ID ? '✅ Tu passes — personne ne sera désigné par toi' : 'Je ne vote pour personne (passer au tour suivant)'}
+            </button>
+          )}
         </div>
         {renderClueTable(meta.round)}
       </div>
@@ -1398,6 +1414,7 @@ export default function Imposteur() {
       tally[v.target_id] = [...(tally[v.target_id] || []), v.voter_id];
     });
     const rows = aliveBefore.map((p) => ({ ...p, voters: tally[p.id] || [] })).sort((a, b) => b.voters.length - a.voters.length);
+    const skippers = tally[SKIP_ID] || [];
     const wasImp = eliminatedNow && roles[eliminatedNow.id]?.role === 'imposteur';
     return renderAppShell(
       <div className="flex flex-col items-center text-center max-w-3xl w-full mx-auto">
@@ -1416,7 +1433,11 @@ export default function Imposteur() {
         ) : (
           <div className="w-full rounded-2xl p-6 mb-4 border-2 border-gray-700 bg-gray-900">
             <p className="text-5xl mb-2">🤝</p>
-            <h2 className="font-heading text-2xl font-bold">Égalité : personne n'est éliminé</h2>
+            <h2 className="font-heading text-2xl font-bold">
+              {skippers.length > 0 && skippers.length >= Math.max(0, ...rows.map((r) => r.voters.length))
+                ? 'Le salon passe : personne n\'est éliminé'
+                : 'Égalité : personne n\'est éliminé'}
+            </h2>
           </div>
         )}
         <div className="w-full space-y-2 mb-6">
@@ -1435,6 +1456,11 @@ export default function Imposteur() {
             </div>
           ))}
         </div>
+        {skippers.length > 0 && (
+          <p className="text-sm text-gray-400 mb-6 -mt-3">
+            ⏭️ Ont passé : {skippers.map(nameOf).join(', ')}
+          </p>
+        )}
         {isHost ? (
           <button onClick={continueAfterVote} className="bg-orange-600 hover:bg-orange-500 shadow-md shadow-orange-900/40 font-bold py-3 px-8 rounded-full active:scale-95 transition">
             Continuer
