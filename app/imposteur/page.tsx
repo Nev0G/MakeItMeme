@@ -8,9 +8,10 @@ import {
   supabase, makeId, fireConfetti, shuffle, colorForPlayer, AVATAR_EMOJIS, randomAvatar, PlayerDot, playSfx,
   SoundToggle, GamesRail as SharedGamesRail, Waiting, ToggleRow, CountdownBadge, makeSessionStore, MAX_NAME_LEN,
   readIdentity, writeIdentity, useSoundAndClickFx, useDiscordAuth, AccountButton, AvatarPicker, AvatarGlyph, isImageAvatar, useRefState,
-  useRoomDirectory, VisibilityPicker, RoomOptions, useRoomExtras, ChatWidget, KickButton, toast,
+  FrontPage, useRoomDirectory, VisibilityPicker, RoomOptions, useRoomExtras, ChatWidget, KickButton, toast,
 } from '@/lib/shared';
 import { pickWordPair, pickPlayerPair, sameWord } from '@/lib/imposteur-words';
+import { imposteurFront } from '@/lib/press';
 
 // ==========================================
 // RÈGLES ET RÉGLAGES
@@ -914,13 +915,11 @@ export default function Imposteur() {
         <div className="min-h-screen md:h-[100dvh] md:overflow-hidden bg-gray-950/95 text-white relative z-10 flex flex-col items-center justify-center p-4 pt-16 md:pt-4 md:pl-24">
           <VersionBadge />
           <GamesRail />
-          <h1
-            className="font-heading text-6xl sm:text-7xl font-extrabold mb-2 bg-gradient-to-r from-red-500 via-orange-500 to-yellow-400 bg-clip-text text-transparent animate-bob drop-shadow-sm"
-            style={{ '--bob-rot': '2deg' } as React.CSSProperties}
-          >
-            IMPOSTEUR
-          </h1>
-          <p className="text-gray-400 mb-8 font-medium">Un mot pour tous… sauf un. Saurez-vous le démasquer ?</p>
+          <div className="text-center mb-2">
+            <p className="eyebrow">✦ Enquête ✦</p>
+            <h1 className="font-heading text-5xl sm:text-7xl leading-none mt-2 ink-in">IMPOSTEUR</h1>
+          </div>
+          <p className="text-gray-500 mb-8 italic text-center">Un mot pour tous… sauf un. Saurez-vous le démasquer ?</p>
 
           <div className="relative bg-gray-900 p-8 rounded-2xl w-full max-w-md shadow-2xl border border-gray-800">
             <SoundToggle on={soundOn} onToggle={toggleSound} className="absolute top-3 right-3" />
@@ -1438,9 +1437,24 @@ export default function Imposteur() {
 
   return renderAppShell(
     <div className="flex flex-col items-center text-center max-w-2xl w-full mx-auto py-2">
-      <Trophy size={52} className={`mb-2 animate-bounce ${winnerCivils ? 'text-green-400' : 'text-red-400'}`} />
-      <h2 className="font-heading text-4xl font-bold mb-1">{winnerCivils ? 'Les CIVILS gagnent !' : "L'IMPOSTEUR gagne !"}</h2>
-      <p className="text-gray-400 mb-6">{reasonText}</p>
+      <FrontPage
+        front={imposteurFront({
+          winner: meta.winner,
+          reason: meta.reason,
+          impostorNames: impostorIds.map(nameOf),
+          word: civilWord,
+          rounds: Math.max(0, ...clues.map((c) => c.round)) + 1,
+          guesserName: meta.guess ? nameOf(meta.guess.id) : '',
+          seed: game.gameId || 'imposteur',
+        })}
+        avatar={avatarOf(impostorIds[0])}
+        photoCaption={winnerCivils ? 'Le suspect, à sa sortie du tribunal.' : 'Le suspect, le sourire aux lèvres.'}
+      >
+        <p className="mt-3">
+          <span className="stamp text-base">{winnerCivils ? 'Les civils gagnent' : "L'imposteur gagne"}</span>
+        </p>
+        <p className="text-xs italic text-gray-500 mt-2">{reasonText}</p>
+      </FrontPage>
 
       <div className="grid grid-cols-2 gap-3 w-full mb-6">
         <div className="bg-green-900/30 border border-green-700/60 rounded-xl p-4">

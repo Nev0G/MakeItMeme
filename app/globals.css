@@ -2,28 +2,40 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ==========================================
+   Thème "vieux journal new-yorkais, années 90, un peu magique"
+   Papier jauni, encre noire, filets doubles, trame de demi-teinte.
+   (Les échelles de couleurs de Tailwind sont inversées dans tailwind.config.js.)
+   ========================================== */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --paper: #f1e7c9;
+  --paper-light: #f8f1db;
+  --ink: #1a140b;
+  --ink-red: #8f1d1d;
+  --gold: #b8860b;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  background-color: #07100d;
-  background-image:
-    radial-gradient(ellipse 80% 55% at 50% -10%, rgba(42, 168, 151, 0.16), transparent 70%),
-    radial-gradient(ellipse 60% 50% at 100% 100%, rgba(194, 143, 44, 0.10), transparent 70%),
-    radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.55) 100%);
-  background-attachment: fixed;
-  color: #e8f0e6;
-  font-family: Arial, Helvetica, sans-serif;
   position: relative;
+  color: var(--ink);
+  font-family: 'Old Standard TT', 'Georgia', 'Times New Roman', serif;
+  background-color: var(--paper);
+  background-image:
+    /* bords jaunis, comme un journal qui a vécu */
+    radial-gradient(ellipse 85% 75% at 50% 45%, transparent 55%, rgba(139, 94, 30, 0.34) 100%),
+    /* pli central vertical */
+    linear-gradient(90deg, transparent 49.85%, rgba(60, 40, 10, 0.10) 50%, transparent 50.15%),
+    /* pli horizontal */
+    linear-gradient(180deg, transparent 49.9%, rgba(60, 40, 10, 0.07) 50%, transparent 50.1%);
+  background-attachment: fixed;
+}
+
+button, input, select, textarea {
+  font-family: inherit;
 }
 
 /* Plein écran sans défilement de page sur desktop (à partir du breakpoint
@@ -38,12 +50,48 @@ body {
 }
 
 .font-heading {
-  font-family: 'Bevan', 'Rockwell', 'Georgia', serif;
-  font-synthesis: none;
-  letter-spacing: 0.01em;
+  font-family: 'Playfair Display', 'Georgia', 'Times New Roman', serif;
+  font-weight: 800 !important;
+  letter-spacing: -0.005em;
 }
 
-/* Fond décoratif : quelques taches de couleur floues qui dérivent lentement */
+/* Titre de journal en lettres gothiques */
+.font-masthead {
+  font-family: 'UnifrakturCook', 'Old English Text MT', 'Georgia', serif;
+  font-weight: 700;
+}
+
+/* Grain de papier + trame d'impression par-dessus tout le site */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9990;
+  pointer-events: none;
+  opacity: 0.16;
+  mix-blend-mode: multiply;
+  background-image:
+    radial-gradient(rgba(26, 20, 11, 0.55) 0.7px, transparent 1px),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.35  0 0 0 0 0.25  0 0 0 0 0.1  0 0 0 0.9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  background-size: 5px 5px, 220px 220px;
+}
+
+/* Cerne de tasse de café, très discret, en bas à droite */
+body::before {
+  content: '';
+  position: fixed;
+  right: 4vw;
+  bottom: 6vh;
+  width: 150px;
+  height: 150px;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: 9999px;
+  border: 5px solid rgba(120, 72, 22, 0.13);
+  box-shadow: inset 0 0 10px rgba(120, 72, 22, 0.1), 0 0 6px rgba(120, 72, 22, 0.06);
+  transform: rotate(-12deg) scale(1.02, 0.97);
+}
+
 .bg-blobs {
   position: fixed;
   inset: 0;
@@ -52,96 +100,167 @@ body {
   pointer-events: none;
 }
 
-.blob {
-  position: absolute;
-  border-radius: 9999px;
-  filter: blur(90px);
-  opacity: 0.22;
-}
-
-.blob-1 {
-  width: 32rem;
-  height: 32rem;
-  top: -10rem;
-  left: -8rem;
-  background: #1f8a7c;
-  animation: blob-float-1 22s ease-in-out infinite;
-}
-
-.blob-2 {
-  width: 28rem;
-  height: 28rem;
-  bottom: -8rem;
-  right: -6rem;
-  background: #a8751f;
-  animation: blob-float-2 26s ease-in-out infinite;
-}
-
-.blob-3 {
-  width: 24rem;
-  height: 24rem;
-  top: 40%;
-  left: 50%;
-  background: #2f6b4f;
-  animation: blob-float-3 30s ease-in-out infinite;
-}
-
-@keyframes blob-float-1 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(6rem, 4rem) scale(1.15); }
-}
-
-@keyframes blob-float-2 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(-5rem, -3rem) scale(1.1); }
-}
-
-@keyframes blob-float-3 {
-  0%, 100% { transform: translate(-50%, 0) scale(1); }
-  50% { transform: translate(-50%, -3rem) scale(1.2); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .blob { animation: none !important; }
-}
-
-@keyframes fadein {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.animate-fadein {
-  animation: fadein 0.35s ease-out;
-}
-
-/* Petites finitions visuelles */
 ::selection {
-  background: rgba(214, 169, 72, 0.45);
-  color: white;
+  background: rgba(201, 154, 46, 0.55);
+  color: var(--ink);
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #5f4116 transparent;
+  scrollbar-color: #8f620e transparent;
 }
-
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
-
 ::-webkit-scrollbar-thumb {
-  background: #5f4116;
+  background: #8f620e;
   border-radius: 9999px;
 }
-
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 
-html {
-  scroll-behavior: smooth;
+/* ---------- Pièces de mise en page "presse" ---------- */
+
+/* Annonce encadrée (double filet), comme une réclame de journal */
+.paper {
+  position: relative;
+  color: var(--ink);
+  background-color: var(--paper-light);
+  background-image: radial-gradient(rgba(26, 20, 11, 0.07) 0.8px, transparent 1px);
+  background-size: 4px 4px;
+  border: 3px double var(--ink);
+  box-shadow: 3px 4px 0 rgba(26, 20, 11, 0.28);
 }
+.paper-tilt-l { transform: rotate(-0.5deg); }
+.paper-tilt-r { transform: rotate(0.5deg); }
+/* Mise en avant : passage au surligneur jaune */
+.paper-green {
+  background-color: #f3e08a;
+}
+
+/* Section de journal : filet double en haut, filet fin en bas */
+.panel-worn {
+  position: relative;
+  border-top: 4px double var(--ink);
+  border-bottom: 1px solid var(--ink);
+  background: rgba(248, 241, 219, 0.45);
+}
+
+/* Bandeau noir à lettres claires (comme les rubriques inversées) */
+.tag-dark {
+  background: var(--ink);
+  color: #f1e7c9;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 0.65rem;
+  font-weight: 800;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: var(--ink-red);
+}
+
+.glow-brass {
+  text-shadow: 1px 1px 0 rgba(26, 20, 11, 0.12);
+}
+
+/* Filets */
+.rule-double { border-top: 4px double var(--ink); }
+.rule-thin { border-top: 1px solid var(--ink); }
+.col-rule { border-left: 1px solid rgba(26, 20, 11, 0.55); }
+
+/* Lettrine */
+.dropcap::first-letter {
+  float: left;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-weight: 900;
+  font-size: 2.7em;
+  line-height: 0.82;
+  padding: 0.06em 0.08em 0 0;
+  color: var(--ink-red);
+}
+
+/* Photo "imprimée" : noir et blanc granuleux, la couleur revient au survol (un peu de magie) */
+.print-photo {
+  position: relative;
+  overflow: hidden;
+  background: #d9cba2;
+}
+.print-photo > .print-subject {
+  filter: grayscale(1) sepia(0.45) contrast(1.15);
+  mix-blend-mode: multiply;
+  transition: filter 0.45s ease, transform 0.45s ease;
+}
+.print-photo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(26, 20, 11, 0.45) 0.9px, transparent 1.2px);
+  background-size: 4px 4px;
+  opacity: 0.35;
+  mix-blend-mode: multiply;
+  transition: opacity 0.45s ease;
+}
+.group:hover .print-photo > .print-subject {
+  filter: grayscale(0) sepia(0) contrast(1.05);
+  mix-blend-mode: normal;
+}
+.group:hover .print-photo::after {
+  opacity: 0.08;
+}
+
+/* Tampon d'encre rouge */
+.stamp {
+  display: inline-block;
+  border: 3px solid var(--ink-red);
+  color: var(--ink-red);
+  font-family: 'Playfair Display', Georgia, serif;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.1em 0.5em;
+  transform: rotate(-6deg);
+  opacity: 0.88;
+  mix-blend-mode: multiply;
+}
+
+/* Apparition façon encre qui sèche */
+@keyframes fadein {
+  from { opacity: 0; transform: translateY(5px); filter: blur(1.5px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+.animate-fadein {
+  animation: fadein 0.4s ease-out;
+}
+
+/* Gros titre "écrit" de gauche à droite */
+@keyframes ink-in {
+  from { clip-path: inset(-15% 100% -30% 0); }
+  to { clip-path: inset(-15% 0 -30% 0); }
+}
+.ink-in {
+  animation: ink-in 1.1s steps(28, end) both;
+}
+
+/* Étoile magique qui scintille */
+@keyframes twinkle {
+  0%, 100% { opacity: 0.35; transform: scale(0.8) rotate(0deg); }
+  50% { opacity: 1; transform: scale(1.15) rotate(20deg); }
+}
+.twinkle {
+  display: inline-block;
+  color: var(--gold);
+  animation: twinkle 3.2s ease-in-out infinite;
+}
+
+
 
 /* ==========================================
    Effets d'animation (le site ne doit pas rester "fixe")
@@ -230,8 +349,8 @@ html {
   line-height: 1;
   user-select: none;
   animation: float-up linear infinite;
-  color: #d6a948;
-  --float-opacity: 0.22;
+  color: #b8860b;
+  --float-opacity: 0.35;
 }
 
 /* Onde au clic */
@@ -245,7 +364,7 @@ html {
   width: 44px;
   height: 44px;
   border-radius: 9999px;
-  border: 2px solid rgba(214, 169, 72, 0.9);
+  border: 2px solid rgba(143, 29, 29, 0.75);
   pointer-events: none;
   animation: click-ripple 0.6s ease-out forwards;
 }
@@ -257,94 +376,20 @@ html {
   .float-emoji,
   .animate-caption-in,
   .animate-rise,
-  .animate-pop {
+  .animate-pop,
+  .twinkle,
+  .ink-in {
     animation: none !important;
   }
   .float-emoji { display: none; }
 }
 
-/* ==========================================
-   Ambiance "observatoire" : parchemin, panneaux usés, braises
-   ========================================== */
 
-/* Grain léger sur tout le site */
-body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  opacity: 0.07;
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
-}
-
-/* Carte parchemin aux bords déchirés */
-.paper {
-  position: relative;
-  color: #2a2114;
-  background-color: #d8c79c;
-  background-image:
-    linear-gradient(180deg, rgba(255, 250, 230, 0.35), rgba(120, 90, 40, 0.18)),
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='p'><feTurbulence type='fractalNoise' baseFrequency='0.04' numOctaves='3'/><feColorMatrix values='0 0 0 0 0.35  0 0 0 0 0.26  0 0 0 0 0.1  0 0 0 0.35 0'/></filter><rect width='100%' height='100%' filter='url(%23p)'/></svg>");
-  box-shadow: inset 0 0 28px rgba(91, 74, 44, 0.45);
-  clip-path: polygon(
-    0 1.2%, 5% 0, 11% 1%, 18% 0.2%, 26% 1.1%, 34% 0, 43% 0.9%, 52% 0.1%, 61% 1.2%, 70% 0.2%, 79% 1%, 88% 0, 95% 1%, 100% 0.3%,
-    99.4% 12%, 100% 27%, 99.3% 41%, 100% 58%, 99.5% 73%, 100% 88%, 99.6% 100%,
-    93% 99.2%, 85% 100%, 76% 99%, 67% 100%, 58% 99.2%, 48% 100%, 39% 99%, 30% 100%, 21% 99.1%, 12% 100%, 5% 99.2%, 0 100%,
-    0.5% 86%, 0 70%, 0.6% 55%, 0 38%, 0.5% 22%
-  );
-}
-.paper-tilt-l { transform: rotate(-0.8deg); }
-.paper-tilt-r { transform: rotate(0.7deg); }
-
-/* Carte parchemin "mise en avant" (vert, comme un vote validé) */
-.paper-green {
-  background-color: #b9d79a;
-}
-
-/* Panneau sombre usé (pour les grandes zones) */
-.panel-worn {
-  position: relative;
-  background:
-    linear-gradient(180deg, rgba(42, 168, 151, 0.07), rgba(0, 0, 0, 0.25)),
-    #0f1c18;
-  border: 1px solid rgba(214, 169, 72, 0.18);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), inset 0 0 40px rgba(0, 0, 0, 0.35);
-  clip-path: polygon(
-    0 0.8%, 3% 0, 8% 0.6%, 15% 0, 24% 0.7%, 33% 0, 44% 0.5%, 55% 0, 66% 0.7%, 77% 0, 88% 0.6%, 96% 0, 100% 0.7%,
-    99.7% 20%, 100% 45%, 99.6% 70%, 100% 99.3%,
-    92% 100%, 80% 99.4%, 66% 100%, 50% 99.3%, 36% 100%, 22% 99.4%, 10% 100%, 0 99.4%,
-    0.3% 75%, 0 50%, 0.4% 25%
-  );
-}
-
-/* Étiquette sombre (comme "NEXT ROUND") */
-.tag-dark {
-  background: #1a2824;
-  color: #d3e0d4;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  font-size: 0.65rem;
-  font-weight: 800;
-}
-
-/* Titre de section : majuscules, lettres espacées */
-.eyebrow {
-  text-transform: uppercase;
-  letter-spacing: 0.22em;
-  font-size: 0.65rem;
-  font-weight: 800;
-  color: #d6a948;
-}
-
-/* Lueur laiton sur les titres */
-.glow-brass {
-  text-shadow: 0 0 22px rgba(214, 169, 72, 0.35), 0 2px 0 rgba(0, 0, 0, 0.6);
-}
-
-@keyframes ember-rise {
-  0% { transform: translateY(0) scale(1); opacity: 0; }
-  15% { opacity: var(--float-opacity, 0.5); }
-  100% { transform: translateY(-110vh) scale(0.4); opacity: 0; }
+/* ---------- Filets d'imprimerie sur les panneaux existants ---------- */
+.border-gray-800 { border-color: rgba(26, 20, 11, 0.5); }
+.border-gray-700 { border-color: rgba(26, 20, 11, 0.6); }
+.divide-gray-800 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(26, 20, 11, 0.4); }
+.bg-gray-900 {
+  background-image: radial-gradient(rgba(26, 20, 11, 0.06) 0.8px, transparent 1px);
+  background-size: 4px 4px;
 }

@@ -1,6 +1,16 @@
+const defaultColors = require('tailwindcss/colors');
+
 /** @type {import('tailwindcss').Config} */
-// Ambiance "observatoire" : gris vert très sombre, laiton, teal. On redéfinit les
-// échelles gray / purple / pink pour restyler tout le site d'un coup.
+// Thème "vieux journal" : le site a été écrit pour un fond sombre (bg-gray-900, text-white,
+// text-purple-300...). Plutôt que de réécrire chaque classe, on INVERSE les échelles de
+// couleurs : les teintes sombres deviennent du papier, les claires deviennent de l'encre.
+const STEPS = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
+const reverse = (scale) =>
+  Object.fromEntries(STEPS.map((step, i) => [step, scale[STEPS[STEPS.length - 1 - i]]]));
+
+const families = ['red', 'orange', 'amber', 'yellow', 'lime', 'green', 'emerald', 'teal', 'cyan', 'sky', 'blue', 'indigo', 'violet', 'fuchsia', 'rose'];
+const inverted = Object.fromEntries(families.map((name) => [name, reverse(defaultColors[name])]));
+
 module.exports = {
   content: [
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
@@ -11,21 +21,38 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        ...inverted,
+        white: '#1a140b', // l'encre
+        // papier -> encre
         gray: {
-          50: '#f4f8f2', 100: '#e8f0e6', 200: '#d3e0d4', 300: '#b7cabb', 400: '#92aa9b',
-          500: '#6f8b7c', 600: '#4f6b5c', 700: '#2a4036', 800: '#1a2c25', 900: '#101d19', 950: '#09130f',
+          50: '#14100a', 100: '#1d180e', 200: '#2a2316', 300: '#3a3120', 400: '#4f442b',
+          500: '#6a5d3c', 600: '#85774f', 700: '#a89868', 800: '#d3c496', 900: '#e6d9b4', 950: '#f4ecd3',
         },
-        // laiton / or ancien (couleur d'action principale)
+        // or fané / laiton (action principale) : texte sombre aux petites valeurs, fond clair aux grandes
         purple: {
-          50: '#fbf6e6', 100: '#f4e8c4', 200: '#ead49a', 300: '#e3c27a', 400: '#d6a948',
-          500: '#c28f2c', 600: '#a8751f', 700: '#865a1a', 800: '#5f4116', 900: '#3d2a12', 950: '#241808',
+          50: '#2b1d04', 100: '#3d2a08', 200: '#55390a', 300: '#6f4a0c', 400: '#8f620e',
+          500: '#c99a2e', 600: '#d8ad45', 700: '#e6c872', 800: '#efdba0', 900: '#f5e8bd', 950: '#faf1d6',
         },
-        // teal profond (accent secondaire)
+        // vert-de-gris / encre bleu-vert
         pink: {
-          50: '#ecfaf7', 100: '#cdf2ea', 200: '#9fe5d7', 300: '#6fd4c3', 400: '#43bfaa',
-          500: '#2aa897', 600: '#1f8a7c', 700: '#1b6e65', 800: '#17524d', 900: '#123a38', 950: '#0a2322',
+          50: '#06201d', 100: '#0a2e2a', 200: '#0f423c', 300: '#14584f', 400: '#1b7367',
+          500: '#3fa293', 600: '#5db8aa', 700: '#8bd0c4', 800: '#b8e2da', 900: '#d6efe9', 950: '#eaf7f4',
         },
-        parchment: { 100: '#efe4c4', 200: '#e1d2a6', 300: '#d2bf8b', 400: '#b8a272', 700: '#5b4a2c', 900: '#2a2114' },
+      },
+      fontFamily: {
+        mono: ['"Courier Prime"', '"Courier New"', 'monospace'],
+      },
+      borderRadius: {
+        none: '0', sm: '1px', DEFAULT: '2px', md: '2px', lg: '2px', xl: '3px', '2xl': '3px', '3xl': '4px', full: '9999px',
+      },
+      boxShadow: {
+        // ombres "imprimées" : décalées, nettes
+        DEFAULT: '2px 2px 0 rgba(26, 20, 11, 0.25)',
+        sm: '1px 1px 0 rgba(26, 20, 11, 0.25)',
+        md: '2px 2px 0 rgba(26, 20, 11, 0.28)',
+        lg: '3px 3px 0 rgba(26, 20, 11, 0.3)',
+        xl: '4px 4px 0 rgba(26, 20, 11, 0.32)',
+        '2xl': '5px 5px 0 rgba(26, 20, 11, 0.35)',
       },
     },
   },

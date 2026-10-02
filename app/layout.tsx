@@ -2,8 +2,8 @@ import './globals.css'
 import { ToastHost } from '@/lib/shared'
 
 export const metadata = {
-  title: 'MakeItMeme',
-  description: 'Des jeux entre potes : légendes de memes, imposteur, qui de nous ?',
+  title: 'MakeItMeme — Le quotidien des jeux entre potes',
+  description: 'Des jeux entre potes : légendes de memes, imposteur, qui de nous ? Édition du soir.',
 }
 
 // Emojis qui montent doucement derrière le contenu (décor discret)
@@ -29,16 +29,13 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Bevan&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800;900&family=UnifrakturCook:wght@700&family=Old+Standard+TT:ital,wght@0,400;0,700;1,400&family=Courier+Prime:wght@400;700&display=swap"
           rel="stylesheet"
         />
       </head>
       <body>
         {/* Fond animé décoratif, derrière tout le contenu */}
         <div className="bg-blobs" aria-hidden="true">
-          <span className="blob blob-1" />
-          <span className="blob blob-2" />
-          <span className="blob blob-3" />
           {FLOATERS.map((f) => (
             <span
               key={`${f.left}`}

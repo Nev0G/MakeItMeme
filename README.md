@@ -1,36 +1,33 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MakeItMeme
 
-## Getting Started
+Des jeux entre potes, jouables dans le navigateur, avec un habillage « vieux journal new-yorkais ».
 
-First, run the development server:
+- `/` : la page d'accueil (la « une »), avec les salons ouverts, l'horoscope du jour et la saisie d'un code
+- `/caption-battle` : légende les memes de tes potes, puis votez
+- `/imposteur` : un mot pour tous sauf un imposteur
+- `/qui-de-nous` : « qui est le plus susceptible de… ? »
+
+Chaque jeu a des salons **fermés** (code) ou **ouverts** (listés sur l'accueil), un chat écrit, et le host peut expulser un joueur.
+La connexion Discord est optionnelle.
+
+## Lancer en local
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Variables d'environnement (sinon un projet Supabase de démo est utilisé) :
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Supabase sert au temps réel (broadcast + présence), à la connexion Discord (Authentication > Providers) et,
+pour Caption Battle, au stockage des fichiers (bucket public `game-media`).
 
-## Learn More
+## Où est quoi
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `lib/shared.tsx` : briques communes aux jeux (connexion Supabase, sons, avatars, chat, annuaire des salons, « une » de fin de partie)
+- `lib/press.ts` : contenus de presse (date, météo, horoscope, gros titres)
+- `tailwind.config.js` : palette « papier/encre » (les échelles de couleurs de Tailwind y sont inversées)
+- `app/globals.css` : papier, trame, filets, lettrine, tampon

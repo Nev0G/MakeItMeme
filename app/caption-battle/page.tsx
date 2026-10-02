@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { captionFront } from '@/lib/press';
 import {
   Play, Image as ImageIcon, Video, Music, Send, Trophy, Users, Loader2,
   Crown, ThumbsUp, SkipForward, Settings, Copy, LogOut, Check, Download,
@@ -15,7 +16,7 @@ import {
   AVATAR_EMOJIS, randomAvatar, PlayerDot, playingMedia, setSfxSuspended, playSfx, SoundToggle,
   GamesRail as SharedGamesRail, Waiting, ToggleRow, CountdownBadge, makeSessionStore, MAX_NAME_LEN,
   useSoundAndClickFx, useDiscordAuth, AccountButton, AvatarPicker, AvatarGlyph, isImageAvatar,
-  useRoomDirectory, VisibilityPicker, RoomOptions, useRoomExtras, ChatWidget, KickButton, toast,
+  FrontPage, useRoomDirectory, VisibilityPicker, RoomOptions, useRoomExtras, ChatWidget, KickButton, toast,
 } from '@/lib/shared';
 
 const { read: readSession, write: writeSession, clear: clearSession } = makeSessionStore('caption-battle-session');
@@ -390,7 +391,7 @@ const DownloadButton = ({ onClick, className = '' }) => (
   <button
     onClick={onClick}
     title="Télécharger le média"
-    className={`bg-black/60 hover:bg-black/80 text-white p-2 rounded-lg transition ${className}`}
+    className={`bg-black/60 hover:bg-black/80 text-[#f1e7c9] p-2 rounded-lg transition ${className}`}
   >
     <Download size={16} />
   </button>
@@ -424,7 +425,7 @@ const captionSizeSmall = (text) => {
 
 const CaptionText = ({ text, size = 'large', className = '' }) => (
   <p
-    className={`font-heading font-extrabold text-white text-center leading-tight break-words [overflow-wrap:anywhere] [text-shadow:0_2px_14px_rgba(168,85,247,0.45)] ${
+    className={`font-heading font-extrabold text-white text-center leading-tight break-words [overflow-wrap:anywhere] [text-shadow:1px_1px_0_rgba(26,20,11,0.18)] ${
       size === 'large' ? captionSizeLarge(text) : captionSizeSmall(text)
     } ${className}`}
   >
@@ -1907,7 +1908,7 @@ export default function CaptionBattle() {
         playerCount={players.length}
       />
       {videoComposeProgress !== null && (
-        <div className="fixed inset-0 z-[999] bg-black/80 flex flex-col items-center justify-center gap-4 p-4">
+        <div className="fixed inset-0 z-[999] bg-black/80 text-[#f1e7c9] flex flex-col items-center justify-center gap-4 p-4">
           <Loader2 size={40} className="text-purple-400 animate-spin" />
           <p className="font-bold">Génération de la vidéo avec la légende incrustée...</p>
           <div className="w-64 h-2 bg-gray-800 rounded-full overflow-hidden">
@@ -1943,13 +1944,11 @@ export default function CaptionBattle() {
       <div className="min-h-screen md:h-[100dvh] md:overflow-hidden bg-gray-950/95 text-white relative z-10 flex flex-col items-center justify-center p-4 pt-16 md:pt-4 md:pl-24">
         <VersionBadge />
         <GamesRail />
-        <h1
-          className="font-heading text-6xl sm:text-7xl font-extrabold mb-2 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 bg-clip-text text-transparent animate-bob drop-shadow-sm"
-          style={{ '--bob-rot': '-2deg' }}
-        >
-          CAPTION BATTLE
-        </h1>
-        <p className="text-gray-400 mb-8 font-medium">Le jeu où tes potes ruinent tes images (et vidéos/audios).</p>
+        <div className="text-center mb-2">
+          <p className="eyebrow">✦ Concours de légendes ✦</p>
+          <h1 className="font-heading text-5xl sm:text-7xl leading-none mt-2 ink-in">CAPTION BATTLE</h1>
+        </div>
+        <p className="text-gray-500 mb-8 italic text-center">Le jeu où tes potes ruinent tes images (et vidéos/audios).</p>
 
         <div className="relative bg-gray-900 p-8 rounded-2xl w-full max-w-md shadow-2xl border border-gray-800">
           <SoundToggle on={soundOn} onToggle={toggleSound} className="absolute top-3 right-3" />
@@ -2637,10 +2636,19 @@ export default function CaptionBattle() {
   const finalRanking = [...players].sort((a, b) => (cumulativeScores[b.id] || 0) - (cumulativeScores[a.id] || 0));
   const podium = [finalRanking[1], finalRanking[0], finalRanking[2]]; // 2e, 1er, 3e — ordre visuel du podium
 
+  const topPoints = cumulativeScores[finalRanking[0]?.id] || 0;
+  const leaders = finalRanking.filter((p) => topPoints > 0 && (cumulativeScores[p.id] || 0) === topPoints);
+  const front = captionFront({
+    leaderNames: leaders.map((p) => p.name),
+    points: topPoints,
+    bestCaption: bestCaptionOfGame?.text,
+    seed: `${room?.code || 'caption'}-${medias.length}-${topPoints}`,
+  });
+
   return renderAppShell(
     <div className="flex flex-col items-center text-center flex-1 justify-center py-4">
-      <Trophy size={56} className="text-yellow-400 mb-3 animate-bounce" />
-      <h2 className="font-heading text-4xl font-bold mb-8">Classement final !</h2>
+      <FrontPage front={front} avatar={leaders[0]?.avatar} photoCaption="Notre gagnant, photographié à la sortie du jury." />
+      <p className="eyebrow mb-4">Classement final</p>
 
       {finalRanking.length > 0 && (
         <div className="flex items-end justify-center gap-3 sm:gap-5 mb-8 w-full max-w-lg">

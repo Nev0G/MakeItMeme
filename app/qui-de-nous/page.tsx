@@ -9,9 +9,10 @@ import {
   GamesRail as SharedGamesRail, ToggleRow, CountdownBadge, makeSessionStore, MAX_NAME_LEN, readIdentity,
   writeIdentity, useSoundAndClickFx, useDiscordAuth, AccountButton, AvatarPicker, AvatarGlyph, isImageAvatar,
   useRefState,
-  useRoomDirectory, VisibilityPicker, RoomOptions, useRoomExtras, ChatWidget, KickButton, toast,
+  FrontPage, useRoomDirectory, VisibilityPicker, RoomOptions, useRoomExtras, ChatWidget, KickButton, toast,
 } from '@/lib/shared';
 import { pickQuestions } from '@/lib/quidenous-questions';
+import { quiDeNousFront } from '@/lib/press';
 
 const APP_VERSION = 'qui de nous v2';
 const GAME_ID = 'qui-de-nous';
@@ -600,13 +601,11 @@ export default function QuiDeNous() {
         <div className="min-h-screen md:h-[100dvh] md:overflow-hidden bg-gray-950/90 text-white relative z-10 flex flex-col items-center justify-center p-4 pt-16 md:pt-4 md:pl-24">
           <VersionBadge />
           <GamesRail />
-          <h1
-            className="font-heading text-6xl sm:text-7xl mb-2 bg-gradient-to-r from-teal-300 via-emerald-300 to-lime-300 bg-clip-text text-transparent animate-bob drop-shadow-sm"
-            style={{ '--bob-rot': '-1.5deg' } as React.CSSProperties}
-          >
-            QUI DE NOUS ?
-          </h1>
-          <p className="text-gray-400 mb-8 font-medium">Qui est le plus susceptible de… ? Tout le monde désigne, ça va piquer.</p>
+          <div className="text-center mb-2">
+            <p className="eyebrow">✦ Sondage ✦</p>
+            <h1 className="font-heading text-5xl sm:text-7xl leading-none mt-2 ink-in">QUI DE NOUS ?</h1>
+          </div>
+          <p className="text-gray-500 mb-8 italic text-center">Qui est le plus susceptible de… ? Tout le monde désigne, ça va piquer.</p>
 
           <div className="relative bg-gray-900 p-8 rounded-2xl w-full max-w-md shadow-2xl border border-gray-800">
             <SoundToggle on={soundOn} onToggle={toggleSound} className="absolute top-3 right-3" />
@@ -880,11 +879,21 @@ export default function QuiDeNous() {
     return { q, top, winners };
   });
 
+  const topVotes = ranking[0]?.n || 0;
+  const topIds = ranking.filter((r) => r.n === topVotes && topVotes > 0).map((r) => r.id);
+  const worst = recap.filter((r) => r.winners.some((w) => topIds.includes(w))).sort((a, b) => b.top - a.top)[0];
+  const front = quiDeNousFront({
+    topNames: topIds.map(nameOf),
+    topVotes,
+    rounds: totalRounds,
+    worstQuestion: worst?.q,
+    seed: game.gameId || 'qui-de-nous',
+  });
+
   return renderAppShell(
     <div className="flex flex-col items-center text-center max-w-2xl w-full mx-auto py-2">
-      <Trophy size={52} className="text-yellow-400 mb-2 animate-bounce" />
-      <h2 className="font-heading text-4xl mb-1">Bilan de la partie</h2>
-      <p className="text-gray-400 mb-6">Le classement des plus désignés.</p>
+      <FrontPage front={front} avatar={avatarOf(topIds[0])} photoCaption="Notre plus désigné, photographié ce soir." />
+      <p className="eyebrow mb-3">Le classement des plus désignés</p>
 
       <div className="w-full space-y-2 mb-8">
         {ranking.map((r, i) => (

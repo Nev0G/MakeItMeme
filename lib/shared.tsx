@@ -4,7 +4,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { Loader2, Volume2, VolumeX, LogIn, LogOut, MessageCircle, Send, X, Globe, Lock, Users } from 'lucide-react';
+import { Loader2, Volume2, VolumeX, LogIn, LogOut, MessageCircle, Send, X, Globe, Lock, Users, Copy, Check } from 'lucide-react';
+import { dateline } from '@/lib/press';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://hidtcsztkjpqngwlrzqy.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_CREIog57Ep_e7sUZ0rx-VA_8ooqaGTJ';
@@ -275,7 +276,7 @@ const GamesRail = ({ currentId }) => (
             )}
             <span
               role="tooltip"
-              className="hidden md:block pointer-events-none absolute left-full ml-4 top-1/2 -translate-y-1/2 whitespace-nowrap rounded-lg bg-black border border-purple-500/30 px-3 py-1.5 text-xs font-bold text-white opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-xl"
+              className="hidden md:block pointer-events-none absolute left-full ml-4 top-1/2 -translate-y-1/2 whitespace-nowrap rounded-lg bg-[#1a140b] border border-[#1a140b] px-3 py-1.5 text-xs font-bold text-[#f1e7c9] opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-xl"
             >
               {g.name}
             </span>
@@ -570,7 +571,7 @@ const AccountButton = ({ auth, className = 'mb-4' }) => {
       <button
         type="button"
         onClick={async () => setError(await auth.signIn())}
-        className="w-full flex items-center justify-center gap-2 bg-[#5865F2] hover:bg-[#4752c4] text-white font-bold py-2.5 rounded-lg transition active:scale-95"
+        className="w-full flex items-center justify-center gap-2 bg-[#5865F2] hover:bg-[#4752c4] text-[#f8f1db] font-bold py-2.5 rounded-lg transition active:scale-95"
       >
         <LogIn size={16} /> Se connecter avec Discord
       </button>
@@ -938,6 +939,63 @@ const ChatWidget = ({ extras, me, enabled }) => {
   );
 };
 
+// "Une" du journal affichée à la fin d'une partie : gros titre, photo, article
+const FrontPage = ({ front, avatar, avatarId, photoCaption, children }) => {
+  const [date] = useState(() => dateline());
+  const [edition, setEdition] = useState(1);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    bumpEdition();
+    setEdition(readEdition());
+  }, []);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(`${front.headline}\n${front.sub}\n— MakeItMeme, New York, ${date}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // clipboard indisponible
+    }
+  };
+  return (
+    <article className="paper animate-fadein w-full text-left px-5 sm:px-8 pt-4 pb-6 mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 text-[10px] uppercase tracking-[0.18em] font-bold border-b border-white/70 pb-1.5">
+        <span>N° {edition}</span>
+        <span>New York · {date}</span>
+        <span>1 $</span>
+      </div>
+      <p className="font-masthead text-3xl sm:text-4xl text-center leading-none mt-3">
+        <span className="twinkle text-base mr-2">✦</span>MakeItMeme<span className="twinkle text-base ml-2" style={{ animationDelay: '1.2s' }}>✦</span>
+      </p>
+      <div className="rule-double mt-3" />
+      <p className="eyebrow text-center mt-3">{front.kicker}</p>
+      <h2 className="font-heading text-3xl sm:text-5xl leading-[0.98] text-center mt-1 ink-in">{front.headline}</h2>
+      <p className="italic text-center text-gray-500 mt-2 text-base sm:text-lg">{front.sub}</p>
+      <div className="grid gap-5 sm:grid-cols-[11rem_1fr] mt-5 items-start">
+        <div className="group">
+          <div className="print-photo h-40 flex items-center justify-center border border-white/80 text-6xl">
+            <span className="print-subject w-full h-full flex items-center justify-center">
+              <AvatarGlyph avatar={avatar} fallback="🗞️" />
+            </span>
+          </div>
+          {photoCaption && <p className="text-[11px] italic text-gray-500 mt-1">{photoCaption}</p>}
+        </div>
+        <div>
+          <p className="dropcap text-[15px] leading-snug text-justify hyphens-auto" lang="fr">{front.story}</p>
+          {children}
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={copy}
+        className="tag-dark mt-5 mx-auto px-4 py-2 flex items-center gap-2 active:scale-95"
+      >
+        {copied ? <Check size={13} /> : <Copy size={13} />} {copied ? 'Titre copié' : 'Copier la une'}
+      </button>
+    </article>
+  );
+};
+
 // Petit bouton "expulser" pour la liste des joueurs (visible par le host uniquement)
 const KickButton = ({ onClick }) => (
   <button
@@ -950,7 +1008,26 @@ const KickButton = ({ onClick }) => (
   </button>
 );
 
+// Numéro d'édition du journal : +1 à chaque partie terminée sur cet appareil
+const EDITION_KEY = 'makeitmeme-edition';
+const readEdition = () => {
+  try {
+    return Math.max(0, parseInt(localStorage.getItem(EDITION_KEY) || '0', 10) || 0);
+  } catch {
+    return 0;
+  }
+};
+const bumpEdition = () => {
+  try {
+    localStorage.setItem(EDITION_KEY, String(readEdition() + 1));
+  } catch {
+    // stockage indisponible
+  }
+};
+
 export {
+  readEdition,
+  bumpEdition,
   toast,
   ToastHost,
   ROOM_NAME_MAX,
@@ -961,6 +1038,7 @@ export {
   useRoomExtras,
   ChatWidget,
   KickButton,
+  FrontPage,
   useRefState,
   useDiscordAuth,
   AccountButton,
