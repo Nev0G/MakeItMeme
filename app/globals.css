@@ -496,3 +496,16 @@ input:focus, select:focus, textarea:focus {
 @media (prefers-reduced-motion: reduce) {
   .bomb-calm, .bomb-panic, .animate-nope { animation: none !important; }
 }
+
+/* Mon tour de jouer : cadre qui pulse pour qu'on ne le rate pas */
+@keyframes my-turn-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(217, 248, 145, 0.7), 0 0 24px rgba(217, 248, 145, 0.25); }
+  50% { box-shadow: 0 0 0 3px rgba(217, 248, 145, 1), 0 0 48px rgba(217, 248, 145, 0.5); }
+}
+.my-turn-glow {
+  border: 2px solid var(--lime);
+  animation: my-turn-pulse 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .my-turn-glow { animation: none; }
+}

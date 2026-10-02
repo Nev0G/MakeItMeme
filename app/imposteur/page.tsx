@@ -35,7 +35,7 @@ const DEFAULT_SETTINGS = {
   blind: true, // l'imposteur ne sait pas qu'il est l'imposteur (il croit être civil)
   words: 3, // nombre de mots (donc de parties) par manche
   impostorCount: 1,
-  clueSeconds: 30,
+  clueSeconds: 60,
   voteSeconds: 45,
   maxRounds: 3,
   lastChance: true,
@@ -173,8 +173,11 @@ export default function Imposteur() {
     setClues((prev) =>
       prev.some((c) => c.round === clue.round && c.player_id === clue.player_id) ? prev : [...prev, clue]
     );
-  const addVote = (vote) =>
+  const addVote = (vote) => {
+    // Un joueur éliminé à un tour précédent ne peut plus voter
+    if (metaRef.current.eliminated.some((e) => e.id === vote.voter_id && e.round < vote.round)) return;
     setVotes((prev) => [...prev.filter((v) => !(v.voter_id === vote.voter_id && v.round === vote.round)), vote]);
+  };
   const addReady = (id) => setReadyIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
 
   const applyGameStart = (payload) => {
@@ -1150,7 +1153,7 @@ export default function Imposteur() {
                 onChange={(e) => updateSettings({ clueSeconds: Number(e.target.value) })}
                 className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 font-bold disabled:opacity-60"
               >
-                {[15, 20, 30, 45, 60].map((n) => (
+                {[30, 45, 60, 90, 120].map((n) => (
                   <option key={n} value={n}>{n}s</option>
                 ))}
               </select>
@@ -1291,7 +1294,12 @@ export default function Imposteur() {
             🎯 {nameOf(failedGuess.id)} avait tenté « {failedGuess.text || '…'} » : raté ! La partie continue.
           </div>
         )}
-        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-center shadow-xl">
+        <div className={`rounded-2xl p-6 text-center shadow-xl ${isMyTurn && iAmAlive ? 'my-turn-glow bg-gray-900 sm:p-8' : 'bg-gray-900 border border-gray-800'}`}>
+          {isMyTurn && iAmAlive && (
+            <p className="inline-block mb-3 rounded-full bg-purple-300 text-gray-950 px-4 py-1 text-xs font-extrabold uppercase tracking-widest animate-pulse">
+              ✍️ À toi de jouer
+            </p>
+          )}
           <div className="flex items-center justify-between gap-3 mb-4">
             <p className="text-gray-400 text-sm text-left">Tour {meta.round + 1}/{settings.maxRounds}</p>
             <CountdownBadge seconds={secs} />
@@ -1300,7 +1308,7 @@ export default function Imposteur() {
             <>
               <p className="text-3xl mb-1 w-12 h-12 mx-auto flex items-center justify-center"><AvatarGlyph avatar={avatarOf(speakerId)} fallback="" /></p>
               <h2 className="font-heading text-2xl font-bold mb-4">
-                {isMyTurn ? "C'est à toi !" : `Au tour de ${nameOf(speakerId)}`}
+                {isMyTurn ? <span className="text-3xl sm:text-4xl text-purple-300">C'est à toi de donner ton indice !</span> : `Au tour de ${nameOf(speakerId)}`}
               </h2>
             </>
           ) : null}
@@ -1317,13 +1325,13 @@ export default function Imposteur() {
                   setClueError('');
                 }}
                 onKeyDown={(e) => e.key === 'Enter' && submitClue()}
-                className="flex-1 min-w-0 p-3 bg-gray-950 border border-gray-700 rounded-lg font-bold focus:border-orange-500 focus:outline-none"
+                className="flex-1 min-w-0 p-4 text-lg sm:text-xl bg-gray-950 border-2 border-purple-300/60 rounded-xl font-bold focus:outline-none"
               />
               <button
                 onClick={submitClue}
                 disabled={!myClue.trim()}
                 data-sfx="off"
-                className="bg-orange-600 hover:bg-orange-500 disabled:opacity-50 px-5 rounded-lg font-bold flex items-center gap-2 active:scale-95 transition"
+                className="bg-purple-300 hover:bg-purple-200 !text-gray-950 disabled:opacity-50 px-6 rounded-xl font-bold flex items-center gap-2 active:scale-95 transition"
               >
                 <Send size={16} /> Envoyer
               </button>
@@ -1351,7 +1359,7 @@ export default function Imposteur() {
             <CountdownBadge seconds={secs} />
           </div>
           <p className="text-gray-500 text-sm mb-4 text-left">
-            {iAmAlive ? 'Discutez, puis désigne le joueur le plus suspect.' : 'Tu ne votes pas : regarde la discussion.'}
+            {iAmAlive ? 'Discutez, puis désigne le joueur le plus suspect.' : myRole ? '💀 Tu es éliminé : tu ne peux plus voter, regarde la discussion.' : 'Tu ne votes pas : regarde la discussion.'}
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {aliveParticipants.map((p) => {
