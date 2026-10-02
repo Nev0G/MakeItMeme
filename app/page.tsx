@@ -5,6 +5,7 @@ import { ArrowRight, Users, Clock, Sparkles } from 'lucide-react';
 import {
   SoundToggle, useSoundAndClickFx, useDiscordAuth, AccountButton, useDirectoryListing, PlayerDot, readIdentity, readEdition,
 } from '@/lib/shared';
+import { GameArt } from '@/lib/art';
 import { dateline, weatherOf, SIGNS, horoscope, signFromName } from '@/lib/press';
 
 const LAST_GAME_KEY = 'makeitmeme-last-game';
@@ -29,6 +30,16 @@ const HOME_GAMES = [
     emoji: '🕵️',
     text: 'Un mot pour tous, sauf pour un. À chaque tour, un indice : qui bluffe ? Notre rédaction a mené l’enquête, personne n’est au-dessus de tout soupçon.',
     players: '3 à 12 joueurs',
+    duration: '10 min',
+  },
+  {
+    id: 'bomb-party',
+    href: '/bomb-party',
+    kicker: 'Course contre la montre',
+    name: 'Bomb Party',
+    emoji: '💣',
+    text: 'Une syllabe, une bombe, quelques secondes : trouve un mot qui la contient avant que tout explose. Le dernier survivant remporte l’édition.',
+    players: '2 à 12 joueurs',
     duration: '10 min',
   },
   {
@@ -108,7 +119,7 @@ export default function Home() {
 
   return (
     <div className="relative z-10 min-h-screen px-3 sm:px-6 py-4 md:py-6 md:overflow-y-auto md:h-[100dvh] text-white">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-[92rem] mx-auto">
         {/* Ligne de date */}
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-y border-white/70 py-1.5 text-[11px] uppercase tracking-[0.18em] font-bold">
           <span>Vol. I · N° {paper.edition}</span>
@@ -154,12 +165,12 @@ export default function Home() {
             À quel jeu joue-t-on ce soir&nbsp;?
           </h2>
           <p className="italic text-gray-500 mt-3 text-base sm:text-lg">
-            Trois jeux, zéro excuse. Crée un salon, invite la bande, et que le meilleur gagne.
+            Quatre jeux, zéro excuse. Crée un salon, invite la bande, et que le meilleur gagne.
           </p>
         </section>
 
         {/* Les jeux, en colonnes */}
-        <section className="grid gap-0 md:grid-cols-3 border-y-[3px] border-double border-white/80">
+        <section className="grid gap-0 sm:grid-cols-2 xl:grid-cols-4 border-y-[3px] border-double border-white/80">
           {HOME_GAMES.map((g, i) => {
             const isLast = lastGame === g.id;
             return (
@@ -167,17 +178,15 @@ export default function Home() {
                 key={g.id}
                 href={g.href}
                 onClick={() => rememberGame(g.id)}
-                className={`group deco-card relative block px-5 py-6 transition-colors hover:bg-purple-900/40 ${i > 0 ? 'md:col-rule border-t md:border-t-0 border-white/40' : ''} ${isLast ? 'bg-purple-900/70' : ''}`}
+                className={`group deco-card relative block px-5 py-6 transition-colors hover:bg-purple-900/40 ${i > 0 ? 'xl:col-rule' : ''} ${i % 2 === 1 ? 'sm:col-rule xl:col-rule' : ''} ${i > 0 ? 'border-t xl:border-t-0 border-white/40' : ''} ${i === 1 ? 'sm:border-t-0' : ''} ${isLast ? 'bg-purple-900/70' : ''}`}
               >
                 {isLast && (
                   <span className="stamp absolute right-4 top-3 z-10 text-xs sm:text-sm">Ton dernier jeu</span>
                 )}
                 <p className="eyebrow">{g.kicker}</p>
                 <h3 className="font-heading text-3xl mt-1 leading-tight">{g.name}</h3>
-                <div className="print-photo mt-3 h-40 flex items-center justify-center border border-white/80">
-                  <span className="print-subject text-7xl transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-6">
-                    {g.emoji}
-                  </span>
+                <div className="print-photo mt-3 h-44 flex items-center justify-center border border-white/80">
+                  <GameArt id={g.id} title={g.name} className="print-subject h-full w-full p-2 transition-transform duration-500 group-hover:scale-110" />
                 </div>
                 <p className="text-[11px] italic text-gray-500 mt-1">Cliché : la rédaction, en plein jeu</p>
                 <p className="dropcap text-[15px] leading-snug mt-3 text-justify hyphens-auto" lang="fr">{g.text}</p>
@@ -194,15 +203,15 @@ export default function Home() {
         </section>
 
         {/* Petites annonces + horoscope / code */}
-        <section className="grid gap-8 md:grid-cols-3 mt-8">
-          <div className="md:col-span-2">
+        <section className="grid gap-8 lg:grid-cols-[2fr_1fr] mt-8">
+          <div>
             <div className="flex flex-wrap items-end justify-between gap-3 border-b-2 border-white pb-2">
               <div>
                 <p className="eyebrow">En direct · salons ouverts</p>
                 <h3 className="font-heading text-3xl leading-none mt-1">Petites annonces</h3>
               </div>
               <div className="flex flex-wrap gap-1.5">
-                {[{ id: 'all', label: 'Tous' }, ...HOME_GAMES.map((g) => ({ id: g.id, label: `${g.emoji} ${g.name}` }))].map((f) => (
+                {[{ id: 'all', label: 'Tous' }, ...HOME_GAMES.map((g) => ({ id: g.id, label: g.name }))].map((f) => (
                   <button
                     key={f.id}
                     type="button"
@@ -231,7 +240,7 @@ export default function Home() {
                   if (!game) return null;
                   return (
                     <li key={`${r.game}-${r.code}`} className="animate-fadein flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
-                      <span className="text-2xl shrink-0" style={{ filter: 'grayscale(0.6) sepia(0.3)' }}>{game.emoji}</span>
+                      <GameArt id={game.id} className="w-14 h-10 shrink-0" />
                       <div className="min-w-0 flex-1 basis-48">
                         <p className="font-heading text-lg leading-tight truncate">{r.name}</p>
                         <p className="text-xs italic text-gray-500 flex items-center gap-1.5">
@@ -276,7 +285,7 @@ export default function Home() {
               <p className="font-heading text-[17px] leading-snug mt-3 italic">« {fortune.text} »</p>
               {advised && (
                 <a href={advised.href} onClick={() => rememberGame(advised.id)} className="inline-flex items-center gap-1.5 mt-3 text-sm font-bold underline decoration-dotted underline-offset-4 hover:text-purple-300">
-                  Jeu conseillé : {advised.emoji} {advised.name} <ArrowRight size={13} />
+                  Jeu conseillé : {advised.name} <ArrowRight size={13} />
                 </a>
               )}
             </div>
@@ -291,7 +300,7 @@ export default function Home() {
                 className="w-full bg-gray-950 border border-white/60 p-2 font-bold mt-3 mb-2"
               >
                 {HOME_GAMES.map((g) => (
-                  <option key={g.id} value={g.id}>{g.emoji} {g.name}</option>
+                  <option key={g.id} value={g.id}>{g.name}</option>
                 ))}
               </select>
               <div className="flex gap-2">

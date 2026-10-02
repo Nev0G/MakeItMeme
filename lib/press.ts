@@ -133,4 +133,21 @@ const captionFront = ({ leaderNames, points, bestCaption, seed }) => {
   };
 };
 
-export { imposteurFront, quiDeNousFront, captionFront };
+const bombFront = ({ winnerName, rounds, seed }) => {
+  if (!winnerName) {
+    return {
+      kicker: 'Course contre la montre',
+      headline: 'PERSONNE NE SORT INDEMNE DE LA SALLE',
+      sub: 'La bombe a tout emporté, sans survivant.',
+      story: 'Les démineurs sont formels : personne n’a trouvé le bon mot à temps. La rédaction présente ses condoléances au dictionnaire.',
+    };
+  }
+  return {
+    kicker: 'Course contre la montre',
+    headline: pickFrom([`${upper(winnerName)} DÉSAMORCE LA BOMBE`, `SEUL SURVIVANT : ${upper(winnerName)}`, `${upper(winnerName)} A LE DERNIER MOT`], seed),
+    sub: `${rounds} syllabe${rounds > 1 ? 's' : ''} ont été jouées avant le dénouement.`,
+    story: `Sorti(e) indemne des décombres, ${winnerName} a simplement déclaré : « J’avais un mot sur le bout de la langue. » Les autorités enquêtent.`,
+  };
+};
+
+export { imposteurFront, quiDeNousFront, captionFront, bombFront };

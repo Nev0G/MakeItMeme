@@ -1889,7 +1889,7 @@ export default function CaptionBattle() {
   // Fonction ordinaire (pas un composant <Tag>) — voir la note plus haut sur le
   // bug de remontage : la même règle s'applique ici.
   const renderAppShell = (mainContent) => (
-    <div className="min-h-screen md:h-[100dvh] md:overflow-hidden bg-gray-950/95 text-white relative z-10 flex justify-center p-4 pt-16 md:pt-4 md:pl-24">
+    <div className="min-h-screen md:h-[100dvh] md:overflow-hidden bg-gray-950/95 text-white relative z-10 flex justify-center p-4 pt-16 md:pt-4 md:pl-28">
       <VersionBadge />
       <GamesRail />
       <ChatWidget extras={extras} me={player} enabled={settings.chatEnabled !== false} />
@@ -1941,7 +1941,7 @@ export default function CaptionBattle() {
   if (gameState === 'home') {
     return (
       <>
-      <div className="min-h-screen md:h-[100dvh] md:overflow-hidden bg-gray-950/95 text-white relative z-10 flex flex-col items-center justify-center p-4 pt-16 md:pt-4 md:pl-24">
+      <div className="min-h-screen md:h-[100dvh] md:overflow-hidden bg-gray-950/95 text-white relative z-10 flex flex-col items-center justify-center p-4 pt-16 md:pt-4 md:pl-28">
         <VersionBadge />
         <GamesRail />
         <div className="text-center mb-2">
@@ -1950,7 +1950,7 @@ export default function CaptionBattle() {
         </div>
         <p className="text-gray-500 mb-8 italic text-center">Le jeu où tes potes ruinent tes images (et vidéos/audios).</p>
 
-        <div className="relative bg-gray-900 p-8 rounded-2xl w-full max-w-md shadow-2xl border border-gray-800">
+        <div className="relative bg-gray-900 p-8 sm:p-10 rounded-2xl w-full max-w-xl shadow-2xl border border-gray-800">
           <SoundToggle on={soundOn} onToggle={toggleSound} className="absolute top-3 right-3" />
           <AccountButton auth={auth} />
           <div className="flex justify-center mb-4">
@@ -2032,7 +2032,7 @@ export default function CaptionBattle() {
       maxFileMB: [10, 25, 50],
     };
     return renderAppShell(
-      <div className="bg-gray-900 p-8 rounded-2xl w-full max-w-lg mx-auto shadow-2xl border border-gray-800 text-center">
+      <div className="bg-gray-900 p-8 rounded-2xl w-full max-w-3xl mx-auto shadow-2xl border border-gray-800 text-center">
         <h2 className="font-heading text-2xl font-bold mb-2">Code de la Room</h2>
         <div className="relative mb-8">
           <div className="text-6xl font-black font-mono tracking-widest text-purple-400 bg-gray-950 py-4 rounded-xl border border-gray-800">

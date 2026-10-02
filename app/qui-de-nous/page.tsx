@@ -555,7 +555,7 @@ export default function QuiDeNous() {
 
   // Fonction ordinaire (pas un composant <Tag>) : évite le remontage à chaque rendu.
   const renderAppShell = (mainContent) => (
-    <div className="min-h-screen md:h-[100dvh] md:overflow-hidden bg-gray-950/90 text-white relative z-10 flex justify-center p-4 pt-16 md:pt-4 md:pl-24">
+    <div className="min-h-screen md:h-[100dvh] md:overflow-hidden bg-gray-950/90 text-white relative z-10 flex justify-center p-4 pt-16 md:pt-4 md:pl-28">
       <VersionBadge />
       <GamesRail />
       <ChatWidget extras={extras} me={player} enabled={settings.chatEnabled !== false} />
@@ -598,7 +598,7 @@ export default function QuiDeNous() {
   if (phase === 'home') {
     return (
       <>
-        <div className="min-h-screen md:h-[100dvh] md:overflow-hidden bg-gray-950/90 text-white relative z-10 flex flex-col items-center justify-center p-4 pt-16 md:pt-4 md:pl-24">
+        <div className="min-h-screen md:h-[100dvh] md:overflow-hidden bg-gray-950/90 text-white relative z-10 flex flex-col items-center justify-center p-4 pt-16 md:pt-4 md:pl-28">
           <VersionBadge />
           <GamesRail />
           <div className="text-center mb-2">
@@ -607,7 +607,7 @@ export default function QuiDeNous() {
           </div>
           <p className="text-gray-500 mb-8 italic text-center">Qui est le plus susceptible de… ? Tout le monde désigne, ça va piquer.</p>
 
-          <div className="relative bg-gray-900 p-8 rounded-2xl w-full max-w-md shadow-2xl border border-gray-800">
+          <div className="relative bg-gray-900 p-8 sm:p-10 rounded-2xl w-full max-w-xl shadow-2xl border border-gray-800">
             <SoundToggle on={soundOn} onToggle={toggleSound} className="absolute top-3 right-3" />
             <AccountButton auth={auth} />
             <div className="flex justify-center mb-4">
@@ -675,7 +675,7 @@ export default function QuiDeNous() {
 
   if (phase === 'lobby') {
     return renderAppShell(
-      <div className="bg-gray-900 p-8 rounded-2xl w-full max-w-lg mx-auto shadow-2xl border border-gray-800 text-center">
+      <div className="bg-gray-900 p-8 rounded-2xl w-full max-w-3xl mx-auto shadow-2xl border border-gray-800 text-center">
         <h2 className="font-heading text-2xl mb-2">Code de la Room</h2>
         <div className="relative mb-8">
           <div className="text-6xl font-black font-mono tracking-widest text-teal-400 bg-gray-950 py-4 rounded-xl border border-gray-800">
@@ -765,7 +765,7 @@ export default function QuiDeNous() {
   if (phase === 'vote') {
     const secs = secondsLeftFor(settings.voteSeconds);
     return renderAppShell(
-      <div className="max-w-2xl w-full mx-auto">
+      <div className="max-w-4xl w-full mx-auto">
         {renderQuestionCard()}
         <div className="flex items-center justify-between gap-3 mb-3">
           <p className="text-gray-400 text-sm">{myVote ? 'Vote enregistré — tu peux encore changer d’avis.' : 'Désigne un joueur :'}</p>
@@ -811,7 +811,7 @@ export default function QuiDeNous() {
     const hasVotes = max > 0;
     const isLast = meta.round + 1 >= totalRounds;
     return renderAppShell(
-      <div className="max-w-2xl w-full mx-auto">
+      <div className="max-w-4xl w-full mx-auto">
         {renderQuestionCard()}
         {!hasVotes && <p className="text-center text-gray-500 mb-4">Personne n’a voté sur cette question.</p>}
         <div className="space-y-2 mb-6">
@@ -891,7 +891,7 @@ export default function QuiDeNous() {
   });
 
   return renderAppShell(
-    <div className="flex flex-col items-center text-center max-w-2xl w-full mx-auto py-2">
+    <div className="flex flex-col items-center text-center max-w-4xl w-full mx-auto py-2">
       <FrontPage front={front} avatar={avatarOf(topIds[0])} photoCaption="Notre plus désigné, photographié ce soir." />
       <p className="eyebrow mb-3">Le classement des plus désignés</p>
 

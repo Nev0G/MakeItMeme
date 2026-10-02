@@ -810,7 +810,7 @@ export default function Imposteur() {
   // Fonction ordinaire (pas un composant <Tag>) : un composant défini dans le
   // composant serait remonté à chaque rendu et ferait perdre le focus des champs.
   const renderAppShell = (mainContent) => (
-    <div className="min-h-screen md:h-[100dvh] md:overflow-hidden bg-gray-950/95 text-white relative z-10 flex justify-center p-4 pt-16 md:pt-4 md:pl-24">
+    <div className="min-h-screen md:h-[100dvh] md:overflow-hidden bg-gray-950/95 text-white relative z-10 flex justify-center p-4 pt-16 md:pt-4 md:pl-28">
       <VersionBadge />
       <GamesRail />
       <ChatWidget extras={extras} me={player} enabled={settings.chatEnabled !== false} />
@@ -912,7 +912,7 @@ export default function Imposteur() {
   if (phase === 'home') {
     return (
       <>
-        <div className="min-h-screen md:h-[100dvh] md:overflow-hidden bg-gray-950/95 text-white relative z-10 flex flex-col items-center justify-center p-4 pt-16 md:pt-4 md:pl-24">
+        <div className="min-h-screen md:h-[100dvh] md:overflow-hidden bg-gray-950/95 text-white relative z-10 flex flex-col items-center justify-center p-4 pt-16 md:pt-4 md:pl-28">
           <VersionBadge />
           <GamesRail />
           <div className="text-center mb-2">
@@ -921,7 +921,7 @@ export default function Imposteur() {
           </div>
           <p className="text-gray-500 mb-8 italic text-center">Un mot pour tous… sauf un. Saurez-vous le démasquer ?</p>
 
-          <div className="relative bg-gray-900 p-8 rounded-2xl w-full max-w-md shadow-2xl border border-gray-800">
+          <div className="relative bg-gray-900 p-8 sm:p-10 rounded-2xl w-full max-w-xl shadow-2xl border border-gray-800">
             <SoundToggle on={soundOn} onToggle={toggleSound} className="absolute top-3 right-3" />
             <AccountButton auth={auth} />
             <div className="flex justify-center mb-4">
@@ -995,7 +995,7 @@ export default function Imposteur() {
   if (phase === 'lobby') {
     const effectiveImpostors = Math.max(1, Math.min(settings.impostorCount, Math.floor((players.length - 1) / 2)));
     return renderAppShell(
-      <div className="bg-gray-900 p-8 rounded-2xl w-full max-w-lg mx-auto shadow-2xl border border-gray-800 text-center">
+      <div className="bg-gray-900 p-8 rounded-2xl w-full max-w-3xl mx-auto shadow-2xl border border-gray-800 text-center">
         <h2 className="font-heading text-2xl font-bold mb-2">Code de la Room</h2>
         <div className="relative mb-8">
           <div className="text-6xl font-black font-mono tracking-widest text-orange-400 bg-gray-950 py-4 rounded-xl border border-gray-800">
@@ -1133,7 +1133,7 @@ export default function Imposteur() {
         {!myRole ? (
           <Waiting label="Une partie est en cours" sub="Tu joueras à la prochaine !" />
         ) : (
-          <div className="bg-gray-900 p-8 rounded-2xl w-full max-w-md shadow-2xl border border-gray-800">
+          <div className="bg-gray-900 p-8 rounded-2xl w-full max-w-xl shadow-2xl border border-gray-800">
             <p className="text-gray-400 text-sm mb-1">
               {impostorIds.length} imposteur{impostorIds.length > 1 ? 's' : ''} parmi {participants.length} joueurs
             </p>
@@ -1206,7 +1206,7 @@ export default function Imposteur() {
     const secs = secondsLeftFor(settings.clueSeconds);
     const failedGuess = meta.guess && meta.guess.correct === false && meta.guess.round === meta.round - 1 ? meta.guess : null;
     return renderAppShell(
-      <div className="flex flex-col gap-4 max-w-2xl w-full mx-auto">
+      <div className="flex flex-col gap-4 max-w-4xl w-full mx-auto">
         {renderMyWordChip()}
         {failedGuess && (
           <div className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 text-sm text-gray-300 text-left">
@@ -1265,7 +1265,7 @@ export default function Imposteur() {
   if (phase === 'vote') {
     const secs = secondsLeftFor(settings.voteSeconds);
     return renderAppShell(
-      <div className="flex flex-col gap-4 max-w-2xl w-full mx-auto">
+      <div className="flex flex-col gap-4 max-w-4xl w-full mx-auto">
         {renderMyWordChip()}
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-center shadow-xl">
           <div className="flex items-center justify-between gap-3 mb-2">
@@ -1325,7 +1325,7 @@ export default function Imposteur() {
     const rows = aliveBefore.map((p) => ({ ...p, voters: tally[p.id] || [] })).sort((a, b) => b.voters.length - a.voters.length);
     const wasImp = eliminatedNow && roles[eliminatedNow.id]?.role === 'imposteur';
     return renderAppShell(
-      <div className="flex flex-col items-center text-center max-w-xl w-full mx-auto">
+      <div className="flex flex-col items-center text-center max-w-3xl w-full mx-auto">
         {eliminatedNow ? (
           <div
             className={`w-full rounded-2xl p-6 mb-4 border-2 animate-pop ${
@@ -1436,7 +1436,7 @@ export default function Imposteur() {
   const ranking = [...participants].sort((a, b) => (scores[b.id] || 0) - (scores[a.id] || 0));
 
   return renderAppShell(
-    <div className="flex flex-col items-center text-center max-w-2xl w-full mx-auto py-2">
+    <div className="flex flex-col items-center text-center max-w-4xl w-full mx-auto py-2">
       <FrontPage
         front={imposteurFront({
           winner: meta.winner,

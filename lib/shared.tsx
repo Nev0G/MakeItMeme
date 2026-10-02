@@ -6,6 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { Loader2, Volume2, VolumeX, LogIn, LogOut, MessageCircle, Send, X, Globe, Lock, Users, Copy, Check } from 'lucide-react';
 import { dateline } from '@/lib/press';
+import { GameIcon } from '@/lib/art';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://hidtcsztkjpqngwlrzqy.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_CREIog57Ep_e7sUZ0rx-VA_8ooqaGTJ';
@@ -245,6 +246,7 @@ const GAMES = [
   { id: 'caption-battle', name: 'Caption Battle', emoji: '😂', status: 'live', href: '/caption-battle', gradient: 'from-purple-500 via-pink-500 to-orange-400' },
   { id: 'imposteur', name: 'Imposteur', emoji: '🕵️', status: 'live', href: '/imposteur', gradient: 'from-red-500 via-orange-500 to-yellow-400' },
   { id: 'qui-de-nous', name: 'Qui de nous ?', emoji: '🫵', status: 'live', href: '/qui-de-nous', gradient: 'from-teal-500 via-emerald-500 to-lime-400' },
+  { id: 'bomb-party', name: 'Bomb Party', emoji: '💣', status: 'live', href: '/bomb-party', gradient: 'from-orange-500 via-amber-500 to-yellow-400' },
 ];
 
 const GamesRail = ({ currentId }) => (
@@ -267,11 +269,11 @@ const GamesRail = ({ currentId }) => (
             )}
             {isCurrent ? (
               <button type="button" aria-label={g.name} aria-current="page" className={tileClass}>
-                {g.emoji}
+                <GameIcon id={g.id} className="w-8 h-8" />
               </button>
             ) : (
               <a href={g.href} aria-label={g.name} className={tileClass}>
-                {g.emoji}
+                <GameIcon id={g.id} className="w-8 h-8" />
               </a>
             )}
             <span
@@ -568,17 +570,27 @@ const AccountButton = ({ auth, className = 'mb-4' }) => {
   }
   return (
     <div className={className}>
-      <button
-        type="button"
-        onClick={async () => setError(await auth.signIn())}
-        className="w-full flex items-center justify-center gap-2 bg-[#5865F2] hover:bg-[#4752c4] text-[#f8f1db] font-bold py-2.5 rounded-lg transition active:scale-95"
-      >
-        <LogIn size={16} /> Se connecter avec Discord
+      <button type="button" onClick={async () => setError(await auth.signIn())} className="btn-discord group">
+        <DiscordMark className="w-6 h-6 shrink-0" />
+        <span className="flex flex-col items-start text-left leading-tight min-w-0">
+          <span className="font-bold text-sm">Se connecter avec Discord</span>
+          <span className="text-[10px] font-normal text-gray-400 normal-case">Optionnel · garde ton pseudo et ta photo</span>
+        </span>
+        <LogIn size={15} className="ml-auto shrink-0 text-gray-400 group-hover:text-white transition" />
       </button>
       {error && <p className="text-xs text-red-400 mt-2">Connexion Discord impossible : {error}</p>}
     </div>
   );
 };
+
+// Petit logo façon "Clyde" (manette Discord), dessiné à la main
+const DiscordMark = ({ className = '' }) => (
+  <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+    <path d="M5 6.5C6.6 5.3 8.4 4.6 10.2 4.4l.5 1.1a12 12 0 0 1 2.6 0l.5-1.1c1.8.2 3.6.9 5.2 2.1 1.7 2.7 2.5 5.6 2.3 9.1-1.5 1.1-3.100 1.800-4.800 2.200l-1-1.600c.5-.2 1-.4 1.400-.7-.1-.1-.3-.2-.4-.3a9 9 0 0 1-7.600 0c-.1.100-.3.200-.4.300.4.300.9.500 1.400.700l-1 1.600c-1.700-.4-3.300-1.100-4.800-2.200C2.500 12.100 3.300 9.200 5 6.500Z" fill="#8c95ff" />
+    <ellipse cx="9" cy="12.300" rx="1.600" ry="1.900" fill="#0b1114" />
+    <ellipse cx="15" cy="12.300" rx="1.600" ry="1.900" fill="#0b1114" />
+  </svg>
+);
 
 // État + ref mise à jour en même temps : les listeners du channel (posés une seule
 // fois) et les enchaînements immédiats lisent toujours la valeur la plus fraîche.
