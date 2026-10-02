@@ -10,11 +10,20 @@ const HARD = [
   'kil', 'zon', 'jou', 'vif', 'rag', 'blo', 'dra', 'flo', 'gri', 'pru', 'scr', 'str', 'thé', 'oeu', 'ync', 'quo',
 ];
 
-const pickSyllable = (difficulty: string, avoid: string[] = []) => {
-  const pool = difficulty === 'hard' ? HARD : difficulty === 'mix' ? [...EASY, ...HARD] : EASY;
+// 'progressive' : faciles au début, puis mélangées, puis difficiles quand la partie avance
+const pickSyllable = (difficulty: string, avoid: string[] = [], round = 0) => {
+  const level = difficulty === 'progressive' ? (round < 5 ? 'easy' : round < 11 ? 'mix' : 'hard') : difficulty;
+  const pool = level === 'hard' ? HARD : level === 'mix' ? [...EASY, ...HARD] : EASY;
   const fresh = pool.filter((s) => !avoid.includes(s));
   const list = fresh.length ? fresh : pool;
   return list[Math.floor(Math.random() * list.length)];
 };
 
-export { pickSyllable };
+// Durée de la mèche (en secondes) : aléatoire, et de plus en plus courte au fil des tours
+const fuseSeconds = (base: number, round: number) => {
+  const shrink = Math.max(0.45, 1 - round * 0.03);
+  const random = 0.6 + Math.random() * 0.8; // entre 60 % et 140 % du temps de base
+  return Math.max(3, Math.round(base * shrink * random * 10) / 10);
+};
+
+export { pickSyllable, fuseSeconds };

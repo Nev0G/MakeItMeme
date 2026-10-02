@@ -11,7 +11,7 @@ import {
   useRefState,
   FrontPage, useRoomDirectory, VisibilityPicker, RoomOptions, useRoomExtras, ChatWidget, KickButton, toast,
 } from '@/lib/shared';
-import { pickSyllable } from '@/lib/bomb-syllables';
+import { pickSyllable, fuseSeconds } from '@/lib/bomb-syllables';
 import { bombFront } from '@/lib/press';
 import { GameArt } from '@/lib/art';
 
@@ -24,7 +24,7 @@ const DEFAULT_SETTINGS = {
   chatEnabled: true,
   lives: 3,
   seconds: 10,
-  difficulty: 'easy', // 'easy' | 'mix' | 'hard'
+  difficulty: 'progressive', // 'progressive' | 'easy' | 'mix' | 'hard'
   dictionary: true,
 };
 const INITIAL_BP = {
@@ -34,6 +34,7 @@ const INITIAL_BP = {
   lives: {},
   maxLives: 3,
   seconds: 10,
+  duration: 10, // durée de la mèche du tour en cours (aléatoire)
   turn: null,
   syllable: '',
   startedAt: 0,
@@ -80,7 +81,7 @@ const RULES_STEPS = [
   { title: 'Une syllabe s’affiche', text: 'Elle est gravée sur la bombe, par exemple « tion » ou « ver ».' },
   { title: 'Trouve un mot qui la contient', text: 'Quand c’est ton tour, tape un vrai mot français qui contient la syllabe. Pas de répétition !' },
   { title: 'Passe la bombe', text: 'Mot valide : la bombe passe au joueur suivant, avec une nouvelle syllabe.' },
-  { title: 'Ça explose !', text: 'Si le temps est écoulé, tu perds une vie. Plus de vie, tu es éliminé. Le dernier debout gagne.' },
+  { title: 'Ça explose !', text: 'La mèche a une durée aléatoire, et la partie devient de plus en plus rapide et difficile. Si ça explose chez toi, tu perds une vie. Plus de vie, tu es éliminé. Le dernier debout gagne.' },
 ];
 
 const RulesModal = ({ onClose }) => (
@@ -259,7 +260,8 @@ export default function BombParty() {
       ...base,
       lives,
       turn: nextAlive(base.order, lives, from),
-      syllable: pickSyllable(settingsRef.current.difficulty, [base.syllable]),
+      syllable: pickSyllable(settingsRef.current.difficulty, [base.syllable], base.round + 1),
+      duration: fuseSeconds(base.seconds, base.round + 1),
       startedAt: Date.now(),
       round: base.round + 1,
       event,
@@ -471,7 +473,8 @@ export default function BombParty() {
       maxLives: cfg.lives,
       seconds: cfg.seconds,
       turn: order[0],
-      syllable: pickSyllable(cfg.difficulty),
+      syllable: pickSyllable(cfg.difficulty, [], 0),
+      duration: fuseSeconds(cfg.seconds, 0),
       startedAt: Date.now(),
       used: [],
       recent: [],
@@ -525,7 +528,7 @@ export default function BombParty() {
   useEffect(() => {
     const bp = bpRef.current;
     if (!isHost || bp.phase !== 'play' || !bp.turn) return;
-    if (Date.now() < bp.startedAt + bp.seconds * 1000 + 400) return;
+    if (Date.now() < bp.startedAt + bp.duration * 1000 + 400) return;
     const key = `${bp.gameId}-${bp.round}`;
     if (explodeRef.current === key) return;
     explodeRef.current = key;
@@ -566,8 +569,8 @@ export default function BombParty() {
   const avatarOf = (id) => known[id]?.avatar;
   const isMyTurn = phase === 'play' && bp.turn === player.id;
   const iPlay = bp.order.includes(player.id);
-  const msLeft = Math.max(0, bp.startedAt + bp.seconds * 1000 - now);
-  const ratio = bp.seconds ? Math.min(1, msLeft / (bp.seconds * 1000)) : 1;
+  const msLeft = Math.max(0, bp.startedAt + bp.duration * 1000 - now);
+  const ratio = bp.duration ? Math.min(1, msLeft / (bp.duration * 1000)) : 1;
   const secsLeft = Math.ceil(msLeft / 1000);
 
   useEffect(() => {
@@ -607,7 +610,7 @@ export default function BombParty() {
     const key = `${bp.round}-${secsLeft}`;
     if (lastTickRef.current === key) return;
     lastTickRef.current = key;
-    if (secsLeft > 0 && secsLeft <= 3) playSfx('tick');
+    if (secsLeft > 0 && secsLeft <= 2) playSfx('tick');
   }, [secsLeft, bp.round, phase]);
 
   const prevPlayerIdsRef = useRef(new Set());
@@ -845,7 +848,7 @@ export default function BombParty() {
               </select>
             </div>
             <div>
-              <label className="block text-gray-500 mb-1 text-xs">Temps par tour</label>
+              <label className="block text-gray-500 mb-1 text-xs">Temps moyen par tour</label>
               <select
                 disabled={!isHost}
                 value={settings.seconds}
@@ -865,6 +868,7 @@ export default function BombParty() {
                 onChange={(e) => updateSettings({ difficulty: e.target.value })}
                 className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 font-bold disabled:opacity-60"
               >
+                <option value="progressive">Progressive</option>
                 <option value="easy">Facile</option>
                 <option value="mix">Mélangé</option>
                 <option value="hard">Difficile</option>
@@ -906,15 +910,7 @@ export default function BombParty() {
         <div className="paper px-4 py-6 sm:px-8 text-center mb-5">
           <p className="eyebrow">{isMyTurn ? 'À toi de jouer !' : `Au tour de ${nameOf(current)}`}</p>
           <Bomb syllable={bp.syllable} ratio={ratio} boom={ev?.type === 'boom' && now - ev.t < 700 ? boomKey : 0} />
-          <div className="max-w-md mx-auto mt-2">
-            <div className="h-2 bg-gray-800 overflow-hidden rounded-full">
-              <div
-                className="h-full transition-[width] duration-200 ease-linear"
-                style={{ width: `${ratio * 100}%`, background: ratio > 0.4 ? 'linear-gradient(90deg,#dcae45,#f6e3a1)' : 'linear-gradient(90deg,#c0392b,#f08a3a)' }}
-              />
-            </div>
-            <p className={`mt-1 text-xs font-mono ${ratio < 0.3 ? 'text-red-400' : 'text-gray-500'}`}>{secsLeft}s</p>
-          </div>
+          <p className="text-xs text-gray-500 italic mt-1">Mèche aléatoire : impossible de savoir quand ça explose…</p>
 
           {isMyTurn ? (
             <form onSubmit={submitWord} className="max-w-md mx-auto mt-3">
