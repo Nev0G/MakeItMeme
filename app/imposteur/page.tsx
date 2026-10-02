@@ -10,7 +10,7 @@ import {
   readIdentity, writeIdentity, useSoundAndClickFx, useDiscordAuth, AccountButton, AvatarPicker, AvatarGlyph, isImageAvatar, useRefState,
   FrontPage, useRoomDirectory, VisibilityPicker, RoomOptions, useRoomExtras, ChatWidget, KickButton, toast,
 } from '@/lib/shared';
-import { pickWordPair, pickPlayerPair, sameWord } from '@/lib/imposteur-words';
+import { WORD_CATEGORIES, pickWordPair, pickPlayerPair, sameWord } from '@/lib/imposteur-words';
 import { imposteurFront } from '@/lib/press';
 
 // ==========================================
@@ -29,6 +29,7 @@ const DEFAULT_SETTINGS = {
   roomName: '',
   chatEnabled: true,
   wordSource: 'pairs', // 'pairs' : mots classiques — 'players' : pseudos des joueurs
+  wordCategories: [], // catégories de mots choisies (vide = toutes)
   mode: 'close', // 'close' : l'imposteur a un mot proche — 'blank' : l'imposteur n'a aucun mot
   blind: true, // l'imposteur ne sait pas qu'il est l'imposteur (il croit être civil)
   words: 3, // nombre de mots (donc de parties) par manche
@@ -430,7 +431,7 @@ export default function Imposteur() {
     const cfg = settingsRef.current;
     const n = players.length;
     const impostorCount = Math.max(1, Math.min(cfg.impostorCount, Math.floor((n - 1) / 2)));
-    const pair = (cfg.wordSource === 'players' && pickPlayerPair(players.map((p) => p.name))) || pickWordPair();
+    const pair = (cfg.wordSource === 'players' && pickPlayerPair(players.map((p) => p.name))) || pickWordPair(cfg.wordCategories || []);
     const impostors = new Set(shuffle(players.map((p) => p.id)).slice(0, impostorCount));
     const newRoles = {};
     players.forEach((p) => {
@@ -1053,6 +1054,38 @@ export default function Imposteur() {
                 <option value="players">Le pseudo d'un joueur de la partie</option>
               </select>
             </div>
+            {settings.wordSource === 'pairs' && (
+              <div className="col-span-2">
+                <label className="block text-gray-500 mb-1 text-xs">
+                  Catégories de mots {settings.wordCategories?.length ? `(${settings.wordCategories.length})` : '(toutes)'}
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {WORD_CATEGORIES.map((c) => {
+                    const on = (settings.wordCategories || []).includes(c.id);
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        disabled={!isHost}
+                        onClick={() =>
+                          updateSettings({
+                            wordCategories: on
+                              ? settings.wordCategories.filter((x) => x !== c.id)
+                              : [...(settings.wordCategories || []), c.id],
+                          })
+                        }
+                        className={`px-3 py-1.5 text-xs font-bold rounded-full border transition active:scale-95 disabled:cursor-default ${
+                          on ? 'bg-purple-300 text-gray-950 border-purple-300' : 'border-gray-700 text-gray-400 hover:text-white hover:border-gray-600'
+                        }`}
+                      >
+                        {c.emoji} {c.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] text-gray-600 mt-1">Aucune sélection = tous les mots mélangés.</p>
+              </div>
+            )}
             {!settings.blind && (
             <div className="col-span-2">
               <label className="block text-gray-500 mb-1 text-xs">Carte de l'imposteur</label>
