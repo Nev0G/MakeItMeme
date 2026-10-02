@@ -1357,6 +1357,7 @@ export default function Imposteur() {
             {aliveParticipants.map((p) => {
               const isMe = p.id === player.id;
               const selected = myVote?.target_id === p.id;
+              const voters = votesThisRound.filter((v) => v.target_id === p.id).map((v) => v.voter_id);
               return (
                 <button
                   key={p.id}
@@ -1381,6 +1382,17 @@ export default function Imposteur() {
                       .map((c) => c.text)
                       .join(' · ') || '—'}
                   </p>
+                  {voters.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1 mt-2 pt-2 border-t border-gray-800">
+                      <span className="text-[11px] font-bold text-orange-300 mr-0.5">{voters.length}</span>
+                      {voters.map((vid) => (
+                        <span key={vid} title={nameOf(vid)} className="animate-pop inline-flex items-center gap-1 bg-gray-800 rounded-full pl-0.5 pr-1.5 py-0.5 text-[10px] max-w-full">
+                          <PlayerDot id={vid} avatar={avatarOf(vid)} />
+                          <span className="truncate">{nameOf(vid)}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   {selected && <p className="text-[11px] font-bold text-orange-300 mt-1">✅ Ton vote</p>}
                   {isMe && <p className="text-[11px] text-gray-500 mt-1">C'est toi</p>}
                 </button>
@@ -1399,6 +1411,11 @@ export default function Imposteur() {
             >
               {myVote?.target_id === SKIP_ID ? '✅ Tu passes — personne ne sera désigné par toi' : 'Je ne vote pour personne (passer au tour suivant)'}
             </button>
+          )}
+          {votesThisRound.some((v) => v.target_id === SKIP_ID) && (
+            <p className="text-xs text-gray-400 mt-2 text-left">
+              ⏭️ Passent : {votesThisRound.filter((v) => v.target_id === SKIP_ID).map((v) => nameOf(v.voter_id)).join(', ')}
+            </p>
           )}
         </div>
         {renderClueTable(meta.round)}
