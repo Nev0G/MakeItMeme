@@ -45,17 +45,6 @@ const HOME_GAMES = [
     players: '2 à 12 joueurs',
     duration: '10 min',
   },
-  {
-    id: 'qui-de-nous',
-    glow: '#7fe0a8',
-    href: '/qui-de-nous',
-    kicker: 'Sondage',
-    name: 'Qui de nous ?',
-    emoji: '🫵',
-    text: 'Qui est le plus susceptible de… ? Tout le monde désigne un joueur en même temps. Les résultats du sondage vont faire des vagues.',
-    players: '2 à 16 joueurs',
-    duration: '10 min',
-  },
 ];
 
 const STEPS = [
@@ -146,11 +135,11 @@ export default function Home() {
           <p className="eyebrow">Jeux entre potes · édition n° {paper.edition}</p>
           <h1 className="text-4xl sm:text-6xl lg:text-7xl mt-4 ink-in">À quel jeu joue-t-on ce soir&nbsp;?</h1>
           <p className="text-gray-400 mt-5 text-base sm:text-lg max-w-2xl mx-auto">
-            Quatre jeux, zéro excuse. Crée un salon, invite la bande, et que le meilleur gagne.
+            Trois jeux, zéro excuse. Crée un salon, invite la bande, et que le meilleur gagne.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-2 mt-6 text-xs font-bold">
-            <span className="rounded-full border border-gray-800 bg-gray-900/60 px-3 py-1.5">4 jeux</span>
-            <span className="rounded-full border border-gray-800 bg-gray-900/60 px-3 py-1.5">2 à 16 joueurs</span>
+            <span className="rounded-full border border-gray-800 bg-gray-900/60 px-3 py-1.5">3 jeux</span>
+            <span className="rounded-full border border-gray-800 bg-gray-900/60 px-3 py-1.5">2 à 12 joueurs</span>
             <span className="rounded-full border border-purple-400/40 bg-purple-400/10 text-purple-300 px-3 py-1.5 inline-flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-purple-300 animate-pulse" />
               {directory.ready ? `${directory.rooms.length} salon${directory.rooms.length > 1 ? 's' : ''} ouvert${directory.rooms.length > 1 ? 's' : ''}` : 'connexion…'}
@@ -159,7 +148,7 @@ export default function Home() {
         </section>
 
         {/* Les jeux */}
-        <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="grid gap-5 md:grid-cols-3">
           {HOME_GAMES.map((g) => {
             const isLast = lastGame === g.id;
             return (

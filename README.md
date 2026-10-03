@@ -5,7 +5,7 @@ Des jeux entre potes, jouables dans le navigateur, avec un habillage « vieux jo
 - `/` : la page d'accueil (la « une »), avec les salons ouverts, l'horoscope du jour et la saisie d'un code
 - `/caption-battle` : légende les memes de tes potes, puis votez
 - `/imposteur` : un mot pour tous sauf un imposteur
-- `/qui-de-nous` : « qui est le plus susceptible de… ? »
+- `/bomb-party` : trouve un mot avec la syllabe avant que la bombe explose
 
 Chaque jeu a des salons **fermés** (code) ou **ouverts** (listés sur l'accueil), un chat écrit, et le host peut expulser un joueur.
 La connexion Discord est optionnelle.

@@ -41,7 +41,7 @@ const FORTUNES = [
   'Pluton te souffle : écris la légende que tu n’oserais pas dire à voix haute.',
 ];
 
-const GAME_ADVICE = ['caption-battle', 'imposteur', 'qui-de-nous'];
+const GAME_ADVICE = ['caption-battle', 'imposteur'];
 
 // Prédiction du jour pour un signe : stable toute la journée
 const horoscope = (signIndex: number, now = new Date()) => {
@@ -97,24 +97,6 @@ const imposteurFront = ({ winner, reason, impostorNames, word, rounds, guesserNa
   };
 };
 
-const quiDeNousFront = ({ topNames, topVotes, rounds, worstQuestion, seed }) => {
-  if (!topNames.length || topVotes === 0) {
-    return {
-      kicker: 'Sondage',
-      headline: 'AUCUN SUSPECT, AUCUN COUPABLE',
-      sub: 'Le salon est resté de marbre : personne n’a voulu désigner personne.',
-      story: 'Nos sondeurs n’ont recueilli aucune réponse exploitable. La démocratie a parfois ses limites.',
-    };
-  }
-  const who = joinNames(topNames);
-  return {
-    kicker: 'Sondage exclusif',
-    headline: pickFrom([`${upper(who)}, LE PLUS DÉSIGNÉ DE NEW YORK`, `${upper(who)} PLÉBISCITÉ(E) PAR LE SALON`, `SONDAGE CHOC : TOUS LES DOIGTS POINTENT VERS ${upper(who)}`], seed),
-    sub: `${topVotes} désignation${topVotes > 1 ? 's' : ''} en ${rounds} question${rounds > 1 ? 's' : ''}.${worstQuestion ? ` Le pire moment : « ${worstQuestion} ».` : ''}`,
-    story: `Interrogé à la sortie du salon, ${who} a refusé de commenter. « Je ne vois vraiment pas pourquoi », aurait-il simplement glissé.`,
-  };
-};
-
 const captionFront = ({ leaderNames, points, bestCaption, seed }) => {
   if (!leaderNames.length || points === 0) {
     return {
@@ -150,4 +132,4 @@ const bombFront = ({ winnerName, rounds, seed }) => {
   };
 };
 
-export { imposteurFront, quiDeNousFront, captionFront, bombFront };
+export { imposteurFront, captionFront, bombFront };

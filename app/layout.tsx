@@ -3,7 +3,7 @@ import { ToastHost } from '@/lib/shared'
 
 export const metadata = {
   title: 'MakeItMeme — Le quotidien des jeux entre potes',
-  description: 'Des jeux entre potes : légendes de memes, imposteur, qui de nous ? Édition du soir.',
+  description: 'Des jeux entre potes : légendes de memes, imposteur, bomb party. Édition du soir.',
 }
 
 // Emojis qui montent doucement derrière le contenu (décor discret)

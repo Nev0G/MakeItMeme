@@ -10,7 +10,7 @@ import {
   readIdentity, writeIdentity, useSoundAndClickFx, useDiscordAuth, AccountButton, AvatarPicker, AvatarGlyph, isImageAvatar, useRefState,
   FrontPage, useRoomDirectory, VisibilityPicker, RoomOptions, useRoomExtras, ChatWidget, KickButton, toast,
 } from '@/lib/shared';
-import { WORD_CATEGORIES, pickWordPair, pickPlayerPair, sameWord } from '@/lib/imposteur-words';
+import { WORD_CATEGORIES, PLAYERS_CATEGORY, pickWordPair, sameWord } from '@/lib/imposteur-words';
 import { imposteurFront } from '@/lib/press';
 
 // ==========================================
@@ -29,8 +29,7 @@ const DEFAULT_SETTINGS = {
   visibility: 'private', // 'private' : code seulement — 'public' : visible dans la liste des salons
   roomName: '',
   chatEnabled: true,
-  wordSource: 'pairs', // 'pairs' : mots classiques — 'players' : pseudos des joueurs
-  wordCategories: [], // catégories de mots choisies (vide = toutes)
+  wordCategories: [], // catégories choisies (vide = toutes ; 'players' = pseudos des joueurs)
   mode: 'close', // 'close' : l'imposteur a un mot proche — 'blank' : l'imposteur n'a aucun mot
   blind: true, // l'imposteur ne sait pas qu'il est l'imposteur (il croit être civil)
   words: 3, // nombre de mots (donc de parties) par manche
@@ -435,7 +434,7 @@ export default function Imposteur() {
     const cfg = settingsRef.current;
     const n = players.length;
     const impostorCount = Math.max(1, Math.min(cfg.impostorCount, Math.floor((n - 1) / 2)));
-    const pair = (cfg.wordSource === 'players' && pickPlayerPair(players.map((p) => p.name))) || pickWordPair(cfg.wordCategories || []);
+    const pair = pickWordPair(cfg.wordCategories || [], players.map((p) => p.name));
     const impostors = new Set(shuffle(players.map((p) => p.id)).slice(0, impostorCount));
     const newRoles = {};
     players.forEach((p) => {
@@ -1048,25 +1047,13 @@ export default function Imposteur() {
             </p>
           )}
           <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="col-span-2">
-              <label className="block text-gray-500 mb-1 text-xs">Mot à faire deviner</label>
-              <select
-                disabled={!isHost}
-                value={settings.wordSource}
-                onChange={(e) => updateSettings({ wordSource: e.target.value })}
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 font-bold disabled:opacity-60"
-              >
-                <option value="pairs">Un mot classique (Pizza, Plage…)</option>
-                <option value="players">Le pseudo d'un joueur de la partie</option>
-              </select>
-            </div>
-            {settings.wordSource === 'pairs' && (
+            {(
               <div className="col-span-2">
                 <label className="block text-gray-500 mb-1 text-xs">
-                  Catégories de mots {settings.wordCategories?.length ? `(${settings.wordCategories.length})` : '(toutes)'}
+                  Catégories {settings.wordCategories?.length ? `(${settings.wordCategories.length})` : '(toutes)'}
                 </label>
                 <div className="flex flex-wrap gap-1.5">
-                  {WORD_CATEGORIES.map((c) => {
+                  {[...WORD_CATEGORIES, PLAYERS_CATEGORY].map((c) => {
                     const on = (settings.wordCategories || []).includes(c.id);
                     return (
                       <button
@@ -1089,7 +1076,7 @@ export default function Imposteur() {
                     );
                   })}
                 </div>
-                <p className="text-[11px] text-gray-600 mt-1">Aucune sélection = tous les mots mélangés.</p>
+                <p className="text-[11px] text-gray-600 mt-1">Aucune sélection = tous les mots mélangés. « Pseudos des joueurs » : le mot est le pseudo d'un joueur.</p>
               </div>
             )}
             {!settings.blind && (
@@ -1101,7 +1088,7 @@ export default function Imposteur() {
                 onChange={(e) => updateSettings({ mode: e.target.value })}
                 className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 font-bold disabled:opacity-60"
               >
-                <option value="close">{settings.wordSource === 'players' ? "Le pseudo d'un autre joueur" : 'Un mot proche de celui des civils'}</option>
+                <option value="close">Un mot proche de celui des civils</option>
                 <option value="blank">Aucun mot (il doit bluffer)</option>
               </select>
             </div>
@@ -1241,9 +1228,6 @@ export default function Imposteur() {
                     </>
                   ) : (
                     <p className="font-heading font-extrabold text-2xl mt-2">Tu n'as aucun mot</p>
-                  )}
-                  {settings.wordSource === 'players' && (
-                    <p className="text-xs text-orange-300 mt-2">Le mot est le pseudo d'un joueur de la partie.</p>
                   )}
                   <p className="text-xs text-gray-400 mt-3">
                     {isImp

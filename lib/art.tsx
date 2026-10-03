@@ -97,33 +97,6 @@ const ImposteurArt = ({ p }) => (
   </g>
 );
 
-const QuiDeNousArt = ({ p }) => {
-  const Bust = ({ x, lit }) => (
-    <g>
-      <circle cx={x} cy="82" r="11" fill={lit ? '#1f3b40' : '#0e1519'} stroke={lit ? '#e4f9a8' : '#c8ee6a'} strokeOpacity={lit ? 1 : 0.4} strokeWidth={lit ? 2 : 1} />
-      <path d={`M${x - 20} 134 C${x - 20} 106 ${x - 10} 98 ${x} 98 C${x + 10} 98 ${x + 20} 106 ${x + 20} 134 Z`} fill={lit ? '#1f3b40' : '#0e1519'} stroke={lit ? '#e4f9a8' : '#c8ee6a'} strokeOpacity={lit ? 1 : 0.4} strokeWidth={lit ? 2 : 1} />
-    </g>
-  );
-  return (
-    <g>
-      <Backdrop p={p} glow="soul" />
-      {/* faisceau de projecteur */}
-      <path d="M100 6 L66 134 L134 134 Z" fill="#e4f9a8" opacity="0.14" />
-      <path d="M100 6 L82 134 L118 134 Z" fill="#e4f9a8" opacity="0.18" />
-      <Bust x={52} lit={false} />
-      <Bust x={148} lit={false} />
-      <Bust x={100} lit />
-      {/* point d'interrogation doré */}
-      <text x="100" y="62" textAnchor="middle" fontFamily="'Unbounded', system-ui, sans-serif" fontWeight="900" fontSize="40" fill={`url(#${p}-gold)`} stroke="#3f5810" strokeWidth="0.8">?</text>
-      {/* index qui désigne */}
-      <g fill={`url(#${p}-gold)`} stroke="#4d6a14" strokeWidth="1">
-        <path d="M30 40 L46 46 L44 52 L26 48 Z" />
-        <path d="M170 40 L154 46 L156 52 L174 48 Z" />
-      </g>
-    </g>
-  );
-};
-
 const BombPartyArt = ({ p }) => (
   <g>
     <Backdrop p={p} glow="ember" />
@@ -165,7 +138,6 @@ const HomeArt = ({ p }) => (
 const ARTS = {
   'caption-battle': CaptionArt,
   imposteur: ImposteurArt,
-  'qui-de-nous': QuiDeNousArt,
   'bomb-party': BombPartyArt,
   home: HomeArt,
 };

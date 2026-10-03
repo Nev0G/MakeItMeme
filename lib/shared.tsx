@@ -10,7 +10,17 @@ import { GameIcon } from '@/lib/art';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://hidtcsztkjpqngwlrzqy.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_CREIog57Ep_e7sUZ0rx-VA_8ooqaGTJ';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// La session Discord est gardée dans le localStorage et renouvelée automatiquement :
+// on reste connecté d'une visite à l'autre, tant qu'on ne se déconnecte pas.
+const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storageKey: 'makeitmeme-auth',
+    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+  },
+});
 // Si les variables d'env ne sont pas configurées sur Vercel, on tourne sur un
 // projet Supabase de démo qui n'a ni bucket ni base : tout upload y restera bloqué.
 const USING_FALLBACK_SUPABASE = !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -245,7 +255,6 @@ const GAMES = [
   { id: 'home', name: 'Accueil', emoji: '🏠', status: 'live', href: '/', gradient: 'from-purple-600 to-purple-400' },
   { id: 'caption-battle', name: 'Caption Battle', emoji: '😂', status: 'live', href: '/caption-battle', gradient: 'from-purple-500 via-pink-500 to-orange-400' },
   { id: 'imposteur', name: 'Imposteur', emoji: '🕵️', status: 'live', href: '/imposteur', gradient: 'from-red-500 via-orange-500 to-yellow-400' },
-  { id: 'qui-de-nous', name: 'Qui de nous ?', emoji: '🫵', status: 'live', href: '/qui-de-nous', gradient: 'from-teal-500 via-emerald-500 to-lime-400' },
   { id: 'bomb-party', name: 'Bomb Party', emoji: '💣', status: 'live', href: '/bomb-party', gradient: 'from-orange-500 via-amber-500 to-yellow-400' },
 ];
 
@@ -471,10 +480,11 @@ const useDiscordAuth = (onProfile, onSignedOut) => {
   const announcedRef = React.useRef(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setUser(data.session?.user ?? null);
-      setReady(true);
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data }) => setUser(data.session?.user ?? null))
+      .catch(() => setUser(null))
+      .finally(() => setReady(true));
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       setReady(true);
