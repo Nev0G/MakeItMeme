@@ -838,7 +838,7 @@ export default function Imposteur() {
 
   // Fonction ordinaire (pas un composant <Tag>) : un composant défini dans le
   // composant serait remonté à chaque rendu et ferait perdre le focus des champs.
-  const renderAppShell = (mainContent) => (
+  const renderLobbyShell = (mainContent) => (
     <div className="min-h-screen md:h-[100dvh] md:overflow-hidden bg-gray-950/95 text-white relative z-10 flex justify-center p-4 pt-16 md:pt-4 md:pl-28">
       <VersionBadge />
       <GamesRail />
@@ -860,34 +860,197 @@ export default function Imposteur() {
     </div>
   );
 
-  // Rappel discret de sa carte, utilisable pendant tout le jeu
-  const renderMyWordChip = () => {
-    if (!myRole) return null;
-    const isImp = myRole.role === 'imposteur' && !settings.blind;
+  // ----- Le Bureau : scène d'enquête autour de la table (toutes les phases de jeu) -----
+  const renderBureauSeat = (p, idx, total) => {
+    const st = playerStatus(p) || {};
+    const present = presentIds.has(p.id);
+    const myClues = cluesThisRound.filter((c) => c.player_id === p.id && !c.skipped);
+    const lastClue = myClues.length ? myClues[myClues.length - 1].text : '';
+    const color = colorForPlayer(p.id);
+    // Les joueurs sont répartis en fer à cheval autour de la table (le bas reste libre pour le dossier de jeu)
+    const start = 195;
+    const end = -15;
+    const angle = total === 1 ? 90 : start + ((end - start) * idx) / (total - 1);
+    const rad = (angle * Math.PI) / 180;
+    const x = 50 + 44 * Math.cos(rad);
+    const y = 52 - 36 * Math.sin(rad);
+    const ringClass = st.dead ? 'seat-dead' : st.turn ? 'seat-speaking' : st.done ? 'seat-done' : '';
     return (
-      <div className="flex items-center justify-between gap-3 bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 mb-4">
-        <div className="min-w-0 text-left">
-          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Ta carte</p>
-          {wordVisible ? (
-            <p className="font-heading font-extrabold text-lg truncate">
-              {isImp ? '🕵️ Imposteur — ' : '🙂 Civil — '}
-              {myRole.word ? myRole.word : 'aucun mot'}
-            </p>
-          ) : (
-            <p className="font-heading font-extrabold text-lg text-gray-600">••••••</p>
+      <div
+        key={p.id}
+        style={{ '--x': `${x}%`, '--y': `${y}%` } as React.CSSProperties}
+        className={`group flex flex-col items-center text-center w-24 md:w-28 md:absolute md:left-[var(--x)] md:top-[var(--y)] md:-translate-x-1/2 md:-translate-y-1/2 z-10 ${present ? '' : 'opacity-40'}`}
+      >
+        <div className="relative">
+          <div
+            className={`seat-ring w-14 h-14 md:w-[4.25rem] md:h-[4.25rem] rounded-full flex items-center justify-center text-3xl overflow-hidden ${ringClass}`}
+            style={{ backgroundColor: `${color}33`, border: `3px solid ${st.turn ? '#7fe3ff' : color}` }}
+          >
+            <AvatarGlyph avatar={p.avatar} />
+          </div>
+          {st.turn && <span className="absolute -top-1 -right-1 text-sm bg-cyan-300 text-gray-950 rounded-full w-6 h-6 flex items-center justify-center shadow">🎤</span>}
+          {st.dead && <span className="absolute -top-1 -right-1 text-lg">💀</span>}
+          {st.done && !st.dead && !st.turn && (
+            <span className="absolute -bottom-1 -right-1 bg-green-500 text-gray-950 rounded-full w-5 h-5 flex items-center justify-center shadow"><Check size={12} strokeWidth={3} /></span>
+          )}
+          {p.id === hostId && <Crown size={14} className="absolute -top-2 -left-1 text-yellow-400 drop-shadow" />}
+          {isHost && p.id !== player.id && (
+            <span className="absolute -top-1 -left-1 hidden group-hover:flex bg-gray-900 rounded-full p-1 border border-gray-700">
+              <KickButton onClick={() => extras.kick(p.id)} />
+            </span>
           )}
         </div>
-        <button
-          data-sfx="off"
-          onClick={() => setWordVisible((v) => !v)}
-          className="text-gray-400 hover:text-white transition active:scale-90 shrink-0"
-          title={wordVisible ? 'Cacher ma carte' : 'Voir ma carte'}
-        >
-          {wordVisible ? <EyeOff size={18} /> : <Eye size={18} />}
-        </button>
+        <p className={`mt-1.5 text-xs md:text-sm font-bold max-w-full truncate px-2 py-0.5 rounded-full bg-black/55 ${p.id === player.id ? 'text-amber-300' : ''} ${st.dead ? 'line-through' : ''}`}>
+          {p.name}
+          <span className="ml-1.5 text-[10px] font-bold text-amber-200/70 no-underline">{scores[p.id] || 0}</span>
+        </p>
+        {lastClue && (
+          <p key={lastClue} className="animate-pop absolute top-full mt-0.5 max-w-[9rem] truncate rounded-lg bg-amber-100 text-stone-800 text-xs font-bold px-2 py-0.5 shadow z-10">
+            {lastClue}
+          </p>
+        )}
       </div>
     );
   };
+
+  const renderBureau = (mainContent) => {
+    const info = phaseLabels[phase] || phaseLabels.lobby;
+    const timerTotal = phase === 'clues' ? settings.clueSeconds : phase === 'vote' ? settings.voteSeconds : phase === 'guess' ? GUESS_SECONDS : null;
+    const timerLeft = timerTotal ? secondsLeftFor(timerTotal) : null;
+    const mmss = timerLeft === null ? '' : `${String(Math.floor(timerLeft / 60)).padStart(2, '0')}:${String(timerLeft % 60).padStart(2, '0')}`;
+    const completed = phase === 'game_over' ? settings.maxRounds : meta.round + (phase === 'vote_result' || phase === 'guess' ? 1 : 0);
+    const progress = timerTotal ? 1 - (timerLeft as number) / timerTotal : Math.min(1, completed / Math.max(1, settings.maxRounds));
+    const usedWords = meta.history.map((h) => h.word).filter(Boolean);
+    const isImp = myRole?.role === 'imposteur' && !settings.blind;
+    const seated = participants.length ? participants : players;
+    return (
+      <div className="bureau-room min-h-screen md:h-[100dvh] md:overflow-hidden p-3 pt-16 md:pt-4 md:pl-24 md:p-4 z-10">
+        <VersionBadge />
+        <GamesRail />
+        <ChatWidget extras={extras} me={player} enabled={settings.chatEnabled !== false} />
+        {hostToast && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[960] animate-fadein bg-gray-900 border border-amber-500 shadow-xl text-white text-sm font-bold rounded-full px-5 py-2.5 flex items-center gap-2">
+            <Crown size={16} className="text-yellow-400" /> {hostToast}
+          </div>
+        )}
+        <div className="relative w-full max-w-[100rem] mx-auto flex flex-col gap-3 md:block md:h-full">
+          {/* Résumé de la manche */}
+          <div className="bureau-panel rounded-xl px-4 py-3 text-sm md:absolute md:left-0 md:top-0 md:w-56 z-20">
+            <p className="font-heading font-bold text-amber-200 tracking-wide uppercase text-xs mb-1.5">Résumé de la manche</p>
+            <ul className="space-y-0.5 text-[13px]">
+              <li>Tour : <b>{Math.min(meta.round + 1, settings.maxRounds)}/{settings.maxRounds}</b></li>
+              {settings.words > 1 && <li>Mot : <b>{Math.min(meta.wordIndex + 1, settings.words)}/{settings.words}</b></li>}
+              <li className="truncate">Mots utilisés : <b>{usedWords.length ? usedWords.join(', ') : '—'}</b></li>
+              <li>Imposteur{impostorIds.length > 1 ? 's' : ''} : <b>{impostorIds.length}</b></li>
+            </ul>
+          </div>
+
+          {/* Salon : code, quitter, son */}
+          <div className="bureau-panel rounded-xl px-3 py-2 flex items-center gap-3 text-sm md:absolute md:right-0 md:top-0 z-20 self-start">
+            <span className="font-mono text-xs text-amber-200/80 tracking-wider"># {room?.code}</span>
+            <button onClick={copyCode} title="Copier le lien d'invitation" aria-label="Copier le lien d'invitation" className="text-amber-200/70 hover:text-white transition">
+              {copied ? <Check size={14} /> : <Copy size={14} />}
+            </button>
+            <SoundToggle on={soundOn} onToggle={toggleSound} />
+            <button onClick={leaveRoom} className="flex items-center gap-1.5 text-amber-200/70 hover:text-red-400 text-xs font-bold transition active:scale-95">
+              <LogOut size={14} /> Quitter
+            </button>
+          </div>
+
+          {/* La scène : table, lampe, joueurs, plaque, dossier de jeu */}
+          <div className="relative flex flex-col gap-3 md:block md:absolute md:inset-0">
+            <div aria-hidden="true" className="hidden md:block absolute inset-x-[9%] top-[17%] bottom-[9%] rounded-[50%] bureau-table" />
+            <div aria-hidden="true" className="hidden md:flex absolute left-1/2 top-[25%] -translate-x-1/2 flex-col items-center pointer-events-none z-[1]">
+              <svg width="120" height="74" viewBox="0 0 150 92">
+                <defs>
+                  <linearGradient id="lampShade" x1="0" x2="1">
+                    <stop offset="0" stopColor="#0f5a34" /><stop offset="0.5" stopColor="#2fd27a" /><stop offset="1" stopColor="#0b4a2a" />
+                  </linearGradient>
+                </defs>
+                <path d="M75 0 V10" stroke="#8a6b2c" strokeWidth="3" />
+                <path d="M30 56 Q36 14 75 12 Q114 14 120 56 Z" fill="url(#lampShade)" stroke="#c9a24b" strokeWidth="2" />
+                <ellipse cx="75" cy="58" rx="46" ry="6" fill="#bfffd5" opacity="0.55" />
+              </svg>
+              <div className="lamp-glow w-[26rem] h-40 -mt-2" />
+            </div>
+
+            <div className="flex flex-wrap justify-center gap-3 md:contents">
+              {seated.map((p, i) => renderBureauSeat(p, i, seated.length))}
+            </div>
+
+            <div className="bureau-plaque rounded-xl px-6 py-3 text-center self-center md:absolute md:left-1/2 md:top-[36%] md:-translate-x-1/2 z-10">
+              <p className="font-heading font-extrabold tracking-[0.2em] text-sm md:text-base uppercase">Imposteur : le Bureau</p>
+              {mmss && (
+                <p className={`font-mono text-lg font-bold ${timerLeft !== null && timerLeft <= 5 && timerLeft > 0 ? 'text-red-400 animate-pulse' : ''}`}>{mmss} <span className="text-[10px] tracking-widest opacity-70">RESTANT</span></p>
+              )}
+              <p className="mt-1 inline-block rounded-md border border-amber-300/50 px-3 py-0.5 text-[11px] font-bold uppercase tracking-wider">
+                Phase : {info.label}
+              </p>
+            </div>
+
+            <div key={phase} className="bureau-pad animate-fadein rounded-2xl p-3 md:p-4 md:absolute md:left-1/2 md:-translate-x-1/2 md:top-[51%] md:bottom-[9%] md:w-[min(44rem,50%)] md:overflow-y-auto z-10">
+              {mainContent}
+            </div>
+
+            {/* Notes d'enquête : les indices de chacun */}
+            <div className="bureau-notes rounded-sm p-4 pt-3 md:absolute md:left-0 md:bottom-6 md:w-64 md:max-h-64 md:overflow-y-auto md:-rotate-2 z-20 text-sm">
+              <p className="font-bold text-base leading-none">Notes d&apos;enquête</p>
+              <p className="text-xs italic opacity-70 mb-2">Qui est suspect ?</p>
+              <ul className="space-y-1 text-xs">
+                {seated.map((p) => {
+                  const mine = clues.filter((c) => c.player_id === p.id && !c.skipped).map((c) => c.text);
+                  return (
+                    <li key={p.id} className={eliminatedIds.has(p.id) ? 'line-through opacity-50' : ''}>
+                      <b>{p.name}</b> : {mine.length ? mine.join(', ') : <span className="opacity-40">…</span>}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+
+            {/* Dossier confidentiel : ton rôle */}
+            {myRole && (
+              <button
+                type="button"
+                data-sfx="off"
+                onClick={() => setWordVisible((v) => !v)}
+                aria-label={wordVisible ? 'Cacher ma carte' : 'Voir ma carte'}
+                className="bureau-folder relative rounded-lg p-4 text-left md:absolute md:right-16 md:bottom-6 md:w-64 md:rotate-2 z-20 transition active:scale-[0.98] hover:-translate-y-0.5"
+              >
+                <span className="absolute -top-3 left-4 rounded-t-md bg-[#efe3c4] text-stone-700 text-[10px] font-extrabold uppercase tracking-widest px-3 py-0.5 border border-b-0 border-[#8b6c37]">
+                  {wordVisible ? (isImp ? 'Imposteur' : 'Citoyen') : 'Dossier'}
+                </span>
+                {wordVisible ? (
+                  <>
+                    <p className="text-[10px] font-extrabold uppercase tracking-widest opacity-70">Ton mot</p>
+                    <p className="font-heading font-extrabold text-xl break-words [overflow-wrap:anywhere] text-stone-900">{myRole.word || 'aucun mot'}</p>
+                    <p className="text-[11px] mt-1 opacity-70 flex items-center gap-1"><EyeOff size={12} /> Touche pour cacher</p>
+                  </>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <span className="bureau-seal w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-amber-100"><Eye size={16} /></span>
+                    <span>
+                      <span className="block font-extrabold uppercase tracking-widest text-xs">Confidentiel</span>
+                      <span className="block font-heading font-bold text-base leading-tight">Votre rôle</span>
+                    </span>
+                  </div>
+                )}
+              </button>
+            )}
+
+            <div className="md:absolute md:left-1/2 md:-translate-x-1/2 md:bottom-1 md:w-[min(30rem,38%)] z-10 text-center">
+              <p className="text-[11px] font-extrabold uppercase tracking-[0.25em] text-amber-100/80 mb-1">{info.label}</p>
+              <div className="h-2 rounded-full bg-black/60 border border-amber-300/30 overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-amber-500 to-amber-200 transition-all duration-700" style={{ width: `${Math.round(progress * 100)}%` }} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderAppShell = (mainContent) => (phase === 'lobby' || phase === 'home' ? renderLobbyShell(mainContent) : renderBureau(mainContent));
 
   // Tableau des indices : une ligne par joueur, une colonne par tour
   const renderClueTable = (upToRound) => {
@@ -1275,7 +1438,6 @@ export default function Imposteur() {
     const failedGuess = meta.guess && meta.guess.correct === false && meta.guess.round === meta.round - 1 ? meta.guess : null;
     return renderAppShell(
       <div className="flex flex-col gap-4 max-w-4xl w-full mx-auto">
-        {renderMyWordChip()}
         {failedGuess && (
           <div className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 text-sm text-gray-300 text-left">
             🎯 {nameOf(failedGuess.id)} avait tenté « {failedGuess.text || '…'} » : raté ! La partie continue.
@@ -1330,7 +1492,6 @@ export default function Imposteur() {
           )}
           {clueError && <p className="text-red-400 text-sm mt-2">{clueError}</p>}
         </div>
-        {renderClueTable(meta.round)}
       </div>
     );
   }
@@ -1339,7 +1500,6 @@ export default function Imposteur() {
     const secs = secondsLeftFor(settings.voteSeconds);
     return renderAppShell(
       <div className="flex flex-col gap-4 max-w-4xl w-full mx-auto">
-        {renderMyWordChip()}
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-center shadow-xl">
           <div className="flex items-center justify-between gap-3 mb-2">
             <h2 className="font-heading text-2xl font-bold text-left">Qui est l'imposteur ?</h2>
@@ -1413,7 +1573,6 @@ export default function Imposteur() {
             </p>
           )}
         </div>
-        {renderClueTable(meta.round)}
       </div>
     );
   }

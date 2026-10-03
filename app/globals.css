@@ -518,3 +518,90 @@ input:focus, select:focus, textarea:focus {
 button:disabled {
   cursor: not-allowed;
 }
+
+/* ==========================================================
+   Imposteur : le Bureau (scène d'enquête autour d'une table)
+   ========================================================== */
+.bureau-room {
+  position: relative;
+  isolation: isolate;
+  color: #f4ecd8;
+  background:
+    radial-gradient(ellipse 60% 45% at 50% 38%, rgba(255, 196, 110, 0.16), transparent 70%),
+    radial-gradient(ellipse at 50% 120%, rgba(0, 0, 0, 0.7), transparent 60%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.025) 0 2px, transparent 2px 46px),
+    linear-gradient(180deg, #14100d 0%, #1b1410 55%, #0c0907 100%);
+}
+.bureau-room::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 45%, rgba(0, 0, 0, 0.75) 100%);
+}
+.bureau-table {
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(255, 190, 110, 0.22), transparent 62%),
+    repeating-linear-gradient(95deg, rgba(0, 0, 0, 0.14) 0 3px, transparent 3px 11px),
+    linear-gradient(180deg, #6b3f22 0%, #4b2a15 55%, #33200f 100%);
+  border: 3px solid #8a5a33;
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.65), inset 0 0 70px rgba(0, 0, 0, 0.55), inset 0 2px 0 rgba(255, 220, 170, 0.18);
+}
+.bureau-plaque {
+  background: linear-gradient(180deg, #3a2a17, #1d140b);
+  border: 2px solid #c9a24b;
+  box-shadow: 0 0 0 3px #1d140b, 0 0 0 4px #8a6b2c, 0 10px 26px rgba(0, 0, 0, 0.6);
+  color: #f1dc9c;
+}
+.bureau-panel {
+  background: rgba(20, 16, 12, 0.82);
+  border: 1px solid rgba(201, 162, 75, 0.45);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.5);
+}
+.bureau-pad {
+  background: linear-gradient(180deg, rgba(26, 20, 14, 0.92), rgba(16, 12, 9, 0.94));
+  border: 1px solid rgba(201, 162, 75, 0.35);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.55);
+}
+.bureau-notes {
+  color: #3a3226;
+  background:
+    repeating-linear-gradient(180deg, transparent 0 21px, rgba(70, 110, 160, 0.28) 21px 22px),
+    linear-gradient(180deg, #f6efd9, #e8dcb9);
+  box-shadow: 4px 6px 0 -1px #e2d6b3, 8px 12px 0 -2px #d8caa3, 0 16px 30px rgba(0, 0, 0, 0.55);
+  font-family: 'Courier Prime', ui-monospace, monospace;
+}
+.bureau-folder {
+  background: linear-gradient(160deg, #cdb07a, #b39257);
+  border: 1px solid #8b6c37;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.6);
+  color: #4a1d12;
+}
+.bureau-seal {
+  background: radial-gradient(circle at 35% 30%, #d6513d, #8c1f12);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5), inset 0 -2px 3px rgba(0, 0, 0, 0.35);
+}
+.seat-ring {
+  transition: box-shadow 0.3s, transform 0.3s, filter 0.3s;
+}
+.seat-speaking {
+  box-shadow: 0 0 0 3px #7fe3ff, 0 0 26px 6px rgba(127, 227, 255, 0.65);
+  animation: seat-pulse 1.4s ease-in-out infinite;
+}
+.seat-done {
+  box-shadow: 0 0 0 2px rgba(120, 220, 150, 0.8), 0 0 14px rgba(120, 220, 150, 0.35);
+}
+.seat-dead {
+  filter: grayscale(1) brightness(0.55);
+}
+@keyframes seat-pulse {
+  50% { transform: scale(1.06); }
+}
+.lamp-glow {
+  background: radial-gradient(ellipse at 50% 0%, rgba(150, 255, 150, 0.2), transparent 70%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .seat-speaking { animation: none; }
+}
