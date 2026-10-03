@@ -5,7 +5,7 @@ import {
   Play, Users, Loader2, Crown, Settings, Copy, LogOut, Check, BookOpen, X, RotateCcw, Heart, Skull, Send,
 } from 'lucide-react';
 import {
-  supabase, makeId, fireConfetti, shuffle, colorForPlayer, randomAvatar, PlayerDot, playSfx, SoundToggle,
+  supabase, makeId, AVATAR_EMOJIS, fireConfetti, shuffle, colorForPlayer, randomAvatar, PlayerDot, playSfx, SoundToggle,
   GamesRail as SharedGamesRail, ToggleRow, makeSessionStore, MAX_NAME_LEN, readIdentity,
   writeIdentity, useSoundAndClickFx, useDiscordAuth, AccountButton, AvatarPicker, AvatarGlyph, isImageAvatar,
   useRefState,
@@ -178,10 +178,13 @@ const Hearts = ({ lives, max }) => (
 );
 
 export default function BombParty() {
-  const [player, setPlayer] = useState(() => {
+  // État initial identique côté serveur et client (sinon erreur d'hydratation) ;
+  // le pseudo/avatar mémorisés ou tirés au hasard sont appliqués juste après le montage.
+  const [player, setPlayer] = useState({ id: null, name: '', avatar: AVATAR_EMOJIS[0] });
+  useEffect(() => {
     const saved = readIdentity();
-    return { id: null, name: saved?.name || '', avatar: saved?.avatar || randomAvatar() };
-  });
+    setPlayer((p) => (p.id ? p : { ...p, name: saved?.name || p.name, avatar: saved?.avatar || randomAvatar() }));
+  }, []);
   const auth = useDiscordAuth(
     (profile) => setPlayer((p) => (p.id ? p : { ...p, name: profile.name, avatar: profile.avatarUrl || p.avatar })),
     () => setPlayer((p) => (!p.id && isImageAvatar(p.avatar) ? { ...p, avatar: randomAvatar() } : p))

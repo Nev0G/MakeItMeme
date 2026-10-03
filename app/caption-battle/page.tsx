@@ -807,10 +807,13 @@ export default function CaptionBattle() {
       return null;
     }
   };
-  const [player, setPlayer] = useState(() => {
+  // État initial identique côté serveur et client (sinon erreur d'hydratation) ;
+  // le pseudo/avatar mémorisés ou tirés au hasard sont appliqués juste après le montage.
+  const [player, setPlayer] = useState({ id: null, name: '', avatar: AVATAR_EMOJIS[0] });
+  useEffect(() => {
     const saved = readIdentity();
-    return { id: null, name: saved?.name || '', avatar: saved?.avatar || randomAvatar() };
-  });
+    setPlayer((p) => (p.id ? p : { ...p, name: saved?.name || p.name, avatar: saved?.avatar || randomAvatar() }));
+  }, []);
   // Compte Discord (optionnel) : préremplit le pseudo, sauf si on est déjà dans une room
   const auth = useDiscordAuth(
     (profile) => setPlayer((p) => (p.id ? p : { ...p, name: profile.name, avatar: profile.avatarUrl || p.avatar })),
@@ -838,7 +841,7 @@ export default function CaptionBattle() {
   const fileInputRef = useRef(null);
 
   const pushDebug = (msg) => {
-    console.log('[upload]', msg);
+    if (process.env.NODE_ENV !== 'production') console.log('[upload]', msg);
   };
   const [roundQueue, setRoundQueue] = useState([]); // liste d'ids de médias, 1 par round
   const [currentRoundIndex, setCurrentRoundIndex] = useState(0);

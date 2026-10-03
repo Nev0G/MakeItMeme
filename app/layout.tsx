@@ -1,8 +1,20 @@
 import './globals.css'
 import { ToastHost } from '@/lib/shared'
 
+export const viewport = {
+  themeColor: '#060d0d',
+  width: 'device-width',
+  initialScale: 1,
+}
+
 export const metadata = {
-  title: 'MakeItMeme — Le quotidien des jeux entre potes',
+  title: { default: 'MakeItMeme — Le quotidien des jeux entre potes', template: '%s · MakeItMeme' },
+  openGraph: {
+    title: 'MakeItMeme',
+    description: 'Des jeux entre potes, à jouer dans le navigateur : Caption Battle, Imposteur, Bomb Party.',
+    locale: 'fr_FR',
+    type: 'website',
+  },
   description: 'Des jeux entre potes : légendes de memes, imposteur, bomb party. Édition du soir.',
 }
 

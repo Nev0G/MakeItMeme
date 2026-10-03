@@ -509,3 +509,12 @@ input:focus, select:focus, textarea:focus {
 @media (prefers-reduced-motion: reduce) {
   .my-turn-glow { animation: none; }
 }
+
+/* Focus clavier visible partout (accessibilité) */
+:focus-visible {
+  outline: 2px solid #c8ee6a;
+  outline-offset: 2px;
+}
+button:disabled {
+  cursor: not-allowed;
+}

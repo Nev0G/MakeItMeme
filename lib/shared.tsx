@@ -239,6 +239,7 @@ const SoundToggle = ({ on, onToggle, className = '' }) => (
     data-sfx="off"
     onClick={onToggle}
     title={on ? 'Couper les effets sonores' : 'Activer les effets sonores'}
+    aria-label={on ? 'Couper les effets sonores' : 'Activer les effets sonores'}
     className={`text-gray-500 hover:text-white transition active:scale-90 ${className}`}
   >
     {on ? <Volume2 size={16} /> : <VolumeX size={16} />}
@@ -531,6 +532,7 @@ const AvatarPicker = ({ auth, avatar, onPick, activeClass }) => (
       <button
         type="button"
         title="Ma photo Discord"
+        aria-label="Ma photo Discord"
         onClick={() => onPick(auth.profile.avatarUrl)}
         className={`w-9 h-9 rounded-full overflow-hidden transition active:scale-90 ${
           avatar === auth.profile.avatarUrl ? `${activeClass} scale-110` : 'bg-gray-800 hover:bg-gray-700'
@@ -571,6 +573,7 @@ const AccountButton = ({ auth, className = 'mb-4' }) => {
           type="button"
           onClick={auth.signOut}
           title="Se déconnecter"
+          aria-label="Se déconnecter"
           className="text-gray-500 hover:text-red-400 transition active:scale-90 shrink-0"
         >
           <LogOut size={16} />
@@ -948,6 +951,7 @@ const ChatWidget = ({ extras, me, enabled }) => {
         type="button"
         onClick={() => setOpen((v) => !v)}
         title="Chat du salon"
+        aria-label="Chat du salon"
         className="relative w-12 h-12 rounded-full bg-purple-600 hover:bg-purple-500 shadow-lg shadow-black/50 flex items-center justify-center transition active:scale-90"
       >
         <MessageCircle size={20} />
@@ -1024,6 +1028,7 @@ const KickButton = ({ onClick }) => (
     type="button"
     onClick={onClick}
     title="Expulser ce joueur"
+    aria-label="Expulser ce joueur"
     className="shrink-0 text-gray-600 hover:text-red-400 transition active:scale-90"
   >
     <X size={13} />
