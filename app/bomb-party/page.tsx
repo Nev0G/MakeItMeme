@@ -510,7 +510,11 @@ export default function BombParty() {
   };
   const backToLobby = () => commitBp({ phase: 'lobby', event: null });
 
+  // Mot refusé : on vide le champ (et l'aperçu des autres joueurs) pour retaper tout de suite
   const fail = (message) => {
+    setText('');
+    broadcast('bp_typing', { id: player.id, text: '' });
+    inputRef.current?.focus();
     setError(message);
     setErrorKey((k) => k + 1);
     playSfx('error');
