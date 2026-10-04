@@ -605,3 +605,82 @@ button:disabled {
 @media (prefers-reduced-motion: reduce) {
   .seat-speaking { animation: none; }
 }
+
+/* ==========================================================
+   Bomb Party : l'arène (plateforme hexagonale, bombe au centre)
+   ========================================================== */
+.arena-room {
+  position: relative;
+  isolation: isolate;
+  color: #eaf7ee;
+  background:
+    radial-gradient(ellipse 55% 50% at 50% 48%, rgba(67, 191, 170, 0.2), transparent 70%),
+    radial-gradient(ellipse 40% 30% at 50% 100%, rgba(240, 138, 58, 0.14), transparent 70%),
+    linear-gradient(rgba(200, 238, 106, 0.045) 1px, transparent 1px) 0 0 / 44px 44px,
+    linear-gradient(90deg, rgba(200, 238, 106, 0.045) 1px, transparent 1px) 0 0 / 44px 44px,
+    linear-gradient(180deg, #07100f 0%, #091514 55%, #050b0b 100%);
+}
+.arena-room::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 50%, rgba(0, 0, 0, 0.7) 100%);
+}
+.arena-panel {
+  background: rgba(8, 20, 19, 0.78);
+  border: 1px solid rgba(67, 191, 170, 0.4);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+}
+.hex {
+  clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+}
+.arena-hex-outer {
+  background: linear-gradient(135deg, #43bfaa, #1b4d4a 45%, #c8ee6a);
+  filter: drop-shadow(0 0 22px rgba(67, 191, 170, 0.45));
+}
+.arena-hex-mid {
+  background: linear-gradient(180deg, #0d2423, #081615);
+}
+.arena-hex-ring {
+  background: linear-gradient(180deg, #f08a3a, #c8ee6a);
+}
+.arena-hex-core {
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(240, 138, 58, 0.5), transparent 65%),
+    linear-gradient(180deg, #14302d, #0a1a19);
+}
+.arena-hex-danger .arena-hex-ring {
+  background: linear-gradient(180deg, #ff5a3a, #f08a3a);
+  animation: hex-danger 0.5s ease-in-out infinite alternate;
+}
+@keyframes hex-danger {
+  to { filter: brightness(1.5); }
+}
+.arena-seat-ring {
+  border-radius: 9999px;
+  padding: 3px;
+  transition: transform 0.3s, filter 0.3s;
+}
+.arena-seat-turn {
+  transform: scale(1.12);
+  filter: drop-shadow(0 0 16px rgba(200, 238, 106, 0.7));
+}
+.arena-seat-out {
+  filter: grayscale(1) brightness(0.5);
+}
+.arena-word {
+  background: linear-gradient(180deg, rgba(9, 24, 23, 0.92), rgba(5, 12, 12, 0.95));
+  border: 2px solid rgba(67, 191, 170, 0.55);
+  box-shadow: 0 0 0 1px rgba(5, 12, 12, 0.9), 0 0 28px rgba(67, 191, 170, 0.25), inset 0 0 22px rgba(67, 191, 170, 0.08);
+}
+.arena-word-me {
+  border-color: #c8ee6a;
+  box-shadow: 0 0 0 1px rgba(5, 12, 12, 0.9), 0 0 34px rgba(200, 238, 106, 0.4), inset 0 0 22px rgba(200, 238, 106, 0.1);
+}
+.arena-fuse {
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(67, 191, 170, 0.45);
+}

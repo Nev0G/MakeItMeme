@@ -55,6 +55,14 @@ const VersionBadge = () => (
 
 const norm = (w) => w.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
+// Découpe un mot en [avant, syllabe, après] (sans tenir compte des accents ni de la casse)
+const splitBySyllable = (word, syllable) => {
+  const fold = (str) => Array.from(str).map((ch) => ch.normalize('NFD')[0].toLowerCase()).join('');
+  const i = syllable ? fold(word).indexOf(fold(syllable)) : -1;
+  if (i < 0) return [word, '', ''];
+  return [word.slice(0, i), word.slice(i, i + syllable.length), word.slice(i + syllable.length)];
+};
+
 // Vérifie qu'un mot existe, via le Wiktionnaire français. Si le réseau est indisponible, on accepte.
 const wordCache = new Map();
 const checkWord = async (word) => {
@@ -118,9 +126,9 @@ const RulesModal = ({ onClose }) => (
 );
 
 // La bombe : la syllabe est gravée dessus, elle tremble de plus en plus quand le temps file
-const Bomb = ({ syllable, ratio, boom }) => (
-  <div className="relative w-52 h-52 sm:w-64 sm:h-64 mx-auto">
-    {boom && <span key={boom} className="boom-ring" />}
+const Bomb = ({ syllable, ratio, boom, timer = null, className = 'w-52 h-52 sm:w-64 sm:h-64' }: { syllable?: string; ratio: number; boom: any; timer?: string | null; className?: string }) => (
+  <div className={`relative mx-auto ${className}`}>
+    {!!boom && <span key={boom} className="boom-ring" />}
     <div className={ratio < 0.3 ? 'bomb-panic' : 'bomb-calm'}>
       <svg viewBox="0 0 200 200" className="w-full h-full overflow-visible" aria-hidden="true">
         <defs>
@@ -147,6 +155,14 @@ const Bomb = ({ syllable, ratio, boom }) => (
         <path d="M58 92 A52 52 0 0 1 100 66" stroke="#fff" strokeOpacity="0.35" strokeWidth="7" fill="none" strokeLinecap="round" />
         <rect x="84" y="42" width="32" height="18" rx="4" fill="url(#bp-gold)" stroke="#4d6a14" />
         <rect x="78" y="56" width="44" height="7" fill="url(#bp-gold)" />
+        {timer !== null ? (
+          <g>
+            <rect x="52" y="104" width="96" height="40" rx="20" fill="#05080a" fillOpacity="0.85" stroke={ratio < 0.3 ? '#ff5a3a' : '#f08a3a'} strokeWidth="2.5" />
+            <text x="100" y="133" textAnchor="middle" fontFamily="'Courier Prime', ui-monospace, monospace" fontWeight="700" fontSize="28" fill={ratio < 0.3 ? '#ffb199' : '#fff3c4'}>
+              {timer}
+            </text>
+          </g>
+        ) : (
         <text
           x="100"
           y="136"
@@ -160,6 +176,7 @@ const Bomb = ({ syllable, ratio, boom }) => (
         >
           {syllable}
         </text>
+        )}
       </svg>
     </div>
   </div>
@@ -220,7 +237,7 @@ export default function BombParty() {
   const { soundOn, toggleSound } = useSoundAndClickFx();
 
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 200);
+    const id = setInterval(() => setNow(Date.now()), 100);
     return () => clearInterval(id);
   }, []);
   useEffect(() => {
@@ -726,6 +743,218 @@ export default function BombParty() {
     </div>
   );
 
+  // ----- L'arène : plateforme au centre, joueurs autour, mot en cours en bas -----
+  const renderArenaSeat = (id, x, y) => {
+    const lives = bp.lives[id];
+    const out = lives === 0;
+    const isTurn = id === bp.turn && phase === 'play';
+    const color = colorForPlayer(id);
+    const known1 = players.some((q) => q.id === id);
+    return (
+      <div
+        key={id}
+        style={{ '--x': `${x}%`, '--y': `${y}%` } as React.CSSProperties}
+        className={`group relative flex flex-col items-center text-center w-24 md:w-28 md:absolute md:left-[var(--x)] md:top-[var(--y)] md:-translate-x-1/2 md:-translate-y-1/2 z-10 ${known1 ? '' : 'opacity-40'}`}
+      >
+        <div
+          className={`arena-seat-ring ${isTurn ? 'arena-seat-turn' : ''} ${out ? 'arena-seat-out' : ''}`}
+          style={{ background: isTurn ? `conic-gradient(#c8ee6a ${Math.round(ratio * 360)}deg, rgba(255,255,255,0.12) 0deg)` : `${color}` }}
+        >
+          <div
+            className="w-14 h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center text-3xl overflow-hidden border-[3px] border-[#07100f]"
+            style={{ backgroundColor: `${color}55` }}
+          >
+            <AvatarGlyph avatar={avatarOf(id)} />
+          </div>
+        </div>
+        <p className={`mt-1.5 max-w-full truncate rounded-full bg-black/55 px-2.5 py-0.5 text-xs md:text-sm font-bold ${isTurn ? 'text-lime-200' : ''} ${id === player.id ? 'text-teal-200' : ''}`}>
+          {nameOf(id)}
+        </p>
+        <div className="mt-1 h-4 flex items-center justify-center">
+          {out ? <Skull size={14} className="text-gray-500" /> : <Hearts lives={lives} max={bp.maxLives} />}
+        </div>
+        {isHost && id !== player.id && (
+          <span className="absolute -top-1 -right-1 hidden group-hover:flex bg-gray-900 rounded-full p-1 border border-gray-700">
+            <KickButton onClick={() => extras.kick(id)} />
+          </span>
+        )}
+        {id === hostId && <Crown size={14} className="absolute -top-2 left-3 text-yellow-400 drop-shadow" />}
+      </div>
+    );
+  };
+
+  const renderArena = () => {
+    const current = bp.turn;
+    const ev = bp.event;
+    const shownText = current === player.id ? text : typing.id === current ? typing.text : '';
+    const [pre, hit, post] = splitBySyllable(shownText, bp.syllable);
+    const fuse = (msLeft / 1000).toFixed(1);
+    const danger = ratio < 0.3;
+    // Joueurs répartis de chaque côté de la plateforme (haut et bas restent libres : syllabe et mot)
+    const ids = bp.order;
+    const rightCount = Math.ceil(ids.length / 2);
+    const spread = (k, from, to) => (idx) => (k === 1 ? (from + to) / 2 : from + ((to - from) * idx) / (k - 1));
+    const positions = ids.map((id, i) => {
+      const onRight = i < rightCount;
+      const k = onRight ? rightCount : ids.length - rightCount;
+      const idx = onRight ? i : i - rightCount;
+      if (k > 4) {
+        // Beaucoup de joueurs : deux colonnes en quinconce de chaque côté de la plateforme
+        const y = 9 + (idx * 82) / (k - 1);
+        const col = idx % 2 === 0 ? 7 : 20;
+        return { id, x: onRight ? 100 - col : col, y };
+      }
+      const angle = onRight ? spread(k, 60, -60)(idx) : spread(k, 240, 120)(idx);
+      const rad = (angle * Math.PI) / 180;
+      return { id, x: 50 + 43 * Math.cos(rad), y: 50 - 41 * Math.sin(rad) };
+    });
+    return (
+      <div className="arena-room min-h-screen md:h-[100dvh] md:overflow-hidden p-3 pt-16 md:pt-4 md:pl-24 md:p-4 z-10">
+        <VersionBadge />
+        <GamesRail />
+        <ChatWidget extras={extras} me={player} enabled={settings.chatEnabled !== false} />
+        {hostToast && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[960] animate-fadein bg-gray-900 border border-purple-600 shadow-xl text-white text-sm font-bold rounded-full px-5 py-2.5 flex items-center gap-2">
+            <Crown size={16} className="text-yellow-400" /> {hostToast}
+          </div>
+        )}
+        <div className="relative w-full max-w-[100rem] mx-auto flex flex-col gap-3 md:block md:h-full">
+          {/* Infos de la partie */}
+          <div className="arena-panel rounded-xl px-4 py-2.5 text-sm md:absolute md:left-0 md:top-0 z-20 flex items-center gap-4">
+            <span><b className="text-lime-200">{aliveCount}</b> en vie</span>
+            <span className="text-gray-400">Syllabe n°{bp.round + 1}</span>
+            <span className="inline-flex items-center gap-1 text-gray-400"><Users size={12} /> {players.length}</span>
+          </div>
+          <div className="arena-panel rounded-xl px-3 py-2 flex items-center gap-3 text-sm md:absolute md:right-0 md:top-0 z-20 self-start">
+            <span className="font-mono text-xs text-teal-200/80 tracking-wider"># {room?.code}</span>
+            <button onClick={copyCode} title="Copier le lien d'invitation" aria-label="Copier le lien d'invitation" className="text-gray-400 hover:text-white transition">
+              {copied ? <Check size={14} /> : <Copy size={14} />}
+            </button>
+            <SoundToggle on={soundOn} onToggle={toggleSound} />
+            <button onClick={leaveRoom} className="flex items-center gap-1.5 text-gray-400 hover:text-red-400 text-xs font-bold transition active:scale-95">
+              <LogOut size={14} /> Quitter
+            </button>
+          </div>
+
+          {/* La syllabe à placer */}
+          <div className="text-center md:absolute md:left-1/2 md:-translate-x-1/2 md:top-0 z-10">
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.35em] text-teal-200/80">
+              {isMyTurn ? 'À toi de jouer' : `Au tour de ${nameOf(current)}`}
+            </p>
+            <p key={bp.round} className="font-masthead animate-pop text-5xl md:text-7xl uppercase leading-none mt-1">{bp.syllable}</p>
+          </div>
+
+          {/* Scène : plateforme, bombe, joueurs */}
+          <div className="relative flex flex-col gap-3 md:block md:absolute md:inset-x-0 md:top-[16%] md:bottom-[23%]">
+            <div className={`hidden md:block absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[min(34rem,46%)] aspect-[1.7/1] ${danger ? 'arena-hex-danger' : ''}`} aria-hidden="true">
+              <div className="hex arena-hex-outer absolute inset-0">
+                <div className="hex arena-hex-mid absolute inset-[3px]">
+                  <div className="hex arena-hex-ring absolute inset-[14%]">
+                    <div className="hex arena-hex-core absolute inset-[3px]" />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="md:absolute md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 z-[5]">
+              <Bomb
+                ratio={ratio}
+                timer={fuse}
+                boom={ev?.type === 'boom' && now - ev.t < 700 ? boomKey : 0}
+                className="w-48 h-48 md:w-[min(17rem,32vh)] md:h-[min(17rem,32vh)]"
+              />
+            </div>
+            <div className="flex flex-wrap justify-center gap-3 md:contents">
+              {positions.map((q) => renderArenaSeat(q.id, q.x, q.y))}
+            </div>
+          </div>
+
+          {/* Mèche + mot en cours */}
+          <div className="md:absolute md:left-1/2 md:-translate-x-1/2 md:bottom-[2%] md:w-[min(34rem,90%)] z-10">
+            <div className="arena-fuse h-2 rounded-full overflow-hidden mb-3">
+              <div
+                className={`h-full rounded-full transition-[width] duration-100 ease-linear ${danger ? 'bg-gradient-to-r from-red-500 to-orange-400' : 'bg-gradient-to-r from-teal-300 to-lime-200'}`}
+                style={{ width: `${Math.round(ratio * 100)}%` }}
+              />
+            </div>
+            {isMyTurn ? (
+              <form onSubmit={submitWord}>
+                <div key={errorKey} className={`arena-word arena-word-me relative rounded-2xl ${error ? 'animate-nope' : ''}`}>
+                  <div aria-hidden="true" className="px-24 py-4 text-center font-heading font-extrabold text-2xl sm:text-3xl tracking-wide whitespace-nowrap overflow-hidden min-h-[4.25rem]">
+                    {text ? (
+                      <>
+                        <span>{pre}</span>
+                        <span className="text-orange-400">{hit}</span>
+                        <span>{post}</span>
+                      </>
+                    ) : (
+                      <span className="text-gray-600 text-lg sm:text-xl font-bold">Un mot avec « {bp.syllable} »</span>
+                    )}
+                  </div>
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={text}
+                    onChange={(e) => onType(e.target.value)}
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    maxLength={40}
+                    aria-label={`Un mot avec ${bp.syllable}`}
+                    style={{ boxShadow: 'none', border: 0, borderRadius: 'inherit' }}
+                    className="absolute inset-0 w-full h-full bg-transparent text-transparent caret-lime-200 px-24 text-center font-heading font-extrabold text-2xl sm:text-3xl tracking-wide focus:outline-none"
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <button
+                      type="submit"
+                      disabled={busy || !text.trim()}
+                      className="tag-dark px-4 py-2.5 flex items-center gap-1.5 disabled:opacity-40 active:scale-95"
+                    >
+                      {busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Go
+                    </button>
+                  </div>
+                </div>
+                <p className="min-h-[1.25rem] mt-2 text-center text-sm text-red-400 font-bold">{error}</p>
+              </form>
+            ) : (
+              <>
+                <div className="arena-word rounded-2xl px-6 py-4 text-center font-heading font-extrabold text-2xl sm:text-3xl tracking-wide break-all min-h-[4.25rem]">
+                  {shownText ? (
+                    <>
+                      <span>{pre}</span>
+                      <span className="text-orange-400">{hit}</span>
+                      <span>{post}</span>
+                    </>
+                  ) : (
+                    <span className="text-gray-600">…</span>
+                  )}
+                </div>
+                <p className="min-h-[1.25rem] mt-2 text-center text-xs text-gray-500 italic">
+                  {!iPlay ? 'Partie en cours : tu regardes cette manche.' : bp.lives[player.id] === 0 ? 'Tu es éliminé : profite du spectacle.' : 'Mèche aléatoire : impossible de savoir quand ça explose…'}
+                </p>
+              </>
+            )}
+          </div>
+
+          {/* Derniers mots */}
+          {bp.recent.length > 0 && (
+            <div className="arena-panel rounded-xl p-3 md:absolute md:left-0 md:bottom-4 md:w-60 z-10">
+              <p className="eyebrow mb-2">Derniers mots</p>
+              <div className="flex flex-wrap gap-1.5">
+                {[...bp.recent].reverse().slice(0, 8).map((r, i) => (
+                  <span key={`${r.word}-${i}`} className="inline-flex items-center gap-1 bg-gray-800/80 rounded-full pl-0.5 pr-2.5 py-0.5 text-sm animate-fadein">
+                    <PlayerDot id={r.id} avatar={avatarOf(r.id)} />
+                    {r.word}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const waitingForHost = (
     <div className="flex items-center justify-center gap-3 text-gray-400 animate-pulse">
       <Loader2 className="animate-spin" /> En attente du Host...
@@ -904,92 +1133,7 @@ export default function BombParty() {
     );
   }
 
-  if (phase === 'play') {
-    const current = bp.turn;
-    const shownText = current === player.id ? text : typing.id === current ? typing.text : '';
-    const ev = bp.event;
-    return renderAppShell(
-      <div className="max-w-4xl w-full mx-auto">
-        <div className="paper px-4 py-6 sm:px-8 text-center mb-5">
-          <p className="eyebrow">{isMyTurn ? 'À toi de jouer !' : `Au tour de ${nameOf(current)}`}</p>
-          <Bomb syllable={bp.syllable} ratio={ratio} boom={ev?.type === 'boom' && now - ev.t < 700 ? boomKey : 0} />
-          <p className="text-xs text-gray-500 italic mt-1">Mèche aléatoire : impossible de savoir quand ça explose…</p>
-
-          {isMyTurn ? (
-            <form onSubmit={submitWord} className="max-w-md mx-auto mt-3">
-              <div key={errorKey} className={`flex gap-2 ${error ? 'animate-nope' : ''}`}>
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={text}
-                  onChange={(e) => onType(e.target.value)}
-                  autoComplete="off"
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  maxLength={40}
-                  placeholder={`Un mot avec « ${bp.syllable} »`}
-                  className="min-w-0 flex-1 p-3 bg-gray-950 border border-gray-700 rounded-lg text-center font-bold text-xl text-white"
-                />
-                <button
-                  type="submit"
-                  disabled={busy || !text.trim()}
-                  className="tag-dark px-5 flex items-center gap-1.5 disabled:opacity-40 active:scale-95"
-                >
-                  {busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Go
-                </button>
-              </div>
-              <p className="min-h-[1.25rem] mt-2 text-sm text-red-400 font-bold">{error}</p>
-            </form>
-          ) : (
-            <div className="max-w-md mx-auto mt-4 min-h-[3rem]">
-              <p className="font-heading text-2xl text-white/90 tracking-wide break-all">{shownText || '…'}</p>
-              {!iPlay && <p className="text-xs text-gray-500 mt-1 italic">Partie en cours : tu regardes cette manche.</p>}
-              {iPlay && bp.lives[player.id] === 0 && <p className="text-xs text-gray-500 mt-1 italic">Tu es éliminé : profite du spectacle.</p>}
-            </div>
-          )}
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-5">
-          {bp.order.map((id) => {
-            const lives = bp.lives[id];
-            const isTurn = id === current;
-            return (
-              <div
-                key={id}
-                className={`rounded-xl p-3 border-2 flex flex-col items-center gap-1.5 transition ${
-                  isTurn ? 'border-purple-300 bg-purple-900/30 shadow-lg scale-[1.03]' : lives === 0 ? 'border-gray-800 bg-gray-950 opacity-40' : 'border-gray-700 bg-gray-900'
-                }`}
-              >
-                <span
-                  className="w-12 h-12 inline-flex items-center justify-center rounded-full text-2xl overflow-hidden"
-                  style={{ backgroundColor: `${colorForPlayer(id)}33`, border: `2px solid ${colorForPlayer(id)}` }}
-                >
-                  <AvatarGlyph avatar={avatarOf(id)} />
-                </span>
-                <span className="font-bold truncate max-w-full text-sm">{nameOf(id)}{id === player.id ? ' (toi)' : ''}</span>
-                {lives === 0 ? <Skull size={16} className="text-gray-500" /> : <Hearts lives={lives} max={bp.maxLives} />}
-              </div>
-            );
-          })}
-        </div>
-
-        {bp.recent.length > 0 && (
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-3">
-            <p className="eyebrow mb-2">Derniers mots</p>
-            <div className="flex flex-wrap gap-1.5">
-              {[...bp.recent].reverse().map((r, i) => (
-                <span key={`${r.word}-${i}`} className="inline-flex items-center gap-1 bg-gray-800 rounded-full pl-0.5 pr-2.5 py-0.5 text-sm animate-fadein">
-                  <PlayerDot id={r.id} avatar={avatarOf(r.id)} />
-                  {r.word}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
+  if (phase === 'play') return renderArena();
 
   // phase === 'final'
   const front = bombFront({
