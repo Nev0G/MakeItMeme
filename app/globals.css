@@ -39,6 +39,20 @@ button, input, select, textarea {
   font-family: inherit;
 }
 
+/* Finitions globales : rendu du texte, retour tactile, boutons réactifs */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+  text-rendering: optimizeLegibility;
+}
+h1, h2, h3 { text-wrap: balance; }
+p { text-wrap: pretty; }
+button, [role='button'], select, a { touch-action: manipulation; }
+button { transition-property: transform, background-color, border-color, color, opacity, box-shadow; transition-duration: 0.15s; }
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offset: 0; }
+.font-mono, .font-heading { font-variant-numeric: tabular-nums; }
+
 /* Plein écran sans défilement de page sur desktop (à partir du breakpoint
    Tailwind "md"). Sur mobile, l'écran est trop petit pour tout faire tenir
    sans scroll, donc le comportement naturel (page qui défile) reste actif. */
@@ -604,6 +618,130 @@ button:disabled {
 }
 @media (prefers-reduced-motion: reduce) {
   .seat-speaking { animation: none; }
+}
+
+/* Écrans de laptop (peu de hauteur) : le contenu du dossier central est réduit
+   pour tenir sans défiler, et les sièges restent lisibles. */
+@media (min-width: 768px) and (max-height: 820px) {
+  .bureau-pad > * { zoom: 0.74; }
+  .bureau-plaque { zoom: 0.85; }
+}
+@media (min-width: 768px) and (max-height: 700px) {
+  .bureau-pad > * { zoom: 0.7; }
+}
+
+/* --- Personnages autour de la table (tête = photo de profil) --- */
+.char {
+  position: relative;
+  width: 6.5em;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform-origin: 50% 100%;
+  transition: filter 0.4s;
+}
+.char-head {
+  position: relative;
+  z-index: 2;
+  width: 4em;
+  height: 4em;
+  margin-bottom: -0.55em;
+  border: 0.18em solid;
+  border-radius: 9999px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1em;
+  box-shadow: 0 0.3em 0.7em rgba(0, 0, 0, 0.55);
+  transition: transform 0.5s, box-shadow 0.3s;
+}
+.char-face { font-size: 2.1em; line-height: 1; }
+.char-body { width: 100%; height: auto; display: block; filter: drop-shadow(0 0.3em 0.3em rgba(0, 0, 0, 0.5)); }
+.char-talk .char-head {
+  box-shadow: 0 0 0 0.15em #7fe3ff, 0 0 1.6em 0.3em rgba(127, 227, 255, 0.6);
+  animation: char-talk 0.7s ease-in-out infinite;
+}
+@keyframes char-talk { 50% { transform: translateY(-0.18em) rotate(-3deg); } }
+.char-done .char-head { box-shadow: 0 0 0 0.12em rgba(120, 220, 150, 0.85), 0 0 0.9em rgba(120, 220, 150, 0.4); }
+.char-dead { filter: grayscale(1) brightness(0.5); }
+.char-dead .char-head { transform: translateY(0.5em) rotate(24deg); }
+.char-dead .char-body { transform: translateY(0.35em); }
+.char-shot { animation: char-hit 1.6s ease-out both; }
+.char-shot::after {
+  content: '💥';
+  position: absolute;
+  top: 0.4em;
+  left: 50%;
+  font-size: 2.4em;
+  line-height: 1;
+  translate: -50% 0;
+  pointer-events: none;
+  animation: char-burst 0.9s ease-out both;
+}
+@keyframes char-hit {
+  0% { filter: none; transform: none; }
+  10% { transform: translateX(0.5em) rotate(5deg); filter: brightness(2) sepia(1) saturate(6) hue-rotate(-30deg); }
+  22% { transform: translateX(-0.3em) rotate(-3deg); filter: none; }
+  100% { transform: translateY(0.4em); filter: grayscale(1) brightness(0.5); }
+}
+@keyframes char-burst {
+  0% { opacity: 0; scale: 0.3; }
+  25% { opacity: 1; scale: 1.2; }
+  100% { opacity: 0; scale: 1.6; }
+}
+.char-shot .char-head { animation: char-slump 1.6s ease-out both; }
+@keyframes char-slump {
+  0%, 12% { transform: none; }
+  100% { transform: translateY(0.5em) rotate(24deg); }
+}
+
+/* --- Scène du tir : pistolet, flash, victime qui s'écroule --- */
+.shoot-stage {
+  background: radial-gradient(ellipse at 50% 20%, rgba(255, 190, 110, 0.18), transparent 70%), linear-gradient(180deg, #1c1410, #0c0907);
+  border: 1px solid rgba(201, 162, 75, 0.35);
+  animation: shoot-shake 0.35s ease-in-out 0.7s both;
+}
+@keyframes shoot-shake {
+  20% { transform: translate(-4px, 2px); }
+  40% { transform: translate(4px, -2px); }
+  60% { transform: translate(-2px, 1px); }
+}
+.shoot-gun { animation: gun-seq 1.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; transform-origin: 20% 70%; }
+@keyframes gun-seq {
+  0% { transform: translateX(-130%); }
+  42%, 46% { transform: translateX(0) rotate(0); }
+  52% { transform: translateX(-0.9rem) rotate(-14deg); }
+  75%, 100% { transform: translateX(0) rotate(0); }
+}
+.shoot-flash { opacity: 0; animation: gun-flash 0.22s ease-out 0.7s both; }
+@keyframes gun-flash {
+  0% { opacity: 1; transform: scale(0.4); }
+  60% { opacity: 1; transform: scale(1.1); }
+  100% { opacity: 0; transform: scale(1.3); }
+}
+.shoot-bang { opacity: 0; text-shadow: 0 2px 0 #b3261e, 0 0 18px rgba(255, 213, 74, 0.8); animation: bang-pop 1.2s ease-out 0.7s both; }
+@keyframes bang-pop {
+  0% { opacity: 0; transform: scale(0.3) rotate(-6deg); }
+  15% { opacity: 1; transform: scale(1.35) rotate(-6deg); }
+  30%, 80% { opacity: 1; transform: scale(1) rotate(-6deg); }
+  100% { opacity: 0.0; }
+}
+.shoot-victim { animation: victim-hit 2s ease-out 0.7s both; transform-origin: 100% 100%; }
+@keyframes victim-hit {
+  0% { transform: translateX(-10%); filter: none; }
+  8% { transform: translateX(14%) rotate(6deg); filter: brightness(2) sepia(1) saturate(6) hue-rotate(-30deg); }
+  20% { transform: translateX(8%) rotate(-3deg); filter: none; }
+  100% { transform: translateX(10%) rotate(86deg); filter: grayscale(1) brightness(0.55); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .char-talk .char-head, .char-shot, .char-shot .char-head, .char-shot::after,
+  .shoot-stage, .shoot-gun, .shoot-flash, .shoot-bang, .shoot-victim { animation: none; }
+  .shoot-bang { opacity: 1; }
+  .shoot-victim { transform: translateX(10%) rotate(86deg); filter: grayscale(1) brightness(0.55); }
+  .char-shot { filter: grayscale(1) brightness(0.5); }
+  .char-shot .char-head { transform: translateY(0.5em) rotate(24deg); }
+  .char-shot::after { display: none; }
 }
 
 /* ==========================================================

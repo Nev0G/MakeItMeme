@@ -971,12 +971,12 @@ export default function BombParty() {
   if (phase === 'home') {
     return (
       <>
-        <div className="min-h-screen md:h-[100dvh] md:overflow-hidden bg-gray-950/90 text-white relative z-10 flex flex-col items-center justify-center p-4 pt-16 md:pt-4 md:pl-28">
+        <div className="min-h-screen md:h-[100dvh] md:overflow-y-auto bg-gray-950/90 text-white relative z-10 flex flex-col items-center before:content-[''] before:flex-1 after:content-[''] after:flex-1 p-4 pt-16 md:pt-4 md:pl-28">
           <VersionBadge />
           <GamesRail />
           <div className="text-center mb-2">
             <p className="eyebrow">✦ Course contre la montre ✦</p>
-            <h1 className="font-heading text-5xl sm:text-7xl leading-none mt-2 ink-in">BOMB PARTY</h1>
+            <h1 className="font-heading text-4xl min-[420px]:text-5xl sm:text-7xl leading-none mt-2 ink-in">BOMB PARTY</h1>
           </div>
           <p className="text-gray-500 mb-6 italic text-center">Une syllabe, une bombe : trouve un mot avant l’explosion.</p>
 
@@ -1052,12 +1052,12 @@ export default function BombParty() {
         <GameArt id="bomb-party" className="h-28 mx-auto -mt-2 mb-2" />
         <h2 className="font-heading text-2xl mb-2">Code de la Room</h2>
         <div className="relative mb-8">
-          <div className="text-6xl font-black font-mono tracking-widest text-purple-300 bg-gray-950 py-4 rounded-xl border border-gray-800">
+          <div className="text-4xl sm:text-6xl font-black font-mono tracking-widest text-purple-300 bg-gray-950 py-4 rounded-xl border border-gray-800">
             {room?.code}
           </div>
           <button
             onClick={copyCode}
-            className="absolute right-3 bottom-3 flex items-center gap-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold px-3 py-2 rounded-lg transition active:scale-95"
+            className="flex w-fit mx-auto mt-3 sm:mt-0 sm:absolute sm:right-3 sm:bottom-3 items-center gap-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold px-3 py-2 rounded-lg transition active:scale-95"
           >
             {copied ? <Check size={14} /> : <Copy size={14} />}
             {copied ? 'Lien copié !' : "Copier l'invitation"}

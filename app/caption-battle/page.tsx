@@ -290,7 +290,7 @@ const MediaPlayer = ({ src, type, compact = false }) => {
   // naturelles et se centre, au lieu d'être forcé sur toute la largeur puis
   // réduit à une bande minuscule pour les vidéos/images au format portrait.
   const sizingClasses = `max-w-full ${
-    compact ? 'max-h-[35vh]' : 'max-h-[65vh]'
+    compact ? 'max-h-[35vh]' : 'max-h-[max(12rem,calc(100dvh-26rem))]'
   } w-auto h-auto block mx-auto object-contain rounded-lg border-2 border-gray-700`;
 
   // Volume à 50 % au chargement (une seule fois : on ne touche pas au volume
@@ -785,7 +785,7 @@ const CursorLayer = React.memo(function CursorLayer({ channelRef, me, allowed, s
           );
         })}
       {hint && drawOn && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[900] pointer-events-none animate-fadein bg-gray-900/90 border border-purple-700 text-gray-200 text-xs font-bold rounded-full px-4 py-2 shadow-xl">
+        <div className="max-md:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-[900] pointer-events-none animate-fadein bg-gray-900/90 border border-purple-700 text-gray-200 text-xs font-bold rounded-full px-4 py-2 shadow-xl">
           ✏️ Maintiens <kbd className="bg-gray-700 rounded px-1.5 py-0.5">Maj</kbd> et bouge la souris pour gribouiller
         </div>
       )}
@@ -1944,12 +1944,12 @@ export default function CaptionBattle() {
   if (gameState === 'home') {
     return (
       <>
-      <div className="min-h-screen md:h-[100dvh] md:overflow-hidden bg-gray-950/95 text-white relative z-10 flex flex-col items-center justify-center p-4 pt-16 md:pt-4 md:pl-28">
+      <div className="min-h-screen md:h-[100dvh] md:overflow-y-auto bg-gray-950/95 text-white relative z-10 flex flex-col items-center before:content-[''] before:flex-1 after:content-[''] after:flex-1 p-4 pt-16 md:pt-4 md:pl-28">
         <VersionBadge />
         <GamesRail />
         <div className="text-center mb-2">
           <p className="eyebrow">✦ Concours de légendes ✦</p>
-          <h1 className="font-heading text-5xl sm:text-7xl leading-none mt-2 ink-in">CAPTION BATTLE</h1>
+          <h1 className="font-heading text-4xl min-[420px]:text-5xl sm:text-7xl leading-none mt-2 ink-in">CAPTION BATTLE</h1>
         </div>
         <p className="text-gray-500 mb-8 italic text-center">Le jeu où tes potes ruinent tes images (et vidéos/audios).</p>
 
@@ -2038,12 +2038,12 @@ export default function CaptionBattle() {
       <div className="bg-gray-900 p-8 rounded-2xl w-full max-w-3xl mx-auto shadow-2xl border border-gray-800 text-center">
         <h2 className="font-heading text-2xl font-bold mb-2">Code de la Room</h2>
         <div className="relative mb-8">
-          <div className="text-6xl font-black font-mono tracking-widest text-purple-400 bg-gray-950 py-4 rounded-xl border border-gray-800">
+          <div className="text-4xl sm:text-6xl font-black font-mono tracking-widest text-purple-400 bg-gray-950 py-4 rounded-xl border border-gray-800">
             {room?.code}
           </div>
           <button
             onClick={copyCode}
-            className="absolute right-3 bottom-3 flex items-center gap-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold px-3 py-2 rounded-lg transition active:scale-95"
+            className="flex w-fit mx-auto mt-3 sm:mt-0 sm:absolute sm:right-3 sm:bottom-3 items-center gap-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold px-3 py-2 rounded-lg transition active:scale-95"
           >
             {copied ? <Check size={14} /> : <Copy size={14} />}
             {copied ? 'Lien copié !' : "Copier l'invitation"}
@@ -2293,6 +2293,7 @@ export default function CaptionBattle() {
                   />
                   <button
                     onClick={submitExternalMedia}
+                    aria-label="Ajouter ce lien"
                     disabled={!externalUrl.trim()}
                     className="bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-white px-4 rounded-lg transition active:scale-95"
                   >
@@ -2383,6 +2384,7 @@ export default function CaptionBattle() {
               <button
                 data-sfx="off"
                 onClick={submitCaption}
+                aria-label="Envoyer ma légende"
                 disabled={!myCaption.trim()}
                 className="absolute right-3 top-3 bottom-3 bg-purple-600 hover:bg-purple-500 shadow-md shadow-purple-900/40 disabled:opacity-40 rounded-lg px-4 flex items-center justify-center transition active:scale-95"
               >

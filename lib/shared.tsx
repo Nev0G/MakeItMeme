@@ -215,6 +215,21 @@ const SFX_LIBRARY = {
   reveal: (c) => {
     [523, 659, 784, 1047].forEach((f, i) => tone(c, { freq: f, start: i * 0.07, dur: 0.16 }));
   },
+  // Coup de feu : claquement de bruit blanc + grosse basse qui s'effondre
+  gunshot: (c) => {
+    const len = Math.floor(c.sampleRate * 0.25);
+    const buf = c.createBuffer(1, len, c.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+    const src = c.createBufferSource();
+    const g = c.createGain();
+    g.gain.value = 0.35;
+    src.buffer = buf;
+    src.connect(g);
+    g.connect(c.destination);
+    src.start();
+    tone(c, { freq: 150, slideTo: 40, dur: 0.25, type: 'sine', gain: 0.25 });
+  },
   fanfare: (c) => {
     [523, 659, 784, 1047].forEach((f, i) => tone(c, { freq: f, start: i * 0.12, dur: 0.22, type: 'triangle', gain: 0.09 }));
     tone(c, { freq: 1047, start: 0.5, dur: 0.6, type: 'triangle', gain: 0.09 });

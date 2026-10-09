@@ -12,12 +12,13 @@ import {
 } from '@/lib/shared';
 import { WORD_CATEGORIES, PLAYERS_CATEGORY, pickWordPair, sameWord } from '@/lib/imposteur-words';
 import { imposteurFront } from '@/lib/press';
+import { SeatCharacter, ShootScene } from './character';
 
 // ==========================================
 // RÈGLES ET RÉGLAGES
 // ==========================================
 // Incrémenter à chaque mise à jour livrée du jeu.
-const APP_VERSION = 'imposteur v6';
+const APP_VERSION = 'imposteur v7';
 const GAME_ID = 'imposteur';
 const GUESS_SECONDS = 25;
 const MAX_CLUE_LEN = 30;
@@ -34,6 +35,7 @@ const DEFAULT_SETTINGS = {
   blind: true, // l'imposteur ne sait pas qu'il est l'imposteur (il croit être civil)
   words: 3, // nombre de mots (donc de parties) par manche
   impostorCount: 1,
+  mrWhite: false, // un des imposteurs devient Mister White : aucun mot, il sait qu'il est imposteur
   clueSeconds: 60,
   voteSeconds: 45,
   maxRounds: 3,
@@ -54,6 +56,7 @@ const RULES_STEPS = [
   { emoji: '🃏', title: 'Chacun reçoit une carte secrète', text: "Les civils ont tous le même mot. L'imposteur a un mot proche du leur, et par défaut il ne sait pas qu'il est l'imposteur : il se croit civil !" },
   { emoji: '💬', title: 'Un indice chacun son tour', text: "À ton tour, écris UN mot ou une courte expression qui évoque ton mot, sans jamais le dire. L'imposteur doit deviner et faire semblant." },
   { emoji: '🗳️', title: 'Tout le monde vote', text: "Après les indices, chacun désigne qui lui paraît louche. Le plus voté est éliminé et son rôle est révélé (égalité, ou autant de joueurs qui préfèrent passer : personne ne sort)." },
+  { emoji: '👤', title: 'Mister White (option)', text: "Un des imposteurs n'a aucun mot et le sait. Il doit bluffer à partir des indices des autres, et s'il est démasqué, il a toujours droit à sa dernière chance pour deviner le mot des civils." },
   { emoji: '🎯', title: 'Dernière chance', text: "Un imposteur démasqué peut tenter de deviner le mot des civils : s'il trouve, il gagne quand même !" },
   { emoji: '🔁', title: 'Plusieurs mots par manche', text: "Une manche enchaîne plusieurs mots (3 par défaut), avec de nouveaux rôles à chaque fois. Les points se cumulent jusqu'au bilan final." },
   { emoji: '🏆', title: 'Qui gagne ?', text: "Les civils gagnent s'ils éliminent tous les imposteurs. L'imposteur gagne s'il survit à tous les tours, s'il reste autant d'imposteurs que de civils, ou s'il devine le mot." },
@@ -404,7 +407,10 @@ export default function Imposteur() {
   const iAmAlive = !!myRole && !eliminatedIds.has(player.id);
   const impostorIds = participants.filter((p) => roles[p.id]?.role === 'imposteur').map((p) => p.id);
   const civilWord = useMemo(() => Object.values(roles).find((r) => r.role === 'civil')?.word || '', [roles]);
-  const impostorWord = useMemo(() => Object.values(roles).find((r) => r.role === 'imposteur')?.word || null, [roles]);
+  const impostorWord = useMemo(() => Object.values(roles).find((r) => r.role === 'imposteur' && !r.white)?.word || null, [roles]);
+  const isWhite = (id) => !!roles[id]?.white;
+  // Ce joueur sait-il qu'il est de l'autre camp ? (à l'aveugle, un imposteur ordinaire se croit civil ; Mister White, jamais)
+  const knowsImpostor = (id) => roles[id]?.role === 'imposteur' && (!settings.blind || isWhite(id));
 
   const nameOf = (id) => participants.find((p) => p.id === id)?.name || players.find((p) => p.id === id)?.name || '???';
   const avatarOf = (id) => participants.find((p) => p.id === id)?.avatar || players.find((p) => p.id === id)?.avatar;
@@ -438,10 +444,13 @@ export default function Imposteur() {
     const n = players.length;
     const impostorCount = Math.max(1, Math.min(cfg.impostorCount, Math.floor((n - 1) / 2)));
     const pair = pickWordPair(cfg.wordCategories || [], players.map((p) => p.name));
-    const impostors = new Set(shuffle(players.map((p) => p.id)).slice(0, impostorCount));
+    const impostors = shuffle(players.map((p) => p.id)).slice(0, impostorCount);
+    const whiteId = cfg.mrWhite ? impostors[0] : null; // Mister White : même camp que les imposteurs, mais sans mot
     const newRoles = {};
     players.forEach((p) => {
-      newRoles[p.id] = impostors.has(p.id)
+      newRoles[p.id] = p.id === whiteId
+        ? { role: 'imposteur', white: true, word: null }
+        : impostors.includes(p.id)
         ? { role: 'imposteur', word: cfg.blind || cfg.mode === 'close' ? pair.imposter : null }
         : { role: 'civil', word: pair.civil };
     });
@@ -526,7 +535,8 @@ export default function Imposteur() {
   const continueAfterVote = () => {
     const m = metaRef.current;
     const last = m.eliminated.find((e) => e.round === m.round);
-    if (last && roles[last.id]?.role === 'imposteur' && settingsRef.current.lastChance) {
+    // Mister White a toujours droit à sa dernière chance : sans mot, c'est sa seule voie de victoire
+    if (last && roles[last.id]?.role === 'imposteur' && (settingsRef.current.lastChance || roles[last.id]?.white)) {
       setGuessEntry(null);
       commitMeta({ phase: 'guess', startedAt: Date.now(), guess: { id: last.id, round: m.round, text: null, correct: null } });
     } else {
@@ -658,7 +668,11 @@ export default function Imposteur() {
     if (prev.phase === 'home' || phase === 'lobby') return;
     if (phase === 'reveal' || phase === 'clues') playSfx('roundStart');
     else if (phase === 'vote') playSfx('voteStart');
-    else if (phase === 'vote_result') playSfx('reveal');
+    else if (phase === 'vote_result') {
+      // Civil désigné : la scène de tir fait elle-même le bruit
+      const out = metaRef.current.eliminated.find((e) => e.round === meta.round);
+      if (!out || roles[out.id]?.role === 'imposteur') playSfx('reveal');
+    }
     else if (phase === 'game_over') {
       playSfx('fanfare');
       fireConfetti();
@@ -874,33 +888,30 @@ export default function Imposteur() {
     const rad = (angle * Math.PI) / 180;
     const x = 50 + 44 * Math.cos(rad);
     const y = 52 - 36 * Math.sin(rad);
-    const ringClass = st.dead ? 'seat-dead' : st.turn ? 'seat-speaking' : st.done ? 'seat-done' : '';
+    // Civil qui vient d'être désigné : il se fait tirer dessus (la scène du résultat joue en même temps)
+    const shotNow = phase === 'vote_result' && roles[p.id]?.role === 'civil' && meta.eliminated.some((e) => e.id === p.id && e.round === meta.round);
+    const charState = shotNow ? 'shot' : st.dead ? 'dead' : st.turn ? 'talk' : st.done ? 'done' : '';
     return (
       <div
         key={p.id}
         style={{ '--x': `${x}%`, '--y': `${y}%` } as React.CSSProperties}
-        className={`group flex flex-col items-center text-center w-24 md:w-28 md:absolute md:left-[var(--x)] md:top-[var(--y)] md:-translate-x-1/2 md:-translate-y-1/2 z-10 ${present ? '' : 'opacity-40'}`}
+        className={`group flex flex-col items-center text-center w-28 md:w-32 md:absolute md:left-[var(--x)] md:top-[var(--y)] md:-translate-x-1/2 md:-translate-y-1/2 z-10 ${present ? '' : 'opacity-40'}`}
       >
         <div className="relative">
-          <div
-            className={`seat-ring w-14 h-14 md:w-[4.25rem] md:h-[4.25rem] rounded-full flex items-center justify-center text-3xl overflow-hidden ${ringClass}`}
-            style={{ backgroundColor: `${color}33`, border: `3px solid ${st.turn ? '#7fe3ff' : color}` }}
-          >
-            <AvatarGlyph avatar={p.avatar} />
-          </div>
-          {st.turn && <span className="absolute -top-1 -right-1 text-sm bg-cyan-300 text-gray-950 rounded-full w-6 h-6 flex items-center justify-center shadow">🎤</span>}
-          {st.dead && <span className="absolute -top-1 -right-1 text-lg">💀</span>}
+          <SeatCharacter avatar={p.avatar} color={color} state={charState} isMe={p.id === player.id} className="text-[13px] md:text-[15px]" />
+          {st.turn && <span className="absolute top-0 -right-1 text-sm bg-cyan-300 text-gray-950 rounded-full w-6 h-6 flex items-center justify-center shadow z-10">🎤</span>}
+          {st.dead && !shotNow && <span className="absolute top-0 -right-1 text-lg z-10">💀</span>}
           {st.done && !st.dead && !st.turn && (
-            <span className="absolute -bottom-1 -right-1 bg-green-500 text-gray-950 rounded-full w-5 h-5 flex items-center justify-center shadow"><Check size={12} strokeWidth={3} /></span>
+            <span className="absolute top-0 -right-1 bg-green-500 text-gray-950 rounded-full w-5 h-5 flex items-center justify-center shadow z-10"><Check size={12} strokeWidth={3} /></span>
           )}
-          {p.id === hostId && <Crown size={14} className="absolute -top-2 -left-1 text-yellow-400 drop-shadow" />}
+          {p.id === hostId && <Crown size={14} className="absolute top-0 left-0 text-yellow-400 drop-shadow z-10" />}
           {isHost && p.id !== player.id && (
-            <span className="absolute -top-1 -left-1 hidden group-hover:flex bg-gray-900 rounded-full p-1 border border-gray-700">
+            <span className="absolute top-5 left-0 hidden group-hover:flex bg-gray-900 rounded-full p-1 border border-gray-700 z-10">
               <KickButton onClick={() => extras.kick(p.id)} />
             </span>
           )}
         </div>
-        <p className={`mt-1.5 text-xs md:text-sm font-bold max-w-full truncate px-2 py-0.5 rounded-full bg-black/55 ${p.id === player.id ? 'text-amber-300' : ''} ${st.dead ? 'line-through' : ''}`}>
+        <p className={`mt-1 text-xs md:text-sm font-bold max-w-full truncate px-2 py-0.5 rounded-full bg-black/60 ${p.id === player.id ? 'text-amber-300' : ''} ${st.dead ? 'line-through' : ''}`}>
           {p.name}
           <span className="ml-1.5 text-[10px] font-bold text-amber-200/70 no-underline">{scores[p.id] || 0}</span>
         </p>
@@ -921,7 +932,9 @@ export default function Imposteur() {
     const completed = phase === 'game_over' ? settings.maxRounds : meta.round + (phase === 'vote_result' || phase === 'guess' ? 1 : 0);
     const progress = timerTotal ? 1 - (timerLeft as number) / timerTotal : Math.min(1, completed / Math.max(1, settings.maxRounds));
     const usedWords = meta.history.map((h) => h.word).filter(Boolean);
-    const isImp = myRole?.role === 'imposteur' && !settings.blind;
+    const isImp = knowsImpostor(player.id);
+    // Résultat du vote / bilan : beaucoup de contenu, le dossier prend la place de la lampe et de la plaque
+    const tall = phase === 'vote_result' || phase === 'game_over';
     const seated = participants.length ? participants : players;
     return (
       <div className="bureau-room min-h-screen md:h-[100dvh] md:overflow-hidden p-3 pt-16 md:pt-4 md:pl-24 md:p-4 z-10">
@@ -935,9 +948,9 @@ export default function Imposteur() {
         )}
         <div className="relative w-full max-w-[100rem] mx-auto flex flex-col gap-3 md:block md:h-full">
           {/* Résumé de la manche */}
-          <div className="bureau-panel rounded-xl px-4 py-3 text-sm md:absolute md:left-0 md:top-0 md:w-56 z-20">
+          <div className="bureau-panel rounded-xl px-4 py-3 text-sm md:absolute md:left-0 md:top-0 md:w-64 z-20">
             <p className="font-heading font-bold text-amber-200 tracking-wide uppercase text-xs mb-1.5">Résumé de la manche</p>
-            <ul className="space-y-0.5 text-[13px]">
+            <ul className="space-y-1 text-sm">
               <li>Tour : <b>{Math.min(meta.round + 1, settings.maxRounds)}/{settings.maxRounds}</b></li>
               {settings.words > 1 && <li>Mot : <b>{Math.min(meta.wordIndex + 1, settings.words)}/{settings.words}</b></li>}
               <li className="truncate">Mots utilisés : <b>{usedWords.length ? usedWords.join(', ') : '—'}</b></li>
@@ -960,7 +973,7 @@ export default function Imposteur() {
           {/* La scène : table, lampe, joueurs, plaque, dossier de jeu */}
           <div className="relative flex flex-col gap-3 md:block md:absolute md:inset-0">
             <div aria-hidden="true" className="hidden md:block absolute inset-x-[9%] top-[17%] bottom-[9%] rounded-[50%] bureau-table" />
-            <div aria-hidden="true" className="hidden md:flex absolute left-1/2 top-[25%] -translate-x-1/2 flex-col items-center pointer-events-none z-[1]">
+            <div aria-hidden="true" className={`${tall ? 'hidden' : 'hidden md:flex'} absolute left-1/2 top-[19%] -translate-x-1/2 flex-col items-center pointer-events-none z-[1]`}>
               <svg width="120" height="74" viewBox="0 0 150 92">
                 <defs>
                   <linearGradient id="lampShade" x1="0" x2="1">
@@ -978,7 +991,7 @@ export default function Imposteur() {
               {seated.map((p, i) => renderBureauSeat(p, i, seated.length))}
             </div>
 
-            <div className="bureau-plaque rounded-xl px-6 py-3 text-center self-center md:absolute md:left-1/2 md:top-[36%] md:-translate-x-1/2 z-10">
+            <div className={`bureau-plaque rounded-xl px-6 py-3 text-center self-center md:absolute md:left-1/2 md:top-[27%] md:-translate-x-1/2 z-10 ${tall ? 'md:hidden' : ''}`}>
               <p className="font-heading font-extrabold tracking-[0.2em] text-sm md:text-base uppercase">Imposteur : le Bureau</p>
               {mmss && (
                 <p className={`font-mono text-lg font-bold ${timerLeft !== null && timerLeft <= 5 && timerLeft > 0 ? 'text-red-400 animate-pulse' : ''}`}>{mmss} <span className="text-[10px] tracking-widest opacity-70">RESTANT</span></p>
@@ -988,15 +1001,15 @@ export default function Imposteur() {
               </p>
             </div>
 
-            <div key={phase} className="bureau-pad animate-fadein rounded-2xl p-3 md:p-4 md:absolute md:left-1/2 md:-translate-x-1/2 md:top-[51%] md:bottom-[9%] md:w-[min(44rem,50%)] md:overflow-y-auto z-10">
+            <div key={phase} className={`bureau-pad animate-fadein rounded-2xl p-3 md:p-4 md:absolute md:left-1/2 md:-translate-x-1/2 ${tall ? 'md:top-[30%]' : 'md:top-[43%]'} md:bottom-[5%] md:w-[min(52rem,50%)] md:overflow-y-auto z-10`}>
               {mainContent}
             </div>
 
             {/* Notes d'enquête : les indices de chacun */}
-            <div className="bureau-notes rounded-sm p-4 pt-3 md:absolute md:left-0 md:bottom-6 md:w-64 md:max-h-64 md:overflow-y-auto md:-rotate-2 z-20 text-sm">
+            <div className="bureau-notes rounded-sm p-4 pt-3 md:absolute md:left-0 md:bottom-6 md:w-72 md:max-h-[40vh] md:overflow-y-auto md:-rotate-2 z-20 text-sm">
               <p className="font-bold text-base leading-none">Notes d&apos;enquête</p>
               <p className="text-xs italic opacity-70 mb-2">Qui est suspect ?</p>
-              <ul className="space-y-1 text-xs">
+              <ul className="space-y-1.5 text-sm">
                 {seated.map((p) => {
                   const mine = clues.filter((c) => c.player_id === p.id && !c.skipped).map((c) => c.text);
                   return (
@@ -1015,10 +1028,10 @@ export default function Imposteur() {
                 data-sfx="off"
                 onClick={() => setWordVisible((v) => !v)}
                 aria-label={wordVisible ? 'Cacher ma carte' : 'Voir ma carte'}
-                className="bureau-folder relative rounded-lg p-4 text-left md:absolute md:right-16 md:bottom-6 md:w-64 md:rotate-2 z-20 transition active:scale-[0.98] hover:-translate-y-0.5"
+                className="bureau-folder relative rounded-lg p-4 text-left md:absolute md:right-6 md:bottom-6 md:w-72 md:rotate-2 z-20 transition active:scale-[0.98] hover:-translate-y-0.5"
               >
                 <span className="absolute -top-3 left-4 rounded-t-md bg-[#efe3c4] text-stone-700 text-[10px] font-extrabold uppercase tracking-widest px-3 py-0.5 border border-b-0 border-[#8b6c37]">
-                  {wordVisible ? (isImp ? 'Imposteur' : 'Citoyen') : 'Dossier'}
+                  {wordVisible ? (isWhite(player.id) ? 'Mister White' : isImp ? 'Imposteur' : 'Citoyen') : 'Dossier'}
                 </span>
                 {wordVisible ? (
                   <>
@@ -1104,12 +1117,12 @@ export default function Imposteur() {
   if (phase === 'home') {
     return (
       <>
-        <div className="min-h-screen md:h-[100dvh] md:overflow-hidden bg-gray-950/95 text-white relative z-10 flex flex-col items-center justify-center p-4 pt-16 md:pt-4 md:pl-28">
+        <div className="min-h-screen md:h-[100dvh] md:overflow-y-auto bg-gray-950/95 text-white relative z-10 flex flex-col items-center before:content-[''] before:flex-1 after:content-[''] after:flex-1 p-4 pt-16 md:pt-4 md:pl-28">
           <VersionBadge />
           <GamesRail />
           <div className="text-center mb-2">
             <p className="eyebrow">✦ Enquête ✦</p>
-            <h1 className="font-heading text-5xl sm:text-7xl leading-none mt-2 ink-in">IMPOSTEUR</h1>
+            <h1 className="font-heading text-4xl min-[420px]:text-5xl sm:text-7xl leading-none mt-2 ink-in">IMPOSTEUR</h1>
           </div>
           <p className="text-gray-500 mb-8 italic text-center">Un mot pour tous… sauf un. Saurez-vous le démasquer ?</p>
 
@@ -1187,15 +1200,15 @@ export default function Imposteur() {
   if (phase === 'lobby') {
     const effectiveImpostors = Math.max(1, Math.min(settings.impostorCount, Math.floor((players.length - 1) / 2)));
     return renderAppShell(
-      <div className="bg-gray-900 p-8 rounded-2xl w-full max-w-3xl mx-auto shadow-2xl border border-gray-800 text-center">
+      <div className="bg-gray-900 p-6 sm:p-8 rounded-2xl w-full max-w-3xl mx-auto shadow-2xl border border-gray-800 text-center">
         <h2 className="font-heading text-2xl font-bold mb-2">Code de la Room</h2>
-        <div className="relative mb-8">
-          <div className="text-6xl font-black font-mono tracking-widest text-orange-400 bg-gray-950 py-4 rounded-xl border border-gray-800">
+        <div className="relative mb-5">
+          <div className="text-4xl sm:text-6xl font-black font-mono tracking-widest text-orange-400 bg-gray-950 py-4 rounded-xl border border-gray-800">
             {room?.code}
           </div>
           <button
             onClick={copyCode}
-            className="absolute right-3 bottom-3 flex items-center gap-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold px-3 py-2 rounded-lg transition active:scale-95"
+            className="flex w-fit mx-auto mt-3 sm:mt-0 sm:absolute sm:right-3 sm:bottom-3 items-center gap-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold px-3 py-2 rounded-lg transition active:scale-95"
           >
             {copied ? <Check size={14} /> : <Copy size={14} />}
             {copied ? 'Lien copié !' : "Copier l'invitation"}
@@ -1212,13 +1225,14 @@ export default function Imposteur() {
               → {effectiveImpostors} imposteur{effectiveImpostors > 1 ? 's' : ''} sur {players.length} joueurs
             </p>
           )}
-          <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
             {(
-              <div className="col-span-2">
-                <label className="block text-gray-500 mb-1 text-xs">
+              <details className="col-span-2 sm:col-span-3 group">
+                <summary className="text-gray-400 mb-1 text-xs font-bold cursor-pointer select-none list-none flex items-center gap-1.5 hover:text-white transition">
+                  <span className="inline-block transition group-open:rotate-90">▸</span>
                   Catégories {settings.wordCategories?.length ? `(${settings.wordCategories.length})` : '(toutes)'}
-                </label>
-                <div className="flex flex-wrap gap-1.5">
+                </summary>
+                <div className="flex flex-wrap gap-1.5 mt-2 max-h-40 overflow-y-auto pr-1">
                   {[...WORD_CATEGORIES, PLAYERS_CATEGORY].map((c) => {
                     const on = (settings.wordCategories || []).includes(c.id);
                     return (
@@ -1243,10 +1257,10 @@ export default function Imposteur() {
                   })}
                 </div>
                 <p className="text-[11px] text-gray-600 mt-1">Aucune sélection = tous les mots mélangés. « Pseudos des joueurs » : le mot est le pseudo d'un joueur.</p>
-              </div>
+              </details>
             )}
             {!settings.blind && (
-            <div className="col-span-2">
+            <div className="col-span-2 sm:col-span-3">
               <label className="block text-gray-500 mb-1 text-xs">Carte de l'imposteur</label>
               <select
                 disabled={!isHost}
@@ -1334,6 +1348,13 @@ export default function Imposteur() {
               onChange={(v) => updateSettings({ blind: v })}
             />
             <ToggleRow
+              label="Mister White"
+              hint="Un imposteur n'a aucun mot et le sait : il bluffe, et peut toujours deviner le mot des civils s'il est démasqué"
+              checked={settings.mrWhite}
+              disabled={!isHost}
+              onChange={(v) => updateSettings({ mrWhite: v })}
+            />
+            <ToggleRow
               label="Dernière chance"
               hint="Un imposteur démasqué peut deviner le mot des civils pour gagner"
               checked={settings.lastChance}
@@ -1359,7 +1380,8 @@ export default function Imposteur() {
   }
 
   if (phase === 'reveal') {
-    const isImp = myRole?.role === 'imposteur' && !settings.blind; // à l'aveugle : l'imposteur se croit civil
+    const isImp = knowsImpostor(player.id); // à l'aveugle : l'imposteur se croit civil (sauf Mister White)
+    const iAmWhite = isWhite(player.id);
     const iAmReady = readyIds.includes(player.id);
     const readyCount = participants.filter((p) => readyIds.includes(p.id)).length;
     return renderAppShell(
@@ -1385,8 +1407,8 @@ export default function Imposteur() {
             >
               {wordVisible ? (
                 <>
-                  <p className="text-4xl mb-2">{isImp ? '🕵️' : '🙂'}</p>
-                  <p className="font-bold text-lg">{isImp ? "Tu es l'IMPOSTEUR" : 'Tu es CIVIL'}</p>
+                  <p className="text-4xl mb-2">{iAmWhite ? '👤' : isImp ? '🕵️' : '🙂'}</p>
+                  <p className="font-bold text-lg">{iAmWhite ? 'Tu es MISTER WHITE' : isImp ? "Tu es l'IMPOSTEUR" : 'Tu es CIVIL'}</p>
                   {myRole.word ? (
                     <>
                       <p className="text-xs text-gray-400 mt-2">Ton mot</p>
@@ -1396,7 +1418,9 @@ export default function Imposteur() {
                     <p className="font-heading font-extrabold text-2xl mt-2">Tu n'as aucun mot</p>
                   )}
                   <p className="text-xs text-gray-400 mt-3">
-                    {isImp
+                    {iAmWhite
+                      ? "Tu n'as aucun mot : écoute les indices, bluffe, et si on te démasque, devine le mot des civils !"
+                      : isImp
                       ? myRole.word
                         ? 'Les civils ont un autre mot, proche du tien. Fais-toi passer pour l\'un d\'eux !'
                         : 'Écoute les indices des autres et bluffe pour passer inaperçu.'
@@ -1591,15 +1615,19 @@ export default function Imposteur() {
       <div className="flex flex-col items-center text-center max-w-3xl w-full mx-auto">
         {eliminatedNow ? (
           <div
-            className={`w-full rounded-2xl p-6 mb-4 border-2 animate-pop ${
+            className={`w-full rounded-2xl p-4 mb-3 border-2 animate-pop ${
               wasImp ? 'border-green-500 bg-green-900/30' : 'border-red-500 bg-red-900/30'
             }`}
           >
-            <p className="text-5xl mb-2">{wasImp ? '🎯' : '💀'}</p>
+            {wasImp ? (
+              <p className="text-5xl mb-2">🎯</p>
+            ) : (
+              <ShootScene avatar={avatarOf(eliminatedNow.id)} color={colorForPlayer(eliminatedNow.id)} name={nameOf(eliminatedNow.id)} />
+            )}
             <h2 className="font-heading text-2xl font-bold">
               <span className="inline-flex w-8 h-8 align-middle items-center justify-center"><AvatarGlyph avatar={avatarOf(eliminatedNow.id)} fallback="" /></span> {nameOf(eliminatedNow.id)} est éliminé(e)
             </h2>
-            <p className="text-lg mt-1 font-bold">{wasImp ? "C'était un IMPOSTEUR !" : "C'était un civil… ce n'était pas l'imposteur."}</p>
+            <p className="text-lg mt-1 font-bold">{wasImp ? (isWhite(eliminatedNow.id) ? "C'était MISTER WHITE !" : "C'était un IMPOSTEUR !") :"C'était un civil… ce n'était pas l'imposteur."}</p>
           </div>
         ) : (
           <div className="w-full rounded-2xl p-6 mb-4 border-2 border-gray-700 bg-gray-900">
@@ -1615,7 +1643,7 @@ export default function Imposteur() {
           {rows.map((r, i) => (
             <div
               key={r.id}
-              className="animate-rise flex items-center justify-between gap-3 bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 text-left"
+              className="animate-rise flex items-center justify-between gap-3 bg-gray-900 border border-gray-800 rounded-xl px-4 py-2 text-left"
               style={{ animationDelay: `${i * 70}ms` }}
             >
               <span className="flex items-center gap-2 font-bold min-w-0">
@@ -1727,12 +1755,12 @@ export default function Imposteur() {
     ) : null;
 
   const wordCards = (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full mb-6">
-      <div className="bg-green-900/30 border border-green-700/60 rounded-xl p-4">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full mb-3">
+      <div className="bg-green-900/30 border border-green-700/60 rounded-xl p-3">
         <p className="text-[10px] font-bold text-green-300 uppercase tracking-wide">Mot des civils</p>
         <p className="font-heading font-extrabold text-2xl break-words [overflow-wrap:anywhere]">{civilWord}</p>
       </div>
-      <div className="bg-red-900/30 border border-red-700/60 rounded-xl p-4">
+      <div className="bg-red-900/30 border border-red-700/60 rounded-xl p-3">
         <p className="text-[10px] font-bold text-red-300 uppercase tracking-wide">Mot de l'imposteur</p>
         <p className="font-heading font-extrabold text-2xl break-words [overflow-wrap:anywhere]">
           {impostorWord || <span className="text-gray-500 text-lg">aucun</span>}
@@ -1748,14 +1776,15 @@ export default function Imposteur() {
   );
 
   const rankingList = (
-    <div className="w-full space-y-2 mb-6">
+    <div className="w-full space-y-1.5 mb-3">
       {ranking.map((p, i) => {
         const isImp = roles[p.id]?.role === 'imposteur';
         const pts = meta.delta?.[p.id] || 0;
+        const roleLabel = isWhite(p.id) ? '👤 Mister White' : isImp ? '🕵️ Imposteur' : 'Civil';
         return (
           <div
             key={p.id}
-            className={`animate-rise flex items-center gap-3 rounded-xl px-4 py-3 border text-left ${
+            className={`animate-rise flex items-center gap-3 rounded-xl px-4 py-2 border text-left ${
               isImp ? 'bg-red-900/20 border-red-700/50' : 'bg-gray-900 border-gray-800'
             }`}
             style={{ animationDelay: `${i * 70}ms` }}
@@ -1763,7 +1792,7 @@ export default function Imposteur() {
             <PlayerDot id={p.id} avatar={p.avatar} size="md" />
             <span className="font-bold truncate flex-1">{p.name}</span>
             <span className={`text-xs font-bold px-2 py-0.5 rounded ${isImp ? 'bg-red-600/70' : 'bg-gray-700'}`}>
-              {isImp ? '🕵️ Imposteur' : 'Civil'}
+              {roleLabel}
             </span>
             {eliminatedIds.has(p.id) && <span title="Éliminé">💀</span>}
             {pts > 0 && <span className="text-green-400 font-bold text-sm animate-pop">+{pts}</span>}
@@ -1796,7 +1825,7 @@ export default function Imposteur() {
           <p className="text-xs italic text-gray-500 mt-2">{reasonText}</p>
         </FrontPage>
       ) : (
-        <div className="paper w-full px-6 py-6 mb-6 animate-fadein">
+        <div className="paper w-full px-6 py-4 mb-3 animate-fadein">
           <p className="eyebrow">Mot {meta.wordIndex + 1} sur {settings.words}</p>
           <h2 className="font-heading text-3xl mt-2">{winnerCivils ? 'Les civils gagnent ce mot' : "L'imposteur gagne ce mot"}</h2>
           <p className="text-sm text-gray-400 mt-2">{reasonText}</p>
@@ -1806,35 +1835,7 @@ export default function Imposteur() {
 
       {wordCards}
       {rankingList}
-
-      {isLastWord && meta.history.length > 1 && (
-        <div className="w-full mb-6 text-left">
-          <p className="eyebrow mb-2">Récap des mots de la manche</p>
-          <div className="space-y-2">
-            {meta.history.map((h, i) => (
-              <div key={i} className="bg-gray-900 border border-gray-800 rounded-xl p-3">
-                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                  <span className="text-xs text-gray-500">Mot {i + 1}</span>
-                  <span className="font-heading font-extrabold text-lg">{h.word}</span>
-                  <span className="text-xs text-gray-500">vs</span>
-                  <span className="font-heading font-bold text-lg text-gray-300">{h.impWord || '—'}</span>
-                  <span className={`ml-auto text-xs font-bold px-2 py-0.5 rounded ${h.winner === 'civils' ? 'bg-green-700/60' : 'bg-red-700/60'}`}>
-                    {h.winner === 'civils' ? 'Civils' : 'Imposteur'}
-                  </span>
-                </div>
-                <p className="text-xs text-gray-500 mt-1">🕵️ {h.impostors.join(', ')}</p>
-                {h.guess && <div className="mt-2">{renderGuess(h.guess, true)}</div>}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="w-full mb-6 text-left">
-        <p className="eyebrow mb-2">Récap des indices</p>
-        {renderClueTable(Math.max(0, ...clues.map((c) => c.round)))}
-      </div>
-
+      <div className="w-full mb-4 flex justify-center">
       {isHost ? (
         isLastWord ? (
           <div className="flex flex-wrap items-center justify-center gap-3">
@@ -1868,6 +1869,38 @@ export default function Imposteur() {
       ) : (
         waitingForHost
       )}
+      </div>
+
+      {isLastWord && meta.history.length > 1 && (
+        <div className="w-full mb-6 text-left">
+          <p className="eyebrow mb-2">Récap des mots de la manche</p>
+          <div className="space-y-2">
+            {meta.history.map((h, i) => (
+              <div key={i} className="bg-gray-900 border border-gray-800 rounded-xl p-3">
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <span className="text-xs text-gray-500">Mot {i + 1}</span>
+                  <span className="font-heading font-extrabold text-lg">{h.word}</span>
+                  <span className="text-xs text-gray-500">vs</span>
+                  <span className="font-heading font-bold text-lg text-gray-300">{h.impWord || '—'}</span>
+                  <span className={`ml-auto text-xs font-bold px-2 py-0.5 rounded ${h.winner === 'civils' ? 'bg-green-700/60' : 'bg-red-700/60'}`}>
+                    {h.winner === 'civils' ? 'Civils' : 'Imposteur'}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">🕵️ {h.impostors.join(', ')}</p>
+                {h.guess && <div className="mt-2">{renderGuess(h.guess, true)}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <details className="w-full mb-2 text-left group">
+        <summary className="eyebrow mb-2 cursor-pointer select-none list-none flex items-center gap-2 hover:text-white transition">
+          Récap des indices <span className="text-[10px] opacity-60 group-open:hidden">(afficher)</span>
+        </summary>
+        {renderClueTable(Math.max(0, ...clues.map((c) => c.round)))}
+      </details>
+
     </div>
   );
 }
