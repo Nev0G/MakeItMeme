@@ -180,6 +180,7 @@ const ARTICLES = ['un', 'une', 'le', 'la', 'les', 'l', 'du', 'des', 'de', 'd', '
 const noArticle = (w: string) => {
   const words = w
     .toLowerCase()
+    .replace(/œ/g, 'oe')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, ' ')
