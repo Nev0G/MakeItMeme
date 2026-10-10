@@ -56,6 +56,17 @@ const HOME_GAMES = [
     players: '3 à 12 joueurs',
     duration: '15 min',
   },
+  {
+    id: 'blind-test',
+    glow: '#e69d59',
+    href: '/blind-test',
+    kicker: 'Musiques & images',
+    name: 'Blind Test',
+    emoji: '🎧',
+    text: 'Un extrait sonore ou une image floutée qui se dévoile peu à peu : musiques, films, séries, jeux vidéo, anime. Le plus rapide à trouver rafle les points.',
+    players: '2 à 12 joueurs',
+    duration: '15 min',
+  },
 ];
 
 const STEPS = [

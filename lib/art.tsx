@@ -152,6 +152,44 @@ const PictionaryArt = ({ p }) => (
   </g>
 );
 
+const BlindTestArt = ({ p }) => (
+  <g>
+    <Backdrop p={p} glow="ember" />
+    <defs>
+      <filter id={`${p}-blur`} x="-20%" y="-20%" width="140%" height="140%">
+        <feGaussianBlur stdDeviation="3.2" />
+      </filter>
+    </defs>
+    {/* image floutée qui se dévoile */}
+    <rect x="70" y="52" width="60" height="46" rx="3" fill={`url(#${p}-gold)`} />
+    <g filter={`url(#${p}-blur)`}>
+      <rect x="74" y="56" width="52" height="38" fill="#2f9468" />
+      <circle cx="108" cy="68" r="7" fill="#f3df94" />
+      <path d="M74 94 L90 74 L100 86 L112 70 L126 94 Z" fill="#1d5c42" />
+    </g>
+    <path d="M70 52 h12 v3 h-9 v8 h-3 Z" fill="#fff" fillOpacity=".5" />
+    {/* casque */}
+    <path d="M46 94 C46 34 154 34 154 94" fill="none" stroke={`url(#${p}-gold)`} strokeWidth="7" strokeLinecap="round" />
+    <rect x="38" y="82" width="22" height="38" rx="9" fill={`url(#${p}-gold)`} stroke="#5a3d0e" />
+    <rect x="140" y="82" width="22" height="38" rx="9" fill={`url(#${p}-gold)`} stroke="#5a3d0e" />
+    <rect x="43" y="90" width="12" height="22" rx="5" fill="#2b1b10" />
+    <rect x="145" y="90" width="12" height="22" rx="5" fill="#2b1b10" />
+    {/* ondes sonores */}
+    <g fill="none" stroke="#e0b552" strokeLinecap="round" strokeWidth="3">
+      <path d="M28 88 q-7 12 0 24" />
+      <path d="M20 82 q-12 18 0 36" opacity=".6" />
+      <path d="M172 88 q7 12 0 24" />
+      <path d="M180 82 q12 18 0 36" opacity=".6" />
+    </g>
+    {/* note de musique */}
+    <g fill="#f3df94" stroke="#5a3d0e" strokeWidth="1">
+      <ellipse cx="150" cy="30" rx="6" ry="4.5" />
+      <rect x="153" y="12" width="3" height="19" />
+      <path d="M156 12 q10 3 8 14" fill="none" strokeWidth="2.5" stroke="#f3df94" />
+    </g>
+  </g>
+);
+
 const HomeArt = ({ p }) => (
   <g>
     <Backdrop p={p} glow="soul" />
@@ -165,6 +203,7 @@ const ARTS = {
   imposteur: ImposteurArt,
   'bomb-party': BombPartyArt,
   pictionary: PictionaryArt,
+  'blind-test': BlindTestArt,
   home: HomeArt,
 };
 
