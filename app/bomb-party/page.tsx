@@ -133,31 +133,31 @@ const Bomb = ({ syllable, ratio, boom, timer = null, className = 'w-52 h-52 sm:w
       <svg viewBox="0 0 200 200" className="w-full h-full overflow-visible" aria-hidden="true">
         <defs>
           <linearGradient id="bp-gold" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#f7ffd0" />
-            <stop offset="0.5" stopColor="#c8ee6a" />
-            <stop offset="1" stopColor="#6f8f22" />
+            <stop offset="0" stopColor="#fff1c2" />
+            <stop offset="0.5" stopColor="#e3b559" />
+            <stop offset="1" stopColor="#8a5f1c" />
           </linearGradient>
           <radialGradient id="bp-body" cx="0.38" cy="0.32" r="0.8">
             <stop offset="0" stopColor="#25343a" />
-            <stop offset="1" stopColor="#05080a" />
+            <stop offset="1" stopColor="#0d0805" />
           </radialGradient>
           <radialGradient id="bp-spark" cx="0.5" cy="0.5" r="0.5">
             <stop offset="0" stopColor="#f08a3a" stopOpacity="0.8" />
             <stop offset="1" stopColor="#f08a3a" stopOpacity="0" />
           </radialGradient>
         </defs>
-        <path d="M112 44 C120 26 138 24 150 10" stroke="#b9d46a" strokeWidth="5" fill="none" strokeLinecap="round" />
+        <path d="M112 44 C120 26 138 24 150 10" stroke="#d9b86a" strokeWidth="5" fill="none" strokeLinecap="round" />
         <g transform="translate(152 10)">
           <circle r={14 + (1 - ratio) * 10} fill="url(#bp-spark)" />
           <path d="M0 -10 L3 -3 L10 0 L3 3 L0 10 L-3 3 L-10 0 L-3 -3 Z" fill="#fff3c4" />
         </g>
-        <circle cx="100" cy="118" r="70" fill="url(#bp-body)" stroke="#c8ee6a" strokeOpacity="0.8" strokeWidth="2.5" />
+        <circle cx="100" cy="118" r="70" fill="url(#bp-body)" stroke="#e3b559" strokeOpacity="0.8" strokeWidth="2.5" />
         <path d="M58 92 A52 52 0 0 1 100 66" stroke="#fff" strokeOpacity="0.35" strokeWidth="7" fill="none" strokeLinecap="round" />
-        <rect x="84" y="42" width="32" height="18" rx="4" fill="url(#bp-gold)" stroke="#4d6a14" />
+        <rect x="84" y="42" width="32" height="18" rx="4" fill="url(#bp-gold)" stroke="#5a3d0e" />
         <rect x="78" y="56" width="44" height="7" fill="url(#bp-gold)" />
         {timer !== null ? (
           <g>
-            <rect x="52" y="104" width="96" height="40" rx="20" fill="#05080a" fillOpacity="0.85" stroke={ratio < 0.3 ? '#ff5a3a' : '#f08a3a'} strokeWidth="2.5" />
+            <rect x="52" y="104" width="96" height="40" rx="20" fill="#0d0805" fillOpacity="0.85" stroke={ratio < 0.3 ? '#ff5a3a' : '#f08a3a'} strokeWidth="2.5" />
             <text x="100" y="133" textAnchor="middle" fontFamily="'Courier Prime', ui-monospace, monospace" fontWeight="700" fontSize="28" fill={ratio < 0.3 ? '#ffb199' : '#fff3c4'}>
               {timer}
             </text>
@@ -171,7 +171,7 @@ const Bomb = ({ syllable, ratio, boom, timer = null, className = 'w-52 h-52 sm:w
           fontWeight="800"
           fontSize={syllable.length > 3 ? 40 : 52}
           fill="url(#bp-gold)"
-          stroke="#3f5810"
+          stroke="#5a3d0e"
           strokeWidth="0.8"
         >
           {syllable}
@@ -762,10 +762,10 @@ export default function BombParty() {
       >
         <div
           className={`arena-seat-ring ${isTurn ? 'arena-seat-turn' : ''} ${out ? 'arena-seat-out' : ''}`}
-          style={{ background: isTurn ? `conic-gradient(#c8ee6a ${Math.round(ratio * 360)}deg, rgba(255,255,255,0.12) 0deg)` : `${color}` }}
+          style={{ background: isTurn ? `conic-gradient(#e3b559 ${Math.round(ratio * 360)}deg, rgba(255,255,255,0.12) 0deg)` : `${color}` }}
         >
           <div
-            className="w-14 h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center text-3xl overflow-hidden border-[3px] border-[#07100f]"
+            className="w-14 h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center text-3xl overflow-hidden border-[3px] border-[#120a06]"
             style={{ backgroundColor: `${color}55` }}
           >
             <AvatarGlyph avatar={avatarOf(id)} />

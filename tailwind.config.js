@@ -1,6 +1,7 @@
 /** @type {import('tailwindcss').Config} */
-// Ambiance "Observatoire" (inspirée de Deadlock) : vert nuit, verre dépoli, accent citron, touches d'or.
-// On redéfinit les échelles gray / purple / pink (et white) pour restyler tout le site d'un coup.
+// Ambiance "Speakeasy" : bois de noyer, cadres en laiton, parchemin, gemmes colorées.
+// On redéfinit les échelles gray / purple / pink / orange (et white) pour restyler tout le site d'un coup :
+// gray = bois, purple = laiton (action), pink = émeraude, orange = cuivre.
 module.exports = {
   content: [
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
@@ -11,21 +12,35 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        white: '#f1e9d0', // crème
-        // vert-noir (nuit)
+        white: '#f3e6c8', // parchemin
+        // bois sombre (noyer) : fonds, cadres, textes secondaires
         gray: {
-          50: '#f6f8f4', 100: '#e8eee9', 200: '#d3dcd6', 300: '#b8c5be', 400: '#9fb0a8',
-          500: '#7f918a', 600: '#51635f', 700: '#2a3a39', 800: '#182524', 900: '#0e1818', 950: '#060d0d',
+          50: '#f8f2e4', 100: '#efe6d2', 200: '#e0d3b8', 300: '#cdbb9b', 400: '#b09a7a',
+          500: '#8f785a', 600: '#6a5238', 700: '#443020', 800: '#2b1c12', 900: '#1b110a', 950: '#0d0805',
         },
-        // citron (couleur d'action principale)
+        // laiton (couleur d'action principale)
         purple: {
-          50: '#f8fded', 100: '#eefac6', 200: '#e4f7a4', 300: '#d9f891', 400: '#c8ee6a',
-          500: '#a9d44a', 600: '#7fa22d', 700: '#5f7d22', 800: '#42591a', 900: '#2b3b13', 950: '#161f0a',
+          50: '#fdf8e6', 100: '#f9edc0', 200: '#f3df94', 300: '#ecce6e', 400: '#e0b552',
+          500: '#c9953a', 600: '#a67526', 700: '#805a1d', 800: '#5a3f15', 900: '#3c2a0e', 950: '#201507',
         },
-        // âmes turquoise (accent secondaire)
+        // émeraude (accent secondaire, gemmes)
         pink: {
-          50: '#ecfaf7', 100: '#cdf2ea', 200: '#9fe5d7', 300: '#6fd4c3', 400: '#43bfaa',
-          500: '#2aa897', 600: '#1f8a7c', 700: '#1b6e65', 800: '#17524d', 900: '#123a38', 950: '#0a2322',
+          50: '#ecf8f1', 100: '#cdeedd', 200: '#9fdfbf', 300: '#6fcd9f', 400: '#3fae7d',
+          500: '#2f9468', 600: '#247653', 700: '#1d5c42', 800: '#174834', 900: '#10342a', 950: '#09211a',
+        },
+        // cuivre (imposteur)
+        orange: {
+          50: '#fcf1e6', 100: '#f8dcc0', 200: '#f0bd8a', 300: '#e69d59', 400: '#da7f38',
+          500: '#c9661f', 600: '#ad531a', 700: '#8a4118', 800: '#6a3217', 900: '#4a2411', 950: '#2a1409',
+        },
+        // lime / teal (utilisés par Bomb Party) suivent la palette : laiton et émeraude
+        lime: {
+          50: '#fdf8e6', 100: '#f9edc0', 200: '#f3df94', 300: '#ecce6e', 400: '#e0b552',
+          500: '#c9953a', 600: '#a67526', 700: '#805a1d', 800: '#5a3f15', 900: '#3c2a0e', 950: '#201507',
+        },
+        teal: {
+          50: '#ecf8f1', 100: '#cdeedd', 200: '#9fdfbf', 300: '#6fcd9f', 400: '#3fae7d',
+          500: '#2f9468', 600: '#247653', 700: '#1d5c42', 800: '#174834', 900: '#10342a', 950: '#09211a',
         },
       },
       fontFamily: {

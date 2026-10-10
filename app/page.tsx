@@ -14,7 +14,7 @@ const SIGN_KEY = 'makeitmeme-sign';
 const HOME_GAMES = [
   {
     id: 'caption-battle',
-    glow: '#43bfaa',
+    glow: '#3fae7d',
     href: '/caption-battle',
     kicker: 'Concours de légendes',
     name: 'Caption Battle',
@@ -25,7 +25,7 @@ const HOME_GAMES = [
   },
   {
     id: 'imposteur',
-    glow: '#f08a3a',
+    glow: '#9b6bd6',
     href: '/imposteur',
     kicker: 'Enquête',
     name: 'Imposteur',
@@ -36,7 +36,7 @@ const HOME_GAMES = [
   },
   {
     id: 'bomb-party',
-    glow: '#d9f891',
+    glow: '#d9453a',
     href: '/bomb-party',
     kicker: 'Course contre la montre',
     name: 'Bomb Party',
@@ -44,6 +44,17 @@ const HOME_GAMES = [
     text: 'Une syllabe, une bombe, quelques secondes : trouve un mot qui la contient avant que tout explose. Le dernier survivant remporte l’édition.',
     players: '2 à 12 joueurs',
     duration: '10 min',
+  },
+  {
+    id: 'pictionary',
+    glow: '#3b82c4',
+    href: '/pictionary',
+    kicker: 'Dessin & devinettes',
+    name: 'Pictionary',
+    emoji: '🎨',
+    text: 'Un dessinateur, un mot secret, et toute la bande qui crie des bêtises. Pinceau arc-en-ciel, tampons, indices et chaos : le crayon n’a jamais été aussi dangereux.',
+    players: '3 à 12 joueurs',
+    duration: '15 min',
   },
 ];
 
@@ -114,9 +125,18 @@ export default function Home() {
     <div className="relative z-10 min-h-screen px-4 sm:px-8 py-4 md:py-6 md:overflow-y-auto md:h-[100dvh] text-white">
       <div className="max-w-[92rem] mx-auto">
         {/* Barre du haut */}
-        <header className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-gray-800 bg-gray-900/60 backdrop-blur px-4 sm:px-6 py-3">
+        <div className="relative h-6 sm:h-8" aria-hidden="true">
+          <svg viewBox="0 0 120 70" className="lamp-swing absolute left-1/2 -translate-x-1/2 -top-4 sm:-top-6 w-20 sm:w-28 z-20 pointer-events-none drop-shadow-[0_8px_14px_rgba(0,0,0,0.6)]">
+            <path d="M60 0 V22" stroke="#b98a35" strokeWidth="2.5" />
+            <path d="M22 54 Q26 24 60 22 Q94 24 98 54 Z" fill="#2f9468" stroke="#f0d98a" strokeWidth="2.2" />
+            <path d="M34 50 Q38 32 60 30" stroke="#9fdfbf" strokeOpacity="0.6" strokeWidth="3" fill="none" strokeLinecap="round" />
+            <ellipse cx="60" cy="56" rx="38" ry="5" fill="#fff0b8" />
+            <path d="M44 58 Q60 78 76 58 Z" fill="#fff0b8" opacity="0.85" />
+          </svg>
+        </div>
+        <header className="paper flex flex-wrap items-center justify-between gap-4 px-4 sm:px-6 py-3">
           <div className="flex items-center gap-3 min-w-0">
-            <GameArt id="bomb-party" className="w-10 h-9 shrink-0" />
+            <GameArt id="pictionary" className="w-10 h-9 shrink-0" />
             <div className="min-w-0">
               <p className="font-masthead text-2xl sm:text-3xl leading-none">MakeItMeme</p>
               <p className="text-[11px] text-gray-500 mt-1 truncate">Les jeux entre potes · {paper.weather || ' '}</p>
@@ -135,11 +155,11 @@ export default function Home() {
           <p className="eyebrow">Jeux entre potes · édition n° {paper.edition}</p>
           <h1 className="text-4xl sm:text-6xl lg:text-7xl mt-4 ink-in">À quel jeu joue-t-on ce soir&nbsp;?</h1>
           <p className="text-gray-400 mt-5 text-base sm:text-lg max-w-2xl mx-auto">
-            Trois jeux, zéro excuse. Crée un salon, invite la bande, et que le meilleur gagne.
+            Quatre jeux, zéro excuse. Crée un salon, invite la bande, et que le meilleur gagne.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-2 mt-6 text-xs font-bold">
-            <span className="rounded-full border border-gray-800 bg-gray-900/60 px-3 py-1.5">3 jeux</span>
-            <span className="rounded-full border border-gray-800 bg-gray-900/60 px-3 py-1.5">2 à 12 joueurs</span>
+            <span className="rounded-full border border-purple-600/50 bg-gray-950/60 px-3 py-1.5">4 jeux</span>
+            <span className="rounded-full border border-purple-600/50 bg-gray-950/60 px-3 py-1.5">2 à 12 joueurs</span>
             <span className="rounded-full border border-purple-400/40 bg-purple-400/10 text-purple-300 px-3 py-1.5 inline-flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-purple-300 animate-pulse" />
               {directory.ready ? `${directory.rooms.length} salon${directory.rooms.length > 1 ? 's' : ''} ouvert${directory.rooms.length > 1 ? 's' : ''}` : 'connexion…'}
@@ -148,7 +168,7 @@ export default function Home() {
         </section>
 
         {/* Les jeux */}
-        <section className="grid gap-5 md:grid-cols-3">
+        <section className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
           {HOME_GAMES.map((g) => {
             const isLast = lastGame === g.id;
             return (
@@ -245,7 +265,7 @@ export default function Home() {
 
           <aside className="space-y-6">
             {/* Horoscope */}
-            <div className="paper p-5">
+            <div className="parchment p-5">
               <p className="eyebrow flex items-center gap-1.5"><span className="twinkle">✦</span> Horoscope du joueur</p>
               <div className="flex items-center gap-2 mt-3">
                 <select

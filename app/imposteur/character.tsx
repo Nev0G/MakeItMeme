@@ -35,8 +35,8 @@ export const ShootScene = ({ avatar, color, name }) => {
   return (
     <div className="shoot-stage relative h-40 w-full overflow-hidden rounded-xl mb-3" role="img" aria-label={`${name} se fait tirer dessus`}>
       <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/60 to-transparent" />
-      <div className="shoot-victim absolute left-1/2 bottom-3">
-        <SeatCharacter avatar={avatar} color={color} className="text-[17px]" />
+      <div className="shoot-victim absolute left-[36%] sm:left-1/2 bottom-3">
+        <SeatCharacter avatar={avatar} color={color} className="text-[13px] sm:text-[17px]" />
       </div>
       <div className="shoot-gun absolute left-[6%] top-[22%] w-36">
       <svg className="w-full" viewBox="0 0 120 60" aria-hidden="true">

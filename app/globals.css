@@ -7,14 +7,14 @@
    (Les échelles de couleurs sont redéfinies dans tailwind.config.js.)
    ========================================== */
 :root {
-  --night: #060d0d;
+  --night: #0d0805;
   --ivory: #efe6cb;
-  --lime: #d9f891;
-  --gold: #c8ee6a;
-  --soul: #43bfaa;
+  --lime: #f0d98a;
+  --gold: #e3b559;
+  --soul: #3fae7d;
   --ember: #f08a3a;
   --line: rgba(255, 255, 255, 0.09);
-  --glass: rgba(18, 28, 28, 0.66);
+  --glass: rgba(40, 24, 15, 0.72);
   --display: 'Unbounded', 'Space Grotesk', system-ui, sans-serif;
 }
 
@@ -28,9 +28,9 @@ body {
   font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   background-color: var(--night);
   background-image:
-    radial-gradient(ellipse 60% 40% at 15% -5%, rgba(67, 191, 170, 0.22), transparent 70%),
-    radial-gradient(ellipse 50% 40% at 90% 0%, rgba(217, 248, 145, 0.16), transparent 70%),
-    radial-gradient(ellipse 55% 40% at 80% 110%, rgba(169, 212, 74, 0.14), transparent 70%),
+    radial-gradient(ellipse 60% 40% at 15% -5%, rgba(63, 174, 125, 0.22), transparent 70%),
+    radial-gradient(ellipse 50% 40% at 90% 0%, rgba(232, 197, 101, 0.16), transparent 70%),
+    radial-gradient(ellipse 55% 40% at 80% 110%, rgba(196, 145, 47, 0.14), transparent 70%),
     radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.55) 100%);
   background-attachment: fixed;
 }
@@ -75,7 +75,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offs
   font-family: var(--display);
   font-weight: 800;
   letter-spacing: -0.02em;
-  background: linear-gradient(180deg, #fbffe6 0%, #e4f9a8 50%, #b6dd55 100%);
+  background: linear-gradient(180deg, #fff6dc 0%, #f3d98e 50%, #c4912f 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -89,8 +89,8 @@ body::before {
   z-index: 0;
   pointer-events: none;
   background-image:
-    radial-gradient(circle, rgba(217, 248, 145, 0.35) 1px, transparent 1.5px),
-    radial-gradient(circle, rgba(67, 191, 170, 0.28) 1px, transparent 1.5px),
+    radial-gradient(circle, rgba(232, 197, 101, 0.35) 1px, transparent 1.5px),
+    radial-gradient(circle, rgba(63, 174, 125, 0.28) 1px, transparent 1.5px),
     linear-gradient(115deg, transparent 49.8%, rgba(255, 255, 255, 0.035) 50%, transparent 50.2%),
     linear-gradient(65deg, transparent 49.8%, rgba(255, 255, 255, 0.03) 50%, transparent 50.2%);
   background-size: 120px 120px, 190px 190px, 240px 240px, 300px 300px;
@@ -121,24 +121,24 @@ body::after {
 }
 
 ::selection {
-  background: rgba(217, 248, 145, 0.35);
+  background: rgba(232, 197, 101, 0.35);
   color: #fff;
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #3b4a4a transparent;
+  scrollbar-color: #6b5236 transparent;
 }
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #2c3b3b;
+  background: #4a3523;
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #44585a;
+  background: #8a6a3c;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -150,7 +150,7 @@ body::after {
 .paper {
   position: relative;
   color: var(--ivory);
-  background: linear-gradient(180deg, rgba(28, 42, 42, 0.72), rgba(12, 20, 20, 0.78));
+  background: linear-gradient(180deg, rgba(62, 39, 24, 0.72), rgba(28, 17, 10, 0.78));
   border: 1px solid var(--line);
   border-radius: 20px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 18px 40px rgba(0, 0, 0, 0.45);
@@ -159,8 +159,8 @@ body::after {
 }
 .paper-tilt-l, .paper-tilt-r { transform: none; }
 .paper-green {
-  border-color: rgba(217, 248, 145, 0.35);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 18px 40px rgba(0, 0, 0, 0.45), 0 0 40px rgba(217, 248, 145, 0.1);
+  border-color: rgba(232, 197, 101, 0.35);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 18px 40px rgba(0, 0, 0, 0.45), 0 0 40px rgba(232, 197, 101, 0.1);
 }
 
 .panel-worn {
@@ -174,20 +174,20 @@ body::after {
 .tag-dark {
   position: relative;
   font-family: var(--display);
-  background: linear-gradient(180deg, #e6fba9, #c9ee6e);
-  color: #101a06;
+  background: linear-gradient(180deg, #f6e6ad, #d9a441);
+  color: #1f1506;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   font-size: 0.66rem;
   font-weight: 700;
   border-radius: 12px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 6px 18px rgba(169, 212, 74, 0.25);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 6px 18px rgba(196, 145, 47, 0.25);
   transition: filter 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
 }
 .tag-dark:hover,
 .group:hover .tag-dark {
   filter: brightness(1.06);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 8px 26px rgba(217, 248, 145, 0.4);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 8px 26px rgba(232, 197, 101, 0.4);
 }
 
 .eyebrow {
@@ -201,7 +201,7 @@ body::after {
 }
 
 .glow-brass {
-  text-shadow: 0 0 18px rgba(217, 248, 145, 0.35);
+  text-shadow: 0 0 18px rgba(232, 197, 101, 0.35);
 }
 
 /* Filets */
@@ -222,23 +222,23 @@ body::after {
   overflow: hidden;
   border-radius: 14px;
   background:
-    radial-gradient(circle at 50% 60%, color-mix(in srgb, var(--glow, #43bfaa) 38%, transparent), transparent 65%),
-    linear-gradient(180deg, #0f1b1b, #070d0d);
+    radial-gradient(circle at 50% 60%, color-mix(in srgb, var(--glow, #3fae7d) 38%, transparent), transparent 65%),
+    linear-gradient(180deg, #2d1b10, #130b06);
   box-shadow: inset 0 0 0 1px var(--line);
   transition: background 0.4s ease, box-shadow 0.4s ease;
 }
 .print-photo > .print-subject {
-  filter: drop-shadow(0 6px 18px color-mix(in srgb, var(--glow, #43bfaa) 55%, transparent));
+  filter: drop-shadow(0 6px 18px color-mix(in srgb, var(--glow, #3fae7d) 55%, transparent));
   transition: filter 0.4s ease, transform 0.4s ease;
 }
 .print-photo::after { content: none; }
 .group:hover .print-photo {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--glow, #43bfaa) 60%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--glow, #3fae7d) 60%, transparent);
 }
 
 /* Carte de jeu : se soulève et s'illumine à la couleur du jeu */
 .deco-card {
-  background: linear-gradient(180deg, rgba(26, 40, 40, 0.65), rgba(11, 18, 18, 0.7));
+  background: linear-gradient(180deg, rgba(62, 39, 24, 0.65), rgba(28, 17, 10, 0.7));
   border: 1px solid var(--line);
   border-radius: 22px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 14px 34px rgba(0, 0, 0, 0.4);
@@ -248,14 +248,14 @@ body::after {
 }
 .deco-card:hover {
   transform: translateY(-4px);
-  border-color: color-mix(in srgb, var(--glow, #d9f891) 55%, transparent);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 20px 44px rgba(0, 0, 0, 0.5), 0 0 40px color-mix(in srgb, var(--glow, #d9f891) 22%, transparent);
+  border-color: color-mix(in srgb, var(--glow, #f0d98a) 55%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 20px 44px rgba(0, 0, 0, 0.5), 0 0 40px color-mix(in srgb, var(--glow, #f0d98a) 22%, transparent);
 }
 
 /* Pastille / sceau */
 .stamp {
   display: inline-block;
-  border: 1px solid rgba(217, 248, 145, 0.5);
+  border: 1px solid rgba(232, 197, 101, 0.5);
   color: var(--lime);
   font-family: var(--display);
   font-weight: 700;
@@ -264,8 +264,8 @@ body::after {
   letter-spacing: 0.1em;
   padding: 0.3em 0.8em;
   border-radius: 9999px;
-  background: rgba(217, 248, 145, 0.1);
-  box-shadow: 0 0 18px rgba(217, 248, 145, 0.2);
+  background: rgba(232, 197, 101, 0.1);
+  box-shadow: 0 0 18px rgba(232, 197, 101, 0.2);
 }
 
 /* Apparition */
@@ -288,7 +288,7 @@ body::after {
   letter-spacing: -0.02em;
   line-height: 1.05 !important;
   overflow-wrap: anywhere;
-  background: linear-gradient(180deg, #fbffe6 0%, #e4f9a8 55%, #b6dd55 100%);
+  background: linear-gradient(180deg, #fff6dc 0%, #f3d98e 55%, #c4912f 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -372,7 +372,7 @@ body::after {
   100% { background-position: 200% 50%; }
 }
 .shimmer-bar {
-  background-image: linear-gradient(90deg, #a8751f, #f0cf7a, #43bfaa, #f0cf7a, #a8751f);
+  background-image: linear-gradient(90deg, #a07322, #f0cf7a, #3fae7d, #f0cf7a, #a07322);
   background-size: 200% 100%;
   animation: shimmer 3s linear infinite;
 }
@@ -391,13 +391,13 @@ body::after {
   user-select: none;
   animation: float-up linear infinite;
   color: var(--lime);
-  text-shadow: 0 0 10px rgba(217, 248, 145, 0.8);
+  text-shadow: 0 0 10px rgba(232, 197, 101, 0.8);
   --float-opacity: 0.55;
 }
 /* Une braise sur deux devient une âme turquoise */
 .float-emoji:nth-child(even) {
   color: var(--soul);
-  text-shadow: 0 0 10px rgba(67, 191, 170, 0.9);
+  text-shadow: 0 0 10px rgba(63, 174, 125, 0.9);
 }
 
 /* Onde au clic */
@@ -411,8 +411,8 @@ body::after {
   width: 44px;
   height: 44px;
   border-radius: 9999px;
-  border: 2px solid rgba(217, 248, 145, 0.85);
-  box-shadow: 0 0 12px rgba(217, 248, 145, 0.5);
+  border: 2px solid rgba(232, 197, 101, 0.85);
+  box-shadow: 0 0 12px rgba(232, 197, 101, 0.5);
   pointer-events: none;
   animation: click-ripple 0.6s ease-out forwards;
 }
@@ -450,7 +450,7 @@ body::after {
 input:focus, select:focus, textarea:focus {
   outline: none;
   border-color: var(--lime) !important;
-  box-shadow: 0 0 0 3px rgba(217, 248, 145, 0.15);
+  box-shadow: 0 0 0 3px rgba(232, 197, 101, 0.15);
 }
 
 /* Bouton Discord : plaque sombre à filet doré, liseré bleu Discord au survol */
@@ -513,8 +513,8 @@ input:focus, select:focus, textarea:focus {
 
 /* Mon tour de jouer : cadre qui pulse pour qu'on ne le rate pas */
 @keyframes my-turn-pulse {
-  0%, 100% { box-shadow: 0 0 0 2px rgba(217, 248, 145, 0.7), 0 0 24px rgba(217, 248, 145, 0.25); }
-  50% { box-shadow: 0 0 0 3px rgba(217, 248, 145, 1), 0 0 48px rgba(217, 248, 145, 0.5); }
+  0%, 100% { box-shadow: 0 0 0 2px rgba(232, 197, 101, 0.7), 0 0 24px rgba(232, 197, 101, 0.25); }
+  50% { box-shadow: 0 0 0 3px rgba(232, 197, 101, 1), 0 0 48px rgba(232, 197, 101, 0.5); }
 }
 .my-turn-glow {
   border: 2px solid var(--lime);
@@ -526,7 +526,7 @@ input:focus, select:focus, textarea:focus {
 
 /* Focus clavier visible partout (accessibilité) */
 :focus-visible {
-  outline: 2px solid #c8ee6a;
+  outline: 2px solid #e3b559;
   outline-offset: 2px;
 }
 button:disabled {
@@ -750,13 +750,13 @@ button:disabled {
 .arena-room {
   position: relative;
   isolation: isolate;
-  color: #eaf7ee;
+  color: #f3e6c8;
   background:
-    radial-gradient(ellipse 55% 50% at 50% 48%, rgba(67, 191, 170, 0.2), transparent 70%),
+    radial-gradient(ellipse 55% 50% at 50% 48%, rgba(63, 174, 125, 0.2), transparent 70%),
     radial-gradient(ellipse 40% 30% at 50% 100%, rgba(240, 138, 58, 0.14), transparent 70%),
-    linear-gradient(rgba(200, 238, 106, 0.045) 1px, transparent 1px) 0 0 / 44px 44px,
-    linear-gradient(90deg, rgba(200, 238, 106, 0.045) 1px, transparent 1px) 0 0 / 44px 44px,
-    linear-gradient(180deg, #07100f 0%, #091514 55%, #050b0b 100%);
+    linear-gradient(rgba(227, 181, 89, 0.045) 1px, transparent 1px) 0 0 / 44px 44px,
+    linear-gradient(90deg, rgba(227, 181, 89, 0.045) 1px, transparent 1px) 0 0 / 44px 44px,
+    linear-gradient(180deg, #120a06 0%, #1d1109 55%, #0b0604 100%);
 }
 .arena-room::after {
   content: '';
@@ -767,8 +767,8 @@ button:disabled {
   background: radial-gradient(ellipse at center, transparent 50%, rgba(0, 0, 0, 0.7) 100%);
 }
 .arena-panel {
-  background: rgba(8, 20, 19, 0.78);
-  border: 1px solid rgba(67, 191, 170, 0.4);
+  background: rgba(28, 17, 10, 0.78);
+  border: 1px solid rgba(63, 174, 125, 0.4);
   backdrop-filter: blur(6px);
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
 }
@@ -776,19 +776,19 @@ button:disabled {
   clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
 }
 .arena-hex-outer {
-  background: linear-gradient(135deg, #43bfaa, #1b4d4a 45%, #c8ee6a);
-  filter: drop-shadow(0 0 22px rgba(67, 191, 170, 0.45));
+  background: linear-gradient(135deg, #3fae7d, #7b5719 45%, #e3b559);
+  filter: drop-shadow(0 0 22px rgba(63, 174, 125, 0.45));
 }
 .arena-hex-mid {
-  background: linear-gradient(180deg, #0d2423, #081615);
+  background: linear-gradient(180deg, #2a1a10, #150d08);
 }
 .arena-hex-ring {
-  background: linear-gradient(180deg, #f08a3a, #c8ee6a);
+  background: linear-gradient(180deg, #f08a3a, #e3b559);
 }
 .arena-hex-core {
   background:
     radial-gradient(ellipse at 50% 50%, rgba(240, 138, 58, 0.5), transparent 65%),
-    linear-gradient(180deg, #14302d, #0a1a19);
+    linear-gradient(180deg, #3a2415, #1a100a);
 }
 .arena-hex-danger .arena-hex-ring {
   background: linear-gradient(180deg, #ff5a3a, #f08a3a);
@@ -804,21 +804,242 @@ button:disabled {
 }
 .arena-seat-turn {
   transform: scale(1.12);
-  filter: drop-shadow(0 0 16px rgba(200, 238, 106, 0.7));
+  filter: drop-shadow(0 0 16px rgba(227, 181, 89, 0.7));
 }
 .arena-seat-out {
   filter: grayscale(1) brightness(0.5);
 }
 .arena-word {
   background: linear-gradient(180deg, rgba(9, 24, 23, 0.92), rgba(5, 12, 12, 0.95));
-  border: 2px solid rgba(67, 191, 170, 0.55);
-  box-shadow: 0 0 0 1px rgba(5, 12, 12, 0.9), 0 0 28px rgba(67, 191, 170, 0.25), inset 0 0 22px rgba(67, 191, 170, 0.08);
+  border: 2px solid rgba(63, 174, 125, 0.55);
+  box-shadow: 0 0 0 1px rgba(5, 12, 12, 0.9), 0 0 28px rgba(63, 174, 125, 0.25), inset 0 0 22px rgba(63, 174, 125, 0.08);
 }
 .arena-word-me {
-  border-color: #c8ee6a;
-  box-shadow: 0 0 0 1px rgba(5, 12, 12, 0.9), 0 0 34px rgba(200, 238, 106, 0.4), inset 0 0 22px rgba(200, 238, 106, 0.1);
+  border-color: #e3b559;
+  box-shadow: 0 0 0 1px rgba(5, 12, 12, 0.9), 0 0 34px rgba(227, 181, 89, 0.4), inset 0 0 22px rgba(227, 181, 89, 0.1);
 }
 .arena-fuse {
   background: rgba(0, 0, 0, 0.55);
-  border: 1px solid rgba(67, 191, 170, 0.45);
+  border: 1px solid rgba(63, 174, 125, 0.45);
+}
+
+/* ==========================================================
+   Refonte « Speakeasy » : noyer sombre, cadres laiton, parchemin
+   (inspirée de la maquette : bar clandestin new-yorkais)
+   Ces règles sont placées en dernier : elles l'emportent sur le thème précédent.
+   ========================================================== */
+:root {
+  --display: 'Playfair Display', 'Georgia', serif;
+  --brass-light: #f6e3a1;
+  --brass: #d9a441;
+  --brass-dark: #8a5f1c;
+  --wood-hi: #4a2c18;
+  --wood-lo: #2a190d;
+}
+
+body {
+  background-color: #150c07;
+  background-image:
+    radial-gradient(ellipse 50% 34% at 50% -6%, rgba(255, 196, 110, 0.36), transparent 72%),
+    radial-gradient(ellipse at 50% 55%, transparent 40%, rgba(0, 0, 0, 0.72) 100%),
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.3) 0 2px, transparent 2px 172px),
+    repeating-linear-gradient(90deg, rgba(255, 214, 150, 0.028) 0 1px, transparent 1px 9px),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.05) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, #3a2213 0%, #24150c 45%, #150c07 100%);
+  background-attachment: fixed;
+}
+/* Silhouette de la ville, en filet doré, de chaque côté de l'écran */
+body::before {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 520 220'><path d='M0 220V150H24V118H40V90H52V60L58 40L64 60V90H80V132H104V100H126V70H134L140 30L146 70H154V112H178V150H206V104H228V76H246V120H270V160H300V128H322V96H338V140H366V170H400V138H424V110H440V150H470V182H520V220' fill='none' stroke='%23e3b559' stroke-width='1.4' stroke-opacity='.55'/><path d='M52 60H64M80 100H104M126 90H154M206 120H228M246 100H270M322 110H338' stroke='%23e3b559' stroke-width='.8' stroke-opacity='.3'/></svg>"), url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 520 220'><g transform='translate(520 0) scale(-1 1)'><path d='M0 220V160H30V132H52V84H70L76 50L82 84H100V120H128V92H150V148H182V112H210V70H220L226 26L232 70H240V126H268V162H300V118H322V90H340V136H372V170H408V140H430V104H450V150H480V190H520V220' fill='none' stroke='%23e3b559' stroke-width='1.4' stroke-opacity='.55'/><path d='M70 100H100M128 108H150M210 90H240M322 104H340' stroke='%23e3b559' stroke-width='.8' stroke-opacity='.3'/></g></svg>");
+  background-repeat: no-repeat;
+  background-position: left bottom, right bottom;
+  background-size: min(34vw, 520px) auto, min(34vw, 520px) auto;
+  -webkit-mask-image: none;
+  mask-image: none;
+  opacity: 0.55;
+}
+
+.font-heading {
+  font-family: var(--display);
+  font-weight: 700 !important;
+  letter-spacing: 0;
+}
+.font-masthead, .ink-in {
+  font-family: var(--display);
+  font-weight: 800;
+  letter-spacing: -0.005em;
+  background: linear-gradient(180deg, #fff6dc 0%, #f3d98e 55%, #d9a441 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 2px 0 rgba(60, 30, 8, 0.9)) drop-shadow(0 0 22px rgba(255, 190, 90, 0.28));
+}
+.eyebrow {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  font-size: 0.6rem;
+  color: var(--brass);
+  opacity: 1;
+}
+
+/* Cadre en laiton : planche de noyer, filet doré, rivets aux quatre coins */
+.paper, .panel-worn, .deco-card {
+  position: relative;
+  color: var(--ivory);
+  background:
+    radial-gradient(circle at center, #f6e3a1 0 1.6px, #9a6c22 2.4px, transparent 3.2px) left 7px top 7px / 8px 8px no-repeat,
+    radial-gradient(circle at center, #f6e3a1 0 1.6px, #9a6c22 2.4px, transparent 3.2px) right 7px top 7px / 8px 8px no-repeat,
+    radial-gradient(circle at center, #f6e3a1 0 1.6px, #9a6c22 2.4px, transparent 3.2px) left 7px bottom 7px / 8px 8px no-repeat,
+    radial-gradient(circle at center, #f6e3a1 0 1.6px, #9a6c22 2.4px, transparent 3.2px) right 7px bottom 7px / 8px 8px no-repeat,
+    repeating-linear-gradient(92deg, rgba(0, 0, 0, 0.16) 0 2px, transparent 2px 14px),
+    linear-gradient(180deg, var(--wood-hi) 0%, var(--wood-lo) 100%);
+  border: 1px solid #1a0f08;
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 2px #b98a35,
+    0 0 0 3px #1a0f08,
+    0 0 0 4px rgba(246, 227, 161, 0.3),
+    inset 0 1px 0 rgba(255, 225, 160, 0.2),
+    inset 0 0 28px rgba(0, 0, 0, 0.45),
+    0 22px 44px rgba(0, 0, 0, 0.6);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.paper-green { box-shadow: 0 0 0 2px #3fae7d, 0 0 0 3px #1a0f08, inset 0 0 28px rgba(0, 0, 0, 0.45), 0 22px 44px rgba(0, 0, 0, 0.6), 0 0 40px rgba(63, 174, 125, 0.2); }
+.panel-worn { border-radius: 10px; }
+.deco-card { border-radius: 14px; }
+.deco-card:hover {
+  transform: translateY(-4px);
+  border-color: #1a0f08;
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--glow, #e3b559) 70%, #b98a35),
+    0 0 0 3px #1a0f08,
+    0 0 0 4px rgba(246, 227, 161, 0.35),
+    inset 0 0 28px rgba(0, 0, 0, 0.4),
+    0 26px 50px rgba(0, 0, 0, 0.65),
+    0 0 46px color-mix(in srgb, var(--glow, #e3b559) 26%, transparent);
+}
+
+/* Parchemin (horoscope, notes) : papier crème, encre brune */
+.parchment {
+  position: relative;
+  color: #3b2813;
+  background:
+    radial-gradient(ellipse at 20% 0%, rgba(255, 255, 255, 0.5), transparent 60%),
+    repeating-linear-gradient(0deg, rgba(120, 80, 30, 0.05) 0 1px, transparent 1px 4px),
+    linear-gradient(160deg, #f1e2bd, #dcc690);
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px #8a5f1c, 0 0 0 3px #1a0f08, 0 0 0 4px #b98a35, inset 0 0 40px rgba(120, 80, 30, 0.35), 0 18px 36px rgba(0, 0, 0, 0.55);
+}
+.parchment .eyebrow { color: #7b5719; }
+.parchment .text-gray-200, .parchment .text-gray-400, .parchment .text-gray-500 { color: #5a4020; }
+.parchment select { background: rgba(255, 255, 255, 0.45); border-color: #8a5f1c; color: #3b2813; }
+
+/* Fenêtre d'illustration : cadre doré, intérieur sombre éclairé à la couleur du jeu */
+.print-photo {
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 50% 58%, color-mix(in srgb, var(--glow, #3fae7d) 42%, transparent), transparent 66%),
+    linear-gradient(180deg, #2f1c10, #0f0805);
+  box-shadow: inset 0 0 0 2px #1a0f08, inset 0 0 0 3px #b98a35, inset 0 0 30px rgba(0, 0, 0, 0.65);
+}
+.group:hover .print-photo {
+  box-shadow: inset 0 0 0 2px #1a0f08, inset 0 0 0 3px #f0d98a, inset 0 0 30px rgba(0, 0, 0, 0.55);
+}
+
+/* Bouton « Jouer » : pilule de noyer à filet doré, avec une gemme à la couleur du jeu */
+.tag-dark {
+  position: relative;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #f6e8c4;
+  background: linear-gradient(180deg, #4a2c18, #22130a);
+  border: 1px solid #1a0f08;
+  border-radius: 9999px;
+  padding-right: 2.6rem;
+  box-shadow: 0 0 0 1.5px #b98a35, inset 0 1px 0 rgba(255, 225, 160, 0.28), inset 0 -3px 6px rgba(0, 0, 0, 0.4), 0 6px 14px rgba(0, 0, 0, 0.5);
+  transition: filter 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+}
+.tag-dark::after {
+  content: '';
+  position: absolute;
+  right: 0.45rem;
+  top: 50%;
+  width: 1.45rem;
+  height: 1.45rem;
+  transform: translateY(-50%);
+  border-radius: 9999px;
+  background:
+    radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.85) 0 7%, transparent 30%),
+    radial-gradient(circle at 50% 55%, color-mix(in srgb, var(--glow, #3fae7d) 85%, #fff), color-mix(in srgb, var(--glow, #3fae7d) 70%, #000));
+  box-shadow: 0 0 0 2px #b98a35, 0 0 0 3px #1a0f08, 0 0 12px color-mix(in srgb, var(--glow, #3fae7d) 70%, transparent);
+}
+.tag-dark:hover,
+.group:hover .tag-dark {
+  filter: brightness(1.15);
+  box-shadow: 0 0 0 1.5px #f0d98a, inset 0 1px 0 rgba(255, 225, 160, 0.4), inset 0 -3px 6px rgba(0, 0, 0, 0.4), 0 8px 20px rgba(0, 0, 0, 0.55), 0 0 18px rgba(240, 217, 138, 0.25);
+}
+
+.stamp {
+  border: 1px solid rgba(240, 217, 138, 0.6);
+  color: #f6e3a1;
+  background: rgba(20, 10, 4, 0.7);
+  box-shadow: 0 0 0 2px #1a0f08, 0 0 0 3px rgba(185, 138, 53, 0.7);
+  font-family: 'Inter', system-ui, sans-serif;
+  letter-spacing: 0.14em;
+}
+
+/* Lampe suspendue (accueil) */
+.lamp-swing { transform-origin: 50% 0; animation: lamp-swing 7s ease-in-out infinite; }
+@keyframes lamp-swing { 0%, 100% { transform: rotate(-1.2deg); } 50% { transform: rotate(1.2deg); } }
+@media (prefers-reduced-motion: reduce) { .lamp-swing { animation: none; } }
+
+input:focus, select:focus, textarea:focus { box-shadow: 0 0 0 3px rgba(227, 181, 89, 0.22); }
+/* ---------- Pictionary : chevalet, chaos, réactions ---------- */
+.pc-frame {
+  padding: 8px;
+  border-radius: 10px;
+  background: repeating-linear-gradient(92deg, rgba(0, 0, 0, 0.18) 0 2px, transparent 2px 12px), linear-gradient(180deg, #7a4a22, #4a2c18);
+  box-shadow: 0 0 0 2px #b98a35, 0 0 0 3px #1a0f08, inset 0 0 14px rgba(0, 0, 0, 0.5), 0 18px 36px rgba(0, 0, 0, 0.55);
+}
+.pc-chaos-shake { animation: pc-shake 0.18s linear infinite; }
+@keyframes pc-shake {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  25% { transform: translate(-4px, 3px) rotate(-0.6deg); }
+  50% { transform: translate(3px, -3px) rotate(0.5deg); }
+  75% { transform: translate(-3px, -2px) rotate(-0.4deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
+}
+.pc-chaos-fog { filter: blur(9px) saturate(0.5); transition: filter 0.4s; }
+.pc-chaos-mirror { transform: scaleX(-1); }
+.pc-float { animation: pc-float 2.4s ease-out forwards; will-change: transform, opacity; }
+@keyframes pc-float {
+  0% { transform: translateY(0) scale(0.6) rotate(0deg); opacity: 0; }
+  12% { opacity: 1; transform: translateY(-20px) scale(1.15) rotate(-8deg); }
+  100% { transform: translateY(-260px) scale(1) rotate(12deg); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pc-chaos-shake, .pc-float { animation: none; }
+  .pc-float { opacity: 0.9; }
+}
+.parchment a, .parchment .text-purple-300 { color: #7b5719; }
+/* Les grandes cartes des jeux (bg-gray-900 + rounded-2xl) prennent le cadre en laiton du site */
+.bg-gray-900.rounded-2xl,
+.bg-gray-900\/90.rounded-2xl,
+.bg-gray-900\/80.rounded-2xl,
+.bg-gray-900\/60.rounded-2xl {
+  background:
+    radial-gradient(circle at center, #f6e3a1 0 1.6px, #9a6c22 2.4px, transparent 3.2px) left 7px top 7px / 8px 8px no-repeat,
+    radial-gradient(circle at center, #f6e3a1 0 1.6px, #9a6c22 2.4px, transparent 3.2px) right 7px top 7px / 8px 8px no-repeat,
+    radial-gradient(circle at center, #f6e3a1 0 1.6px, #9a6c22 2.4px, transparent 3.2px) left 7px bottom 7px / 8px 8px no-repeat,
+    radial-gradient(circle at center, #f6e3a1 0 1.6px, #9a6c22 2.4px, transparent 3.2px) right 7px bottom 7px / 8px 8px no-repeat,
+    repeating-linear-gradient(92deg, rgba(0, 0, 0, 0.16) 0 2px, transparent 2px 14px),
+    linear-gradient(180deg, var(--wood-hi) 0%, var(--wood-lo) 100%);
+  border: 1px solid #1a0f08;
+  border-radius: 12px;
+  box-shadow: 0 0 0 2px #b98a35, 0 0 0 3px #1a0f08, 0 0 0 4px rgba(246, 227, 161, 0.3), inset 0 1px 0 rgba(255, 225, 160, 0.2), inset 0 0 28px rgba(0, 0, 0, 0.45), 0 22px 44px rgba(0, 0, 0, 0.6);
 }

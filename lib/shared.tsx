@@ -272,6 +272,7 @@ const GAMES = [
   { id: 'caption-battle', name: 'Caption Battle', emoji: '😂', status: 'live', href: '/caption-battle', gradient: 'from-purple-500 via-pink-500 to-orange-400' },
   { id: 'imposteur', name: 'Imposteur', emoji: '🕵️', status: 'live', href: '/imposteur', gradient: 'from-red-500 via-orange-500 to-yellow-400' },
   { id: 'bomb-party', name: 'Bomb Party', emoji: '💣', status: 'live', href: '/bomb-party', gradient: 'from-orange-500 via-amber-500 to-yellow-400' },
+  { id: 'pictionary', name: 'Pictionary', emoji: '🎨', status: 'live', href: '/pictionary', gradient: 'from-teal-500 via-purple-500 to-orange-400' },
 ];
 
 const GamesRail = ({ currentId }) => (
@@ -655,7 +656,7 @@ const ToastHost = () => {
   return (
     <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[990] flex flex-col items-center gap-2 pointer-events-none">
       {items.map((t) => (
-        <div key={t.id} className="animate-fadein bg-gray-900 border border-purple-500/60 shadow-xl text-white text-sm font-bold rounded-full px-5 py-2.5">
+        <div key={t.id} className="animate-fadein bg-gray-800 border border-gray-950 shadow-[0_0_0_2px_#b98a35,0_0_0_3px_#1a0f08,0_10px_24px_rgba(0,0,0,0.6)] text-white text-sm font-bold rounded-full px-5 py-2.5">
           {t.message}
         </div>
       ))}

@@ -2,7 +2,7 @@ import './globals.css'
 import { ToastHost } from '@/lib/shared'
 
 export const viewport = {
-  themeColor: '#060d0d',
+  themeColor: '#0d0805',
   width: 'device-width',
   initialScale: 1,
 }
@@ -11,7 +11,7 @@ export const metadata = {
   title: { default: 'MakeItMeme — Le quotidien des jeux entre potes', template: '%s · MakeItMeme' },
   openGraph: {
     title: 'MakeItMeme',
-    description: 'Des jeux entre potes, à jouer dans le navigateur : Caption Battle, Imposteur, Bomb Party.',
+    description: 'Des jeux entre potes, à jouer dans le navigateur : Caption Battle, Imposteur, Bomb Party, Pictionary.',
     locale: 'fr_FR',
     type: 'website',
   },
@@ -41,7 +41,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;700;800&family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&family=Courier+Prime:wght@400;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800;900&family=Unbounded:wght@600;700;800&family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&family=Courier+Prime:wght@400;700&display=swap"
           rel="stylesheet"
         />
       </head>
