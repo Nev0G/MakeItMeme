@@ -14,7 +14,7 @@ import {
 import {
   supabase, USING_FALLBACK_SUPABASE, withTimeout, makeId, fireConfetti, shuffle, colorForPlayer,
   AVATAR_EMOJIS, randomAvatar, PlayerDot, playingMedia, setSfxSuspended, playSfx, SoundToggle,
-  GamesRail as SharedGamesRail, Waiting, ToggleRow, CountdownBadge, makeSessionStore, MAX_NAME_LEN,
+  GamesRail as SharedGamesRail, useRoomHub, Waiting, ToggleRow, CountdownBadge, makeSessionStore, MAX_NAME_LEN,
   useSoundAndClickFx, useDiscordAuth, AccountButton, AvatarPicker, AvatarGlyph, isImageAvatar,
   FrontPage, useRoomDirectory, VisibilityPicker, RoomOptions, useRoomExtras, ChatWidget, KickButton, toast,
 } from '@/lib/shared';
@@ -1125,6 +1125,7 @@ export default function CaptionBattle() {
     return creator ? creator.id : players[0]?.id ?? null;
   }, [players]);
   const isHost = player.id !== null && player.id === hostId;
+  useRoomHub({ gameId: 'caption-battle', code: room?.code, player, isHost });
   const extras = useRoomExtras({
     channelRef,
     me: player,

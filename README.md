@@ -12,6 +12,7 @@ Des jeux entre potes, jouables dans le navigateur, avec un habillage « vieux jo
 - `/codenames` : deux équipes et deux maîtres-espions, indice + nombre pour retrouver ses mots sur le plateau 5×5 sans toucher l'assassin
 
 Chaque jeu a des salons **fermés** (code) ou **ouverts** (listés sur l'accueil), un chat écrit, et le host peut expulser un joueur.
+**Changer de jeu sans nouveau lien** : dans un salon, le host clique sur un autre jeu dans la barre de gauche ; tout le salon le suit avec le même code.
 La connexion Discord est optionnelle.
 
 ## Lancer en local

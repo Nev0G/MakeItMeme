@@ -6,7 +6,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Play, Users, Crown, Copy, LogOut, Check, BookOpen, X, Loader2 } from 'lucide-react';
 import {
   supabase, makeId, AVATAR_EMOJIS, colorForPlayer, randomAvatar, playSfx, SoundToggle,
-  GamesRail as SharedGamesRail, makeSessionStore, MAX_NAME_LEN, readIdentity, writeIdentity,
+  GamesRail as SharedGamesRail, useRoomHub, makeSessionStore, MAX_NAME_LEN, readIdentity, writeIdentity,
   useDiscordAuth, AccountButton, AvatarPicker, AvatarGlyph, isImageAvatar, useRefState,
   useRoomDirectory, VisibilityPicker, useRoomExtras, ChatWidget, toast,
 } from '@/lib/shared';
@@ -176,6 +176,7 @@ export const useGameRoom = ({
     return creator ? creator.id : players[0]?.id ?? null;
   }, [players]);
   const isHost = player.id !== null && player.id === hostId;
+  useRoomHub({ gameId: gameId, code: room?.code, player, isHost });
   const extras = useRoomExtras({
     channelRef, me: player, isHost, hostId,
     onKicked: () => {

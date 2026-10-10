@@ -278,6 +278,69 @@ const GAMES = [
   { id: 'codenames', name: 'Codenames', emoji: '🕵️', status: 'live', href: '/codenames', gradient: 'from-red-500 via-purple-500 to-sky-400' },
 ];
 
+
+// ---- Changer de jeu sans quitter le salon ----
+// Le host clique sur un autre jeu dans la barre de gauche : tout le salon le suit
+// avec le même code (pas de nouveau lien à envoyer). Un petit canal "hub:CODE" relaie l'ordre.
+const SESSION_KEYS = {
+  'caption-battle': 'caption-battle-session',
+  imposteur: 'imposteur-session',
+  'bomb-party': 'bombparty-session',
+  pictionary: 'pictionary-session',
+  'blind-test': 'blindtest-session',
+  'top-ten': 'topten-session',
+  codenames: 'codenames-session',
+};
+
+const goToGame = (gameId, me, code, delay) => {
+  const g = GAMES.find((x) => x.id === gameId);
+  if (!g || !g.href || !SESSION_KEYS[gameId]) return;
+  makeSessionStore(SESSION_KEYS[gameId]).write({ code, id: me.id, name: me.name, avatar: me.avatar });
+  setTimeout(() => {
+    window.location.href = `${g.href}?room=${code}`;
+  }, delay);
+};
+
+const useRoomHub = ({ gameId, code, player, isHost }) => {
+  const chRef = React.useRef(null);
+  const meRef = React.useRef(player);
+  meRef.current = player;
+  useEffect(() => {
+    if (!code || !player.id) return undefined;
+    const ch = supabase.channel(`hub:${code}`);
+    chRef.current = ch;
+    ch.on('broadcast', { event: 'switch' }, ({ payload }) => {
+      const g = GAMES.find((x) => x.id === payload?.game);
+      if (!g || payload.game === gameId) return;
+      toast(`Le host lance ${g.name}…`);
+      // le host arrive en premier dans le nouveau jeu : il en devient le host
+      goToGame(payload.game, meRef.current, code, 1500);
+    });
+    ch.subscribe();
+    return () => {
+      supabase.removeChannel(ch);
+      chRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code, player.id]);
+  useEffect(() => {
+    if (!code || !player.id) {
+      window.__mimHub = null;
+      return undefined;
+    }
+    window.__mimHub = {
+      isHost,
+      switchTo: (target) => {
+        chRef.current?.send({ type: 'broadcast', event: 'switch', payload: { game: target } });
+        goToGame(target, meRef.current, code, 400);
+      },
+    };
+    return () => {
+      window.__mimHub = null;
+    };
+  }, [code, player.id, isHost]);
+};
+
 const GamesRail = ({ currentId }) => (
   <nav
     aria-label="Jeux"
@@ -301,7 +364,18 @@ const GamesRail = ({ currentId }) => (
                 <GameIcon id={g.id} className="w-8 h-8" />
               </button>
             ) : (
-              <a href={g.href} aria-label={g.name} className={tileClass}>
+              <a
+                href={g.href}
+                aria-label={g.name}
+                className={tileClass}
+                onClick={(e) => {
+                  const hub = typeof window !== 'undefined' ? window.__mimHub : null;
+                  if (hub && hub.isHost && g.id !== 'home' && g.status === 'live') {
+                    e.preventDefault();
+                    if (window.confirm(`Passer tout le salon sur ${g.name} ?`)) hub.switchTo(g.id);
+                  }
+                }}
+              >
                 <GameIcon id={g.id} className="w-8 h-8" />
               </a>
             )}
@@ -1109,6 +1183,7 @@ export {
   SoundToggle,
   GAMES,
   GamesRail,
+  useRoomHub,
   Waiting,
   ToggleRow,
   CountdownBadge,

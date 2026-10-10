@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Play, Users, Loader2, Crown, Settings, Copy, LogOut, Check, BookOpen, X, RotateCcw, Send, Pencil } from 'lucide-react';
 import {
   supabase, makeId, AVATAR_EMOJIS, fireConfetti, shuffle, colorForPlayer, randomAvatar, PlayerDot, playSfx, SoundToggle,
-  GamesRail as SharedGamesRail, ToggleRow, makeSessionStore, MAX_NAME_LEN, readIdentity, writeIdentity, useSoundAndClickFx,
+  GamesRail as SharedGamesRail, useRoomHub, ToggleRow, makeSessionStore, MAX_NAME_LEN, readIdentity, writeIdentity, useSoundAndClickFx,
   useDiscordAuth, AccountButton, AvatarPicker, AvatarGlyph, isImageAvatar, useRefState,
   useRoomDirectory, VisibilityPicker, RoomOptions, useRoomExtras, ChatWidget, KickButton, toast,
 } from '@/lib/shared';
@@ -779,6 +779,7 @@ export default function Pictionary() {
     return creator ? creator.id : players[0]?.id ?? null;
   }, [players]);
   const isHost = player.id !== null && player.id === hostId;
+  useRoomHub({ gameId: 'pictionary', code: room?.code, player, isHost });
   const extras = useRoomExtras({
     channelRef, me: player, isHost, hostId,
     onKicked: () => {
