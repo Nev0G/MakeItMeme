@@ -16,6 +16,17 @@ const GAME_ID = 'blind-test';
 const REVEAL_SECONDS = 7;
 const MAX_BLUR = 44; // flou de départ des images, en pixels
 const VOLUME_KEY = 'blindtest-volume';
+const ARTIST_PTS = 30; // points pour l'artiste (seul ou avec le titre)
+// Époques proposées dans le lobby (années de sortie)
+const ERAS = [
+  { label: 'Toutes', from: null, to: null },
+  { label: 'Avant 80', from: 1900, to: 1979 },
+  { label: '80s', from: 1980, to: 1989 },
+  { label: '90s', from: 1990, to: 1999 },
+  { label: '2000s', from: 2000, to: 2009 },
+  { label: '2010s', from: 2010, to: 2019 },
+  { label: '2020s', from: 2020, to: 2030 },
+];
 
 const DEFAULT_SETTINGS = {
   visibility: 'private',
@@ -27,7 +38,10 @@ const DEFAULT_SETTINGS = {
   answerMode: 'free', // 'free' : on tape la réponse — 'choices' : 4 propositions
   hints: true, // lettres révélées au fil du temps (réponse libre)
   bonusFirst: true, // +25 pour le premier à trouver
-  bonusExtra: true, // +30 si on cite aussi l'artiste (réponse libre, musiques)
+  bonusExtra: true, // points pour l'artiste (seul ou avec le titre) en réponse libre, musiques
+  yearMin: null, // période de sortie (null = toutes les époques)
+  yearMax: null,
+  chrono: false, // extraits classés du plus ancien au plus récent
 };
 const INITIAL_BT = {
   phase: 'lobby', // 'lobby' | 'loading' | 'play' | 'reveal' | 'final'
@@ -39,7 +53,8 @@ const INITIAL_BT = {
   duration: 20,
   t0: 0, // début de l'extrait audio (en secondes dans l'aperçu)
   until: 0, // fin de la phase « reveal »
-  solved: {}, // id -> ms écoulées
+  solved: {}, // id -> ms écoulées (titre trouvé)
+  art: {}, // id -> true (artiste trouvé)
   lock: {}, // joueurs ayant déjà tenté leur chance (mode propositions)
   scores: {},
   gained: {},
@@ -58,7 +73,7 @@ const RULES_STEPS = [
   { title: 'Écoute, regarde, devine', text: 'À chaque manche : un extrait sonore (musique, bande originale, jeu vidéo…) ou une image floutée (affiche, scène, capture). Trouve vite le titre !' },
   { title: 'Le flou se dissipe', text: 'Pour les images, le flou disparaît petit à petit pendant le chrono. Plus tu trouves tôt, plus tu gagnes de points.' },
   { title: 'Réponse libre ou propositions', text: 'Selon le réglage du host : tu tapes ta réponse (quelques fautes sont tolérées) ou tu choisis parmi 4 propositions (un seul essai !).' },
-  { title: 'Bonus', text: 'Le premier à trouver peut gagner un bonus, et citer aussi l’artiste (en réponse libre) en rapporte un autre. À toi de jouer finement.' },
+  { title: 'Bonus', text: 'Pour les musiques, le titre et l’artiste rapportent chacun des points : trouve l’un et continue pour l’autre. Le premier à trouver le titre peut aussi gagner un bonus.' },
   { title: 'Catégories', text: 'Le host choisit les catégories : hits français ou internationaux, rap, rock, années 80-90-2000, films, séries, Disney, jeux vidéo, anime…' },
 ];
 
@@ -204,6 +219,7 @@ export default function BlindTest() {
       // extrait sonore : on démarre à un endroit aléatoire de l'aperçu (30 s)
       t0: item?.kind === 'audio' ? Math.round(Math.random() * Math.max(0, 27 - settingsRef.current.seconds) * 10) / 10 : 0,
       solved: {},
+      art: {},
       lock: {},
       gained: {},
       feed: [],
@@ -214,7 +230,7 @@ export default function BlindTest() {
     const b = btRef.current;
     if (b.phase !== 'play') return;
     const s = secretOf(deckRef.current[b.round]);
-    commitBt({ phase: 'reveal', until: Date.now() + REVEAL_SECONDS * 1000, reveal: s ? { d: s.d, s: s.s, c: s.c || null } : { d: '?', s: '', c: null } });
+    commitBt({ phase: 'reveal', until: Date.now() + REVEAL_SECONDS * 1000, reveal: s ? { d: s.d, s: s.s, c: s.c || null, y: s.y || null } : { d: '?', s: '', c: null, y: null } });
   };
   const advance = () => {
     const b = btRef.current;
@@ -227,44 +243,62 @@ export default function BlindTest() {
     const cfg = settingsRef.current;
     const text = String(raw || '').slice(0, 80);
     const item = deckRef.current[b.round];
-    if (b.phase !== 'play' || !item || b.solved[id] !== undefined || !text.trim() || !b.order.includes(id)) return;
+    if (b.phase !== 'play' || !item || !text.trim() || !b.order.includes(id)) return;
     const choices = cfg.answerMode === 'choices';
-    if (choices && (b.lock[id] || !item.choices.includes(text))) return;
     const secret = secretOf(item);
     if (!secret) return;
+    // En réponse libre, l'artiste est un 2e objectif (titre et artiste rapportent chacun des points)
+    const artistGoal = !choices && cfg.bonusExtra !== false && secret.x.length > 0;
+    const hasTitle = b.solved[id] !== undefined;
+    const hasArtist = !!b.art[id];
+    if (hasTitle && (!artistGoal || hasArtist)) return; // tout est déjà trouvé
+    if (choices && (b.lock[id] || !item.choices.includes(text))) return;
     const res = judgeAnswer(text, secret, choices);
     const elapsed = Date.now() - b.startedAt;
-    if (res.ok) {
-      const ratio = Math.min(1, elapsed / (b.duration * 1000));
-      const first = Object.keys(b.solved).length === 0;
-      let pts = Math.round(50 + 100 * (1 - ratio));
-      let bonus = 0;
-      if (first && cfg.bonusFirst) bonus += 25;
-      if (res.extra && cfg.bonusExtra && !choices) bonus += 30;
-      pts += bonus;
-      const scores = { ...b.scores, [id]: (b.scores[id] || 0) + pts };
-      const gained = { ...b.gained, [id]: (b.gained[id] || 0) + pts };
-      const stats = {
-        fast: !b.stats.fast || elapsed < b.stats.fast.ms ? { id, ms: elapsed } : b.stats.fast,
-        found: { ...b.stats.found, [id]: (b.stats.found[id] || 0) + 1 },
-      };
-      const solved = { ...b.solved, [id]: elapsed };
-      const present = presentIds();
-      const guessers = b.order.filter((x) => present.has(x));
-      const feed = [...b.feed, { id, ok: true, pts, bonus, k: Date.now() }].slice(-30);
-      const all = guessers.length > 0 && guessers.every((x) => solved[x] !== undefined);
-      const patch = { solved, scores, gained, stats, feed };
-      if (all) {
-        commitBt(patch);
-        revealRound();
-      } else commitBt(patch);
-    } else {
+    const gotTitle = res.ok && !hasTitle;
+    const gotArtist = artistGoal && res.artist && !hasArtist;
+
+    if (!gotTitle && !gotArtist) {
+      if (res.ok || res.artist) return; // déjà trouvé plus tôt : rien de neuf
       commitBt({ feed: [...b.feed, { id, text, k: Date.now() }].slice(-30), lock: choices ? { ...b.lock, [id]: true } : b.lock });
       if (res.close) {
         if (id === playerIdRef.current) toast('🔥 Tu chauffes ! Presque…');
         else broadcast('close', { to: id });
       }
+      return;
     }
+
+    let pts = 0;
+    let bonus = 0;
+    const solved = { ...b.solved };
+    const art = { ...b.art };
+    let stats = b.stats;
+    if (gotTitle) {
+      const ratio = Math.min(1, elapsed / (b.duration * 1000));
+      const first = Object.keys(b.solved).length === 0;
+      pts += Math.round(50 + 100 * (1 - ratio));
+      if (first && cfg.bonusFirst) bonus += 25;
+      solved[id] = elapsed;
+      stats = {
+        fast: !b.stats.fast || elapsed < b.stats.fast.ms ? { id, ms: elapsed } : b.stats.fast,
+        found: { ...b.stats.found, [id]: (b.stats.found[id] || 0) + 1 },
+      };
+    }
+    if (gotArtist) {
+      pts += ARTIST_PTS;
+      art[id] = true;
+    }
+    pts += bonus;
+    const kind = gotTitle && gotArtist ? 'both' : gotTitle ? 'title' : 'artist';
+    const scores = { ...b.scores, [id]: (b.scores[id] || 0) + pts };
+    const gained = { ...b.gained, [id]: (b.gained[id] || 0) + pts };
+    const present = presentIds();
+    const guessers = b.order.filter((x) => present.has(x));
+    const feed = [...b.feed, { id, ok: true, kind, pts, bonus, k: Date.now() }].slice(-30);
+    // La manche s'arrête quand tout le monde a tout trouvé (titre, et artiste si c'est un objectif)
+    const done = guessers.length > 0 && guessers.every((x) => solved[x] !== undefined && (!artistGoal || art[x]));
+    commitBt({ solved, art, scores, gained, stats, feed });
+    if (done) revealRound();
   };
   const playerIdRef = useRef(null);
   playerIdRef.current = player.id;
@@ -287,7 +321,8 @@ export default function BlindTest() {
       stats: { fast: null, found: {} },
     });
     try {
-      const res = await fetch(`/api/blindtest?cats=${encodeURIComponent((cfg.categories || []).join(','))}&n=${cfg.rounds}`);
+      const period = (cfg.yearMin ? `&from=${cfg.yearMin}` : '') + (cfg.yearMax ? `&to=${cfg.yearMax}` : '') + (cfg.chrono ? '&sort=year' : '');
+      const res = await fetch(`/api/blindtest?cats=${encodeURIComponent((cfg.categories || []).join(','))}&n=${cfg.rounds}${period}`);
       const data = await res.json();
       if (!res.ok || !Array.isArray(data.deck)) throw new Error(data.error || 'Impossible de préparer la partie');
       const items = data.deck.map((it) => ({
@@ -297,7 +332,7 @@ export default function BlindTest() {
         ask: it.ask,
         url: it.url,
         choices: it.choices,
-        ak: encodeSecret({ a: it.answers, x: it.extras, d: it.display, s: it.sub, c: it.cover }),
+        ak: encodeSecret({ a: it.answers, x: it.extras, d: it.display, s: it.sub, c: it.cover, y: it.year }),
       }));
       setDeck(items);
       broadcast('deck', { deck: items });
@@ -511,12 +546,15 @@ export default function BlindTest() {
   const item = deck[bt.round] || null;
   const secret = useMemo(() => (item ? decodeSecret(item.ak) : null), [item?.id, item?.ak]);
   const iSolved = bt.solved[player.id] !== undefined;
+  const iArt = !!bt.art[player.id];
+  const artistGoal = settings.answerMode === 'free' && settings.bonusExtra !== false && !!secret && secret.x.length > 0;
+  const iDone = iSolved && (!artistGoal || iArt);
   const iLocked = !!bt.lock[player.id];
   const iPlay = bt.order.includes(player.id);
 
   const sendGuess = (text) => {
     const t = (text || '').trim();
-    if (!t || phase !== 'play' || iSolved || !iPlay) return;
+    if (!t || phase !== 'play' || iDone || !iPlay) return;
     if (isHost) handleGuess(player.id, t);
     else broadcast('bt_guess', { id: player.id, text: t });
     playSfx('send');
@@ -697,7 +735,8 @@ export default function BlindTest() {
       </h3>
       <div className="space-y-1 md:flex-1 md:overflow-y-auto -mx-1 px-1">
         {[...players].sort((a, b) => (bt.scores[b.id] || 0) - (bt.scores[a.id] || 0)).map((p) => {
-          const solved = phase === 'play' && bt.solved[p.id] !== undefined;
+          const solved = phase === 'play' && bt.solved[p.id] !== undefined && (!artistGoal || !!bt.art[p.id]);
+          const partial = phase === 'play' && !solved && (bt.solved[p.id] !== undefined || !!bt.art[p.id]);
           const locked = phase === 'play' && settings.answerMode === 'choices' && !!bt.lock[p.id] && !solved;
           return (
             <div
@@ -708,6 +747,7 @@ export default function BlindTest() {
               <span className="font-bold truncate flex-1">{p.name}</span>
               {isHost && p.id !== player.id && <KickButton onClick={() => extras.kick(p.id)} />}
               {solved && <Check size={14} className="text-teal-300 shrink-0" />}
+              {partial && <span title={bt.art[p.id] ? 'Artiste trouvé' : 'Titre trouvé'} className="text-xs shrink-0">{bt.art[p.id] ? '🎤' : '🎵'}</span>}
               {locked && <X size={14} className="text-red-400 shrink-0" />}
               {p.id === hostId && <span className="text-[9px] font-bold text-purple-300 bg-purple-900/50 px-1.5 py-0.5 rounded shrink-0">HOST</span>}
               <span key={bt.scores[p.id] || 0} className="font-black text-purple-300 text-xs shrink-0 w-9 text-right animate-pop">{bt.scores[p.id] || 0}</span>
@@ -789,7 +829,9 @@ export default function BlindTest() {
           <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/90 to-transparent px-4 pt-10 pb-4 text-center animate-fadein">
             <p className="eyebrow">C’était</p>
             <p className="font-heading text-3xl sm:text-4xl text-purple-300 break-words">{bt.reveal.d}</p>
-            {bt.reveal.s && <p className="text-sm text-gray-300">{bt.reveal.s}</p>}
+            {(bt.reveal.s || bt.reveal.y) && (
+              <p className="text-sm text-gray-300">{[bt.reveal.s, bt.reveal.y && !String(bt.reveal.s || '').includes(String(bt.reveal.y)) ? bt.reveal.y : ''].filter(Boolean).join(' · ')}</p>
+            )}
           </div>
         )}
       </div>
@@ -851,14 +893,19 @@ export default function BlindTest() {
                   type="text"
                   value={guess}
                   maxLength={80}
-                  disabled={iSolved}
+                  disabled={iDone}
                   onChange={(e) => setGuess(e.target.value)}
-                  placeholder={iSolved ? 'Tu as trouvé !' : 'Ta réponse (titre, artiste en bonus)…'}
+                  placeholder={
+                    iDone ? 'Tu as tout trouvé !'
+                    : iSolved ? `Titre trouvé ✅ — trouve aussi l’artiste (+${ARTIST_PTS})`
+                    : iArt ? 'Artiste trouvé ✅ — trouve maintenant le titre !'
+                    : artistGoal ? 'Titre et/ou artiste…' : 'Ta réponse…'
+                  }
                   autoFocus
                   autoComplete="off"
                   className="flex-1 min-w-0 p-3 bg-gray-950 border-2 border-gray-700 rounded-xl font-bold focus:outline-none disabled:opacity-60"
                 />
-                <button type="submit" aria-label="Envoyer ma réponse" disabled={iSolved || !guess.trim()} data-sfx="off" className="bg-purple-300 hover:bg-purple-200 !text-gray-950 disabled:opacity-40 px-5 rounded-xl active:scale-95 transition">
+                <button type="submit" aria-label="Envoyer ma réponse" disabled={iDone || !guess.trim()} data-sfx="off" className="bg-purple-300 hover:bg-purple-200 !text-gray-950 disabled:opacity-40 px-5 rounded-xl active:scale-95 transition">
                   <Send size={18} />
                 </button>
               </form>
@@ -876,7 +923,7 @@ export default function BlindTest() {
                   <span className="mt-0.5 shrink-0"><PlayerDot id={f.id} avatar={avatarOf(f.id)} /></span>
                   <span className="min-w-0 break-words">
                     <b className="text-gray-300">{nameOf(f.id)}</b>{' '}
-                    {f.ok ? <>a trouvé ! <b>+{f.pts}</b>{f.bonus ? <span className="text-xs"> (dont bonus {f.bonus})</span> : null} 🎉</> : <span className="text-gray-200">{f.text}</span>}
+                    {f.ok ? <>a trouvé {f.kind === 'artist' ? 'l’artiste' : f.kind === 'both' ? 'le titre et l’artiste' : artistGoal ? 'le titre' : ''} ! <b>+{f.pts}</b>{f.bonus ? <span className="text-xs"> (dont bonus {f.bonus})</span> : null} 🎉</> : <span className="text-gray-200">{f.text}</span>}
                   </span>
                 </li>
               ))}
@@ -1023,6 +1070,27 @@ export default function BlindTest() {
             )}
           </div>
 
+          <div className="mb-4">
+            <label className="block text-gray-500 mb-2 text-xs">Époque (année de sortie)</label>
+            <div className="flex flex-wrap gap-1.5">
+              {ERAS.map((e) => {
+                const on = (settings.yearMin || null) === e.from && (settings.yearMax || null) === e.to;
+                return (
+                  <button
+                    key={e.label}
+                    type="button"
+                    disabled={!isHost}
+                    onClick={() => updateSettings({ yearMin: e.from, yearMax: e.to })}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-full border transition active:scale-95 disabled:cursor-default ${on ? 'bg-purple-300 text-gray-950 border-purple-300' : 'border-gray-700 text-gray-400 hover:text-white hover:border-gray-600'}`}
+                  >
+                    {e.label}
+                  </button>
+                );
+              })}
+            </div>
+            {settings.yearMin && <p className="text-[11px] text-gray-600 mt-1">Une époque précise réduit le choix : si un extrait manque, il est remplacé par un autre.</p>}
+          </div>
+
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
             <div>
               <label className="block text-gray-500 mb-1 text-xs">Nombre d’extraits</label>
@@ -1045,10 +1113,11 @@ export default function BlindTest() {
             </div>
           </div>
           <div className="mt-4 pt-4 border-t border-gray-800 text-sm space-y-3">
-            <ToggleRow label="Bonus du premier" hint="+25 points pour le premier à trouver" checked={settings.bonusFirst !== false} disabled={!isHost} onChange={(v) => updateSettings({ bonusFirst: v })} />
+            <ToggleRow label="Ordre chronologique" hint="Les extraits sont classés du plus ancien au plus récent" checked={!!settings.chrono} disabled={!isHost} onChange={(v) => updateSettings({ chrono: v })} />
+            <ToggleRow label="Bonus du premier" hint="+25 points pour le premier à trouver le titre" checked={settings.bonusFirst !== false} disabled={!isHost} onChange={(v) => updateSettings({ bonusFirst: v })} />
             {settings.answerMode === 'free' && (
               <>
-                <ToggleRow label="Bonus artiste" hint="+30 points si tu cites aussi l'artiste en plus du titre (musiques)" checked={settings.bonusExtra !== false} disabled={!isHost} onChange={(v) => updateSettings({ bonusExtra: v })} />
+                <ToggleRow label="Points pour l'artiste" hint="+30 points si tu trouves l'artiste, seul ou avec le titre : titre et artiste se cherchent chacun de leur côté (musiques)" checked={settings.bonusExtra !== false} disabled={!isHost} onChange={(v) => updateSettings({ bonusExtra: v })} />
                 <ToggleRow label="Indices progressifs" hint="Des lettres du titre se dévoilent quand le temps file" checked={settings.hints !== false} disabled={!isHost} onChange={(v) => updateSettings({ hints: v })} />
               </>
             )}

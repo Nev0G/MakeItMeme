@@ -24,7 +24,11 @@ export async function GET(req: Request) {
   const cats = (sp.get('cats') || '').split(',').map((s) => s.trim()).filter(Boolean);
   const n = Math.max(3, Math.min(25, Number(sp.get('n')) || 10));
   try {
-    const deck = await buildDeck(cats, n);
+    const yr = (k: string) => {
+      const v = parseInt(sp.get(k) || '', 10);
+      return Number.isFinite(v) && v >= 1900 && v <= 2100 ? v : undefined;
+    };
+    const deck = await buildDeck(cats, n, { range: { from: yr('from'), to: yr('to') }, chrono: sp.get('sort') === 'year' });
     if (deck.length < 3) return json({ error: 'Pas assez d’extraits trouvés, réessaie dans un instant.' }, 502);
     return json({ deck });
   } catch (e: any) {

@@ -1,7 +1,7 @@
 // Comparaison tolérante des réponses du Blind Test (utilisé par le host, et pour l'affichage des indices).
 // Les réponses attendues voyagent encodées dans la « pioche » partagée (ak) : pas lisibles à l'œil nu.
 
-export type BlindSecret = { a: string[]; x: string[]; d: string; s: string; c?: string };
+export type BlindSecret = { a: string[]; x: string[]; d: string; s: string; c?: string; y?: number };
 
 const encodeSecret = (s: BlindSecret): string => {
   try {
@@ -62,10 +62,11 @@ const fuzzyIncludes = (text: string, target: string, tol: number) => {
 };
 const tolFor = (len: number) => (len >= 10 ? 2 : 1);
 
-// Retour : ok (bonne réponse), extra (a aussi cité l'artiste / un complément), close (« tu chauffes »)
+// Retour : ok (le titre est trouvé), artist (l'artiste / un complément est cité, avec ou sans le titre),
+// extra (les deux d'un coup), close (« tu chauffes »)
 const judgeAnswer = (text: string, secret: BlindSecret, strict = false) => {
   const n = normAns(text);
-  if (!n) return { ok: false, extra: false, close: false };
+  if (!n) return { ok: false, artist: false, extra: false, close: false };
   let ok = false;
   let close = false;
   secret.a.forEach((ans) => {
@@ -83,14 +84,16 @@ const judgeAnswer = (text: string, secret: BlindSecret, strict = false) => {
       }
     }
   });
-  const extra =
-    ok &&
+  // L'artiste peut être cité seul, ou avec le titre
+  const artist =
     !strict &&
     secret.x.some((x) => {
       const nx = normAns(x);
-      return nx.length >= 3 && n !== nx && (nx.length >= 6 ? fuzzyIncludes(n, nx, 1) : n.includes(nx));
+      if (nx.length < 3) return false;
+      if (n === nx) return true;
+      return nx.length >= 6 ? fuzzyIncludes(n, nx, 1) : n.includes(nx);
     });
-  return { ok, extra, close: !ok && close };
+  return { ok, artist, extra: ok && artist, close: !ok && !artist && close };
 };
 
 export { encodeSecret, decodeSecret, normAns, judgeAnswer };

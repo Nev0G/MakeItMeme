@@ -12,6 +12,7 @@ export type BlindItem = {
   url: string;
   display: string;
   sub: string;
+  year?: number;
   cover?: string;
   answers: string[];
   extras: string[];
@@ -19,6 +20,14 @@ export type BlindItem = {
 };
 
 const MOCK = !!process.env.BLINDTEST_MOCK;
+
+export type Range = { from?: number; to?: number };
+const yearOf = (d: unknown) => {
+  const y = parseInt(String(d || '').slice(0, 4), 10);
+  return Number.isFinite(y) && y > 1900 ? y : undefined;
+};
+const inRange = (y: number | undefined, r: Range) => !r.from && !r.to ? true : y !== undefined && y >= (r.from || 0) && y <= (r.to || 9999);
+const hasRange = (r: Range) => !!(r.from || r.to);
 
 const pick = <T,>(list: T[]): T => list[Math.floor(Math.random() * list.length)];
 const shuffled = <T,>(list: T[]): T[] => {
@@ -103,8 +112,8 @@ const itunesSearch = async (term: string) => {
 
 type Cand = { item: BlindItem; pool: string[] }; // pool : titres voisins pour les fausses réponses
 
-const itunesArtistItem = async (cat: BlindCategory, used: Set<string>): Promise<Cand | null> => {
-  for (let attempt = 0; attempt < 4; attempt += 1) {
+const itunesArtistItem = async (cat: BlindCategory, used: Set<string>, range: Range): Promise<Cand | null> => {
+  for (let attempt = 0; attempt < (hasRange(range) ? 10 : 4); attempt += 1) {
     const artist = pick(cat.artists || []);
     const na = normAns(artist);
     let rows: any[] = [];
@@ -121,7 +130,7 @@ const itunesArtistItem = async (cat: BlindCategory, used: Set<string>): Promise<
     const titles = own
       .map((r) => ({ r, title: cleanTitle(r.trackName) }))
       .filter((x) => x.title && !seenTitles.has(normAns(x.title)) && seenTitles.add(normAns(x.title)));
-    const fresh = titles.filter((x) => !used.has(normAns(x.title)));
+    const fresh = titles.filter((x) => !used.has(normAns(x.title)) && inRange(yearOf(x.r.releaseDate), range));
     if (!fresh.length) continue;
     const chosen = pick(fresh);
     used.add(normAns(chosen.title));
@@ -134,6 +143,7 @@ const itunesArtistItem = async (cat: BlindCategory, used: Set<string>): Promise<
         url: chosen.r.previewUrl,
         display: chosen.title,
         sub: chosen.r.artistName,
+        year: yearOf(chosen.r.releaseDate),
         cover: bigCover(chosen.r.artworkUrl100),
         answers: uniq([chosen.title, cleanTitle(chosen.r.trackName), chosen.r.trackName]),
         extras: uniq([chosen.r.artistName, artist]),
@@ -145,10 +155,10 @@ const itunesArtistItem = async (cat: BlindCategory, used: Set<string>): Promise<
   return null;
 };
 
-const itunesTitleItem = async (cat: BlindCategory, used: Set<string>): Promise<Cand | null> => {
+const itunesTitleItem = async (cat: BlindCategory, used: Set<string>, range: Range): Promise<Cand | null> => {
   const all = cat.titles || [];
   const free = all.filter((t) => !used.has(t[0]));
-  for (let attempt = 0; attempt < 4 && free.length; attempt += 1) {
+  for (let attempt = 0; attempt < (hasRange(range) ? 10 : 4) && free.length; attempt += 1) {
     const entry = free.splice(Math.floor(Math.random() * free.length), 1)[0];
     let rows: any[] = [];
     try {
@@ -158,7 +168,7 @@ const itunesTitleItem = async (cat: BlindCategory, used: Set<string>): Promise<C
     }
     // On préfère les vraies bandes originales (genre « Soundtrack »)
     const ost = rows.filter((r) => /sound|bande|score|film|musique|original/i.test(`${r.primaryGenreName} ${r.collectionName}`));
-    const rowsOk = ost.length ? ost : rows;
+    const rowsOk = (ost.length ? ost : rows).filter((r) => inRange(yearOf(r.releaseDate), range));
     if (!rowsOk.length) continue;
     const chosen = pick(rowsOk);
     used.add(entry[0]);
@@ -171,6 +181,7 @@ const itunesTitleItem = async (cat: BlindCategory, used: Set<string>): Promise<C
         url: chosen.previewUrl,
         display: entry[1] || entry[0],
         sub: cleanTitle(chosen.trackName),
+        year: yearOf(chosen.releaseDate),
         cover: bigCover(chosen.artworkUrl100),
         answers: uniq(entry.slice(1).length ? entry.slice(1) : [entry[0]]),
         extras: [],
@@ -188,16 +199,18 @@ const tmdbAuth = () => {
   const key = process.env.TMDB_API_KEY;
   return { headers: token ? { Authorization: `Bearer ${token}` } : {}, key: !token && key ? `&api_key=${key}` : '' };
 };
-const tmdbItem = async (cat: BlindCategory, used: Set<string>): Promise<Cand | null> => {
+const tmdbItem = async (cat: BlindCategory, used: Set<string>, range: Range): Promise<Cand | null> => {
   const type = cat.tmdb?.type || 'movie';
   const shot = !!cat.tmdb?.shot;
   const { headers, key } = tmdbAuth();
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const page = 1 + Math.floor(Math.random() * 25);
+    const page = 1 + Math.floor(Math.random() * (hasRange(range) ? 8 : 25));
+    const dateKey = type === 'movie' ? 'primary_release_date' : 'first_air_date';
+    const dates = (range.from ? `&${dateKey}.gte=${range.from}-01-01` : '') + (range.to ? `&${dateKey}.lte=${range.to}-12-31` : '');
     let results: any[] = [];
     try {
       const data = await getJson(
-        `https://api.themoviedb.org/3/discover/${type}?language=fr-FR&sort_by=popularity.desc&vote_count.gte=${type === 'movie' ? 1500 : 600}&page=${page}${key}`,
+        `https://api.themoviedb.org/3/discover/${type}?language=fr-FR&sort_by=popularity.desc&vote_count.gte=${type === 'movie' ? (hasRange(range) ? 400 : 1500) : 200}${dates}&page=${page}${key}`,
         headers
       );
       results = (data?.results || []) as any[];
@@ -231,6 +244,7 @@ const tmdbItem = async (cat: BlindCategory, used: Set<string>): Promise<Cand | n
           url,
           display: nameOf(r),
           sub: dateOf(r),
+          year: yearOf(type === 'movie' ? r.release_date : r.first_air_date),
           cover: `https://image.tmdb.org/t/p/w342${r.poster_path}`,
           answers: uniq([nameOf(r), origOf(r)]),
           extras: [],
@@ -244,14 +258,15 @@ const tmdbItem = async (cat: BlindCategory, used: Set<string>): Promise<Cand | n
 };
 
 // ---------- RAWG ----------
-const rawgItem = async (cat: BlindCategory, used: Set<string>): Promise<Cand | null> => {
+const rawgItem = async (cat: BlindCategory, used: Set<string>, range: Range): Promise<Cand | null> => {
   const key = process.env.RAWG_API_KEY;
   if (!key) return null;
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const page = 1 + Math.floor(Math.random() * 10);
+    const page = 1 + Math.floor(Math.random() * (hasRange(range) ? 5 : 10));
+    const dates = hasRange(range) ? `&dates=${range.from || 1970}-01-01,${range.to || new Date().getFullYear()}-12-31` : '';
     let results: any[] = [];
     try {
-      const data = await getJson(`https://api.rawg.io/api/games?key=${key}&ordering=-added&page_size=40&page=${page}`);
+      const data = await getJson(`https://api.rawg.io/api/games?key=${key}&ordering=-added&page_size=40${dates}&page=${page}`);
       results = (data?.results || []) as any[];
     } catch {
       continue;
@@ -271,6 +286,7 @@ const rawgItem = async (cat: BlindCategory, used: Set<string>): Promise<Cand | n
         url: pick(shots).image,
         display: r.name,
         sub: String(r.released || '').slice(0, 4),
+        year: yearOf(r.released),
         cover: r.background_image,
         answers: uniq([r.name, r.name.split(':')[0], r.name.split(' - ')[0]]),
         extras: [],
@@ -283,12 +299,15 @@ const rawgItem = async (cat: BlindCategory, used: Set<string>): Promise<Cand | n
 };
 
 // ---------- Jikan (anime, sans clé) ----------
-const jikanItem = async (cat: BlindCategory, used: Set<string>): Promise<Cand | null> => {
+const jikanItem = async (cat: BlindCategory, used: Set<string>, range: Range): Promise<Cand | null> => {
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const page = 1 + Math.floor(Math.random() * 8);
+    const page = 1 + Math.floor(Math.random() * (hasRange(range) ? 4 : 8));
+    const url = hasRange(range)
+      ? `https://api.jikan.moe/v4/anime?order_by=popularity&sort=asc&sfw=true&limit=25&page=${page}&start_date=${range.from || 1960}-01-01&end_date=${range.to || new Date().getFullYear()}-12-31`
+      : `https://api.jikan.moe/v4/top/anime?page=${page}&limit=25`;
     let results: any[] = [];
     try {
-      const data = await getJson(`https://api.jikan.moe/v4/top/anime?page=${page}&limit=25`);
+      const data = await getJson(url);
       results = (data?.data || []) as any[];
     } catch {
       continue;
@@ -308,6 +327,7 @@ const jikanItem = async (cat: BlindCategory, used: Set<string>): Promise<Cand | 
         url: r.images.jpg.large_image_url,
         display: nameOf(r),
         sub: String(r.year || ''),
+        year: yearOf(r.aired?.from) || (r.year ? Number(r.year) : undefined),
         cover: r.images.jpg.large_image_url,
         answers: uniq([r.title_english, r.title, ...((r.titles || []) as any[]).map((t) => t.title)].filter(Boolean)),
         extras: [],
@@ -320,7 +340,7 @@ const jikanItem = async (cat: BlindCategory, used: Set<string>): Promise<Cand | 
 };
 
 // ---------- Mode test (BLINDTEST_MOCK=1) : de faux éléments sans réseau ----------
-const mockItem = (cat: BlindCategory, n: number): Cand => {
+const mockItem = (cat: BlindCategory, n: number, range: Range): Cand => {
   const names = ['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot', 'Golf', 'Hotel', 'India', 'Juliet', 'Kilo', 'Lima'];
   const name = `${cat.label.split(' ')[0]} ${names[n % names.length]}`;
   const colors = ['c0392b', '2980b9', '27ae60', '8e44ad', 'd35400', '16a085'];
@@ -334,6 +354,7 @@ const mockItem = (cat: BlindCategory, n: number): Cand => {
       url: cat.kind === 'audio' ? `/api/blindtest?mock=audio&n=${n}` : `/api/blindtest?mock=image&c=${color}&n=${n}`,
       display: name,
       sub: cat.kind === 'audio' ? 'Artiste Test' : '2024',
+      year: (range.from || 1985) + ((n * 7) % Math.max(1, (range.to || 2024) - (range.from || 1985) + 1)),
       cover: `/api/blindtest?mock=image&c=${color}&n=${n}`,
       answers: [name],
       extras: cat.kind === 'audio' ? ['Artiste Test'] : [],
@@ -343,17 +364,18 @@ const mockItem = (cat: BlindCategory, n: number): Cand => {
   };
 };
 
-const makeOne = async (cat: BlindCategory, used: Set<string>, n: number): Promise<Cand | null> => {
-  if (MOCK) return mockItem(cat, n);
-  if (cat.source === 'itunes-artist') return itunesArtistItem(cat, used);
-  if (cat.source === 'itunes-title') return itunesTitleItem(cat, used);
-  if (cat.source === 'tmdb') return tmdbItem(cat, used);
-  if (cat.source === 'rawg') return rawgItem(cat, used);
-  return jikanItem(cat, used);
+const makeOne = async (cat: BlindCategory, used: Set<string>, n: number, range: Range): Promise<Cand | null> => {
+  if (MOCK) return mockItem(cat, n, range);
+  if (cat.source === 'itunes-artist') return itunesArtistItem(cat, used, range);
+  if (cat.source === 'itunes-title') return itunesTitleItem(cat, used, range);
+  if (cat.source === 'tmdb') return tmdbItem(cat, used, range);
+  if (cat.source === 'rawg') return rawgItem(cat, used, range);
+  return jikanItem(cat, used, range);
 };
 
 // ---------- assemblage de la pioche ----------
-export const buildDeck = async (catIds: string[], total: number): Promise<BlindItem[]> => {
+export const buildDeck = async (catIds: string[], total: number, opts: { range?: Range; chrono?: boolean } = {}): Promise<BlindItem[]> => {
+  const range = opts.range || {};
   const available = categoryInfo().filter((c) => c.available).map((c) => c.id);
   const wanted = catIds.filter((id) => available.includes(id) && categoryById(id));
   const ids = wanted.length ? wanted : available;
@@ -368,7 +390,7 @@ export const buildDeck = async (catIds: string[], total: number): Promise<BlindI
       const cat = categoryById(id) as BlindCategory;
       const used = new Set<string>();
       const want = k + (k > 1 ? 1 : 0); // une de rab pour absorber les échecs
-      const got = await Promise.all(Array.from({ length: want }, (_, i) => makeOne(cat, used, i)));
+      const got = await Promise.all(Array.from({ length: want }, (_, i) => makeOne(cat, used, i, range)));
       got.filter(Boolean).forEach((c) => found.push(c as Cand));
     })
   );
@@ -378,12 +400,14 @@ export const buildDeck = async (catIds: string[], total: number): Promise<BlindI
     const okCats = Array.from(new Set(found.map((c) => c.item.cat)));
     const used = new Set<string>(found.map((c) => normAns(c.item.display)));
     for (let tries = 0; deck.length < total && tries < total * 2; tries += 1) {
-      const extra = await makeOne(categoryById(pick(okCats)) as BlindCategory, used, deck.length + tries);
+      const extra = await makeOne(categoryById(pick(okCats)) as BlindCategory, used, deck.length + tries, range);
       if (extra && !deck.some((d) => normAns(d.item.display) === normAns(extra.item.display))) deck.push(extra);
     }
   }
   deck.forEach((c) => c.pool.forEach((t) => globalPool.push(t)));
 
+  // Ordre chronologique : du plus ancien au plus récent (les éléments sans date à la fin)
+  if (opts.chrono) deck = [...deck].sort((a, b) => (a.item.year || 9999) - (b.item.year || 9999));
   return deck.map((c, i) => {
     const answerKeys = new Set(c.item.answers.map(normAns));
     const near = uniq(c.pool).filter((t) => !answerKeys.has(normAns(t)));
