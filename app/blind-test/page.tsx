@@ -72,7 +72,7 @@ const VersionBadge = () => (
 
 const RULES_STEPS = [
   { title: 'Écoute, regarde, devine', text: 'À chaque manche : un extrait sonore (musique, bande originale, jeu vidéo…) ou une image floutée (affiche, scène, capture). Trouve vite le titre !' },
-  { title: 'Le flou se dissipe', text: 'Pour les images, le flou disparaît petit à petit pendant le chrono. Plus tu trouves tôt, plus tu gagnes de points.' },
+  { title: 'Images', text: 'Les affiches ont un léger flou qui cache juste le titre, les captures de jeux sont nettes, et les scènes de films ou de séries sont floutées puis se dévoilent petit à petit. Plus tu trouves tôt, plus tu gagnes de points.' },
   { title: 'Réponse libre ou propositions', text: 'Selon le réglage du host : tu tapes ta réponse (quelques fautes sont tolérées) ou tu choisis parmi 4 propositions (un seul essai !).' },
   { title: 'Bonus', text: 'Pour les musiques, le titre et l’artiste rapportent chacun des points : trouve l’un et continue pour l’autre. Le premier à trouver le titre peut aussi gagner un bonus.' },
   { title: 'Catégories', text: 'Le host choisit les catégories : hits français ou internationaux, rap, rock, années 80-90-2000, films, séries, Disney, jeux vidéo, anime…' },
@@ -333,6 +333,7 @@ export default function BlindTest() {
         ask: it.ask,
         url: it.url,
         choices: it.choices,
+        blur: it.blur || null,
         ak: encodeSecret({ a: it.answers, x: it.extras, d: it.display, s: it.sub, c: it.cover, y: it.year }),
       }));
       setDeck(items);
@@ -701,6 +702,12 @@ export default function BlindTest() {
   const ranking = [...bt.order].sort((a, b) => (bt.scores[b] || 0) - (bt.scores[a] || 0));
   // flou : part de MAX_BLUR et s'estompe jusqu'à zéro à BLUR_END du chrono
   const blurPx = phase === 'play' ? Math.max(0, MAX_BLUR * (1 - elapsed / (bt.duration * 1000 * BLUR_END))) : 0;
+  // Par catégorie : captures de jeux sans flou, affiches avec un flou léger constant (cache le titre), le reste progressif
+  const blurCss = (it, reveal) => {
+    if (reveal || !it || it.blur === 'none') return 'none';
+    if (it.blur === 'light') return 'blur(max(5px, 1.5vh))';
+    return `blur(${blurPx.toFixed(1)}px)`;
+  };
 
   // Indice : lettres du titre qui apparaissent après 40 % du temps (réponse libre).
   // Un tiret bas par lettre, les mots restent séparés (« _ _ _ / _ _ _ _ »).
@@ -810,7 +817,7 @@ export default function BlindTest() {
               referrerPolicy="no-referrer"
               draggable={false}
               className="bt-image max-h-full max-w-full object-contain select-none"
-              style={{ filter: `blur(${isReveal ? 0 : blurPx.toFixed(1)}px)`, transform: isReveal ? 'none' : 'scale(1.06)' }}
+              style={{ filter: blurCss(item, isReveal), transform: isReveal || item.blur === 'none' ? 'none' : 'scale(1.06)' }}
             />
           </div>
         ) : isReveal && bt.reveal?.c ? (

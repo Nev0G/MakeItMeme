@@ -19,6 +19,9 @@ export type BlindCategory = {
   artists?: string[];
   titles?: string[][];
   tmdb?: { type: 'movie' | 'tv'; shot: boolean };
+  // Flou des images : 'none' (captures de jeux), 'light' (affiches : juste de quoi cacher le titre),
+  // sinon (par défaut) un flou fort qui se dissipe pendant le chrono.
+  blur?: 'none' | 'light';
 };
 
 const ARTISTS = {
@@ -186,13 +189,13 @@ export const BLIND_CATEGORIES: BlindCategory[] = [
   { id: 'bo-films', label: 'Bandes originales de films', emoji: '🎼', group: 'Films & séries', kind: 'audio', source: 'itunes-title', ask: 'De quel film vient cette musique ?', titles: FILMS },
   { id: 'disney', label: 'Disney & Pixar', emoji: '🏰', group: 'Films & séries', kind: 'audio', source: 'itunes-title', ask: 'Quel film d’animation ?', titles: DISNEY },
   { id: 'generiques', label: 'Musiques de séries', emoji: '📺', group: 'Films & séries', kind: 'audio', source: 'itunes-title', ask: 'Quelle série (ou quel anime) ?', titles: SERIES },
-  { id: 'film-affiches', label: 'Affiches de films', emoji: '🎬', group: 'Films & séries', kind: 'image', source: 'tmdb', ask: 'Quel est ce film ?', needs: ['TMDB_API_KEY', 'TMDB_READ_TOKEN'], tmdb: { type: 'movie', shot: false } },
+  { id: 'film-affiches', label: 'Affiches de films', emoji: '🎬', group: 'Films & séries', kind: 'image', source: 'tmdb', ask: 'Quel est ce film ?', needs: ['TMDB_API_KEY', 'TMDB_READ_TOKEN'], tmdb: { type: 'movie', shot: false }, blur: 'light' },
   { id: 'film-scenes', label: 'Scènes de films', emoji: '🍿', group: 'Films & séries', kind: 'image', source: 'tmdb', ask: 'Quel est ce film ?', needs: ['TMDB_API_KEY', 'TMDB_READ_TOKEN'], tmdb: { type: 'movie', shot: true } },
-  { id: 'serie-affiches', label: 'Affiches de séries', emoji: '📡', group: 'Films & séries', kind: 'image', source: 'tmdb', ask: 'Quelle est cette série ?', needs: ['TMDB_API_KEY', 'TMDB_READ_TOKEN'], tmdb: { type: 'tv', shot: false } },
+  { id: 'serie-affiches', label: 'Affiches de séries', emoji: '📡', group: 'Films & séries', kind: 'image', source: 'tmdb', ask: 'Quelle est cette série ?', needs: ['TMDB_API_KEY', 'TMDB_READ_TOKEN'], tmdb: { type: 'tv', shot: false }, blur: 'light' },
   { id: 'serie-scenes', label: 'Scènes de séries', emoji: '🎞️', group: 'Films & séries', kind: 'image', source: 'tmdb', ask: 'Quelle est cette série ?', needs: ['TMDB_API_KEY', 'TMDB_READ_TOKEN'], tmdb: { type: 'tv', shot: true } },
   { id: 'jeux-ost', label: 'Musiques de jeux vidéo', emoji: '🎮', group: 'Jeux vidéo & anime', kind: 'audio', source: 'itunes-title', ask: 'De quel jeu vient cette musique ?', titles: GAMES },
-  { id: 'jeux-steam', label: 'Captures de jeux vidéo (Steam)', emoji: '🕹️', group: 'Jeux vidéo & anime', kind: 'image', source: 'steam', ask: 'Quel est ce jeu vidéo ?' },
-  { id: 'jeux-captures', label: 'Captures de jeux vidéo (RAWG)', emoji: '👾', group: 'Jeux vidéo & anime', kind: 'image', source: 'rawg', ask: 'Quel est ce jeu vidéo ?', needs: ['RAWG_API_KEY'] },
+  { id: 'jeux-steam', label: 'Captures de jeux vidéo (Steam)', emoji: '🕹️', group: 'Jeux vidéo & anime', kind: 'image', source: 'steam', ask: 'Quel est ce jeu vidéo ?', blur: 'none' },
+  { id: 'jeux-captures', label: 'Captures de jeux vidéo (RAWG)', emoji: '👾', group: 'Jeux vidéo & anime', kind: 'image', source: 'rawg', ask: 'Quel est ce jeu vidéo ?', needs: ['RAWG_API_KEY'], blur: 'none' },
   { id: 'anime-affiches', label: 'Affiches d’anime', emoji: '🍥', group: 'Jeux vidéo & anime', kind: 'image', source: 'jikan', ask: 'Quel est cet anime ?' },
 ];
 

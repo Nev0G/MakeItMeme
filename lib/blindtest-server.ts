@@ -14,6 +14,7 @@ export type BlindItem = {
   display: string;
   sub: string;
   year?: number;
+  blur?: 'none' | 'light';
   cover?: string;
   answers: string[];
   extras: string[];
@@ -474,7 +475,7 @@ export const buildDeck = async (catIds: string[], total: number, opts: { range?:
     const far = uniq(globalPool).filter((t) => !answerKeys.has(normAns(t)));
     const fakes = shuffled(near).slice(0, 3);
     if (fakes.length < 3) shuffled(far).forEach((t) => fakes.length < 3 && !fakes.some((f) => normAns(f) === normAns(t)) && fakes.push(t));
-    return { ...c.item, id: `${c.item.cat}-${i}`, choices: shuffled([c.item.display, ...fakes]) };
+    return { ...c.item, blur: categoryById(c.item.cat)?.blur, id: `${c.item.cat}-${i}`, choices: shuffled([c.item.display, ...fakes]) };
   });
 };
 
