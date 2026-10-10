@@ -67,6 +67,28 @@ const HOME_GAMES = [
     players: '2 à 12 joueurs',
     duration: '15 min',
   },
+  {
+    id: 'top-ten',
+    glow: '#e3b559',
+    href: '/top-ten',
+    kicker: 'Coopératif',
+    name: 'Top Ten',
+    emoji: '🔟',
+    text: 'Chacun reçoit un numéro secret de 1 à 100 et répond au thème en conséquence. Le capitaine doit remettre tout le monde dans l’ordre sans perdre ses vies.',
+    players: '3 à 12 joueurs',
+    duration: '20 min',
+  },
+  {
+    id: 'codenames',
+    glow: '#b5382e',
+    href: '/codenames',
+    kicker: 'Mots & espionnage',
+    name: 'Codenames',
+    emoji: '🕵️',
+    text: 'Deux équipes, deux maîtres-espions. Un indice, un nombre : retrouve tes agents sur le plateau et évite l’assassin.',
+    players: '4 à 12 joueurs',
+    duration: '20 min',
+  },
 ];
 
 const STEPS = [

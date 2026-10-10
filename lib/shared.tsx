@@ -274,6 +274,8 @@ const GAMES = [
   { id: 'bomb-party', name: 'Bomb Party', emoji: '💣', status: 'live', href: '/bomb-party', gradient: 'from-orange-500 via-amber-500 to-yellow-400' },
   { id: 'pictionary', name: 'Pictionary', emoji: '🎨', status: 'live', href: '/pictionary', gradient: 'from-teal-500 via-purple-500 to-orange-400' },
   { id: 'blind-test', name: 'Blind Test', emoji: '🎧', status: 'live', href: '/blind-test', gradient: 'from-orange-500 via-purple-500 to-teal-400' },
+  { id: 'top-ten', name: 'Top Ten', emoji: '🔟', status: 'live', href: '/top-ten', gradient: 'from-purple-500 via-orange-500 to-teal-400' },
+  { id: 'codenames', name: 'Codenames', emoji: '🕵️', status: 'live', href: '/codenames', gradient: 'from-red-500 via-purple-500 to-sky-400' },
 ];
 
 const GamesRail = ({ currentId }) => (

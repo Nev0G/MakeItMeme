@@ -198,12 +198,45 @@ const HomeArt = ({ p }) => (
   </g>
 );
 
+const TopTenArt = ({ p }) => (
+  <g>
+    <Backdrop p={p} glow="gold" />
+    <rect x="30" y="86" width="140" height="14" rx="7" fill="#1b130c" stroke={`url(#${p}-gold)`} strokeWidth="2" />
+    <rect x="30" y="86" width="95" height="14" rx="7" fill={`url(#${p}-gold)`} />
+    <g fill="#f3df94" stroke="#5a3d0e" strokeWidth="1.5">
+      <rect x="40" y="38" width="36" height="36" rx="6" /><rect x="82" y="30" width="36" height="44" rx="6" /><rect x="124" y="38" width="36" height="36" rx="6" />
+    </g>
+    <g fontFamily="serif" fontWeight="bold" fontSize="22" fill="#3a2610" textAnchor="middle">
+      <text x="58" y="64">7</text><text x="100" y="62">42</text><text x="142" y="64">91</text>
+    </g>
+    <circle cx="125" cy="93" r="9" fill="#fff" stroke="#5a3d0e" strokeWidth="2" />
+  </g>
+);
+
+const CodenamesArt = ({ p }) => (
+  <g>
+    <Backdrop p={p} glow="soul" />
+    <g stroke="#5a3d0e" strokeWidth="1.5">
+      {[0, 1, 2, 3].map((r) => [0, 1, 2, 3, 4].map((c) => {
+        const k = (r * 5 + c) % 7;
+        const fill = k === 0 || k === 3 ? '#b5382e' : k === 1 || k === 4 ? '#2c6fa8' : '#cdbb9b';
+        return <rect key={`${r}-${c}`} x={36 + c * 27} y={28 + r * 22} width="24" height="18" rx="3" fill={fill} />;
+      }))}
+    </g>
+    <rect x="63" y="72" width="24" height="18" rx="3" fill="#000" stroke="#e3b559" strokeWidth="2" />
+    <circle cx="100" cy="116" r="8" fill="none" stroke="#e0b552" strokeWidth="3" />
+    <path d="M106 122 L118 132" stroke="#e0b552" strokeWidth="4" strokeLinecap="round" />
+  </g>
+);
+
 const ARTS = {
   'caption-battle': CaptionArt,
   imposteur: ImposteurArt,
   'bomb-party': BombPartyArt,
   pictionary: PictionaryArt,
   'blind-test': BlindTestArt,
+  'top-ten': TopTenArt,
+  codenames: CodenamesArt,
   home: HomeArt,
 };
 
