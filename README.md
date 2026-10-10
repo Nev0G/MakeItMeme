@@ -8,6 +8,8 @@ Des jeux entre potes, jouables dans le navigateur, avec un habillage « vieux jo
 - `/bomb-party` : trouve un mot avec la syllabe avant que la bombe explose
 - `/pictionary` : dessine un mot, les autres devinent (palette complète, malus et chaos)
 - `/blind-test` : devine des extraits sonores et des images floutées qui se dévoilent (musiques, films, séries, jeux vidéo, anime)
+- `/top-ten` : jeu coopératif, un capitaine classe les joueurs selon leur numéro secret (1 à 100) et leurs réponses à un thème ; chaque erreur coûte une vie
+- `/codenames` : deux équipes et deux maîtres-espions, indice + nombre pour retrouver ses mots sur le plateau 5×5 sans toucher l'assassin
 
 Chaque jeu a des salons **fermés** (code) ou **ouverts** (listés sur l'accueil), un chat écrit, et le host peut expulser un joueur.
 La connexion Discord est optionnelle.
