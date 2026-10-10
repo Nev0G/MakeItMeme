@@ -14,7 +14,8 @@ import { GameArt } from '@/lib/art';
 const APP_VERSION = 'blind test v1';
 const GAME_ID = 'blind-test';
 const REVEAL_SECONDS = 7;
-const MAX_BLUR = 44; // flou de départ des images, en pixels
+const MAX_BLUR = 20; // flou de départ des images, en pixels
+const BLUR_END = 0.6; // l'image est nette dès 60 % du temps écoulé
 const VOLUME_KEY = 'blindtest-volume';
 const ARTIST_PTS = 30; // points pour l'artiste (seul ou avec le titre)
 // Époques proposées dans le lobby (années de sortie)
@@ -698,8 +699,8 @@ export default function BlindTest() {
   const avatarOf = (id) => known[id]?.avatar;
   const ratioLeft = phase === 'play' && bt.duration ? Math.min(1, msLeft / (bt.duration * 1000)) : 1;
   const ranking = [...bt.order].sort((a, b) => (bt.scores[b] || 0) - (bt.scores[a] || 0));
-  // flou : part de MAX_BLUR et s'estompe jusqu'à zéro un peu avant la fin du chrono
-  const blurPx = phase === 'play' ? Math.max(0, MAX_BLUR * (1 - elapsed / (bt.duration * 1000 * 0.95))) : 0;
+  // flou : part de MAX_BLUR et s'estompe jusqu'à zéro à BLUR_END du chrono
+  const blurPx = phase === 'play' ? Math.max(0, MAX_BLUR * (1 - elapsed / (bt.duration * 1000 * BLUR_END))) : 0;
 
   // Indice : lettres du titre qui apparaissent après 40 % du temps (réponse libre).
   // Un tiret bas par lettre, les mots restent séparés (« _ _ _ / _ _ _ _ »).
