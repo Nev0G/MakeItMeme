@@ -27,7 +27,8 @@ Variables d'environnement (sinon un projet Supabase de démo est utilisé) :
 Blind Test (`/api/blindtest`, côté serveur — les clés ne sont jamais envoyées au navigateur) :
 
 - `TMDB_API_KEY` (ou `TMDB_READ_TOKEN`) : affiches et scènes de films et de séries (clé gratuite sur themoviedb.org)
-- `RAWG_API_KEY` : captures de jeux vidéo (clé gratuite sur rawg.io)
+- `RAWG_API_KEY` : captures de jeux vidéo, source en plus (clé gratuite sur rawg.io)
+- Les captures de jeux « Steam » marchent sans clé (SteamSpy + boutique Steam).
 - Sans ces clés, les catégories concernées sont grisées dans le lobby ; les musiques (iTunes) et les anime (Jikan) marchent sans clé.
 - `BLINDTEST_MOCK=1` : fausses données sans réseau, pour tester la page.
 

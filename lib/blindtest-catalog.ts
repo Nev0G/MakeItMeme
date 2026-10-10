@@ -2,7 +2,7 @@
 // Pour ajouter une catégorie : une entrée de plus ici (et, si besoin, une source dans blindtest-server.ts).
 //
 // kind    : 'audio' (extrait sonore) ou 'image' (image floutée qui se dissipe)
-// source  : 'itunes-artist' (le titre du morceau est la réponse), 'itunes-title' (la réponse est le film / jeu / série
+// source  : 'steam' (captures de jeux, sans clé), 'itunes-artist' (le titre du morceau est la réponse), 'itunes-title' (la réponse est le film / jeu / série
 //           dont on entend la musique), 'tmdb' (films & séries), 'rawg' (jeux vidéo), 'jikan' (anime)
 // needs   : variable d'environnement requise (la catégorie est grisée si elle manque)
 
@@ -12,7 +12,7 @@ export type BlindCategory = {
   emoji: string;
   group: 'Musique' | 'Films & séries' | 'Jeux vidéo & anime';
   kind: 'audio' | 'image';
-  source: 'itunes-artist' | 'itunes-title' | 'tmdb' | 'rawg' | 'jikan';
+  source: 'itunes-artist' | 'itunes-title' | 'tmdb' | 'rawg' | 'steam' | 'jikan';
   ask: string; // la question posée aux joueurs
   needs?: string[]; // une de ces variables doit exister
   // itunes-artist : liste d'artistes. itunes-title : [recherche, réponse, ...autres réponses acceptées]
@@ -191,7 +191,8 @@ export const BLIND_CATEGORIES: BlindCategory[] = [
   { id: 'serie-affiches', label: 'Affiches de séries', emoji: '📡', group: 'Films & séries', kind: 'image', source: 'tmdb', ask: 'Quelle est cette série ?', needs: ['TMDB_API_KEY', 'TMDB_READ_TOKEN'], tmdb: { type: 'tv', shot: false } },
   { id: 'serie-scenes', label: 'Scènes de séries', emoji: '🎞️', group: 'Films & séries', kind: 'image', source: 'tmdb', ask: 'Quelle est cette série ?', needs: ['TMDB_API_KEY', 'TMDB_READ_TOKEN'], tmdb: { type: 'tv', shot: true } },
   { id: 'jeux-ost', label: 'Musiques de jeux vidéo', emoji: '🎮', group: 'Jeux vidéo & anime', kind: 'audio', source: 'itunes-title', ask: 'De quel jeu vient cette musique ?', titles: GAMES },
-  { id: 'jeux-captures', label: 'Captures de jeux vidéo', emoji: '🕹️', group: 'Jeux vidéo & anime', kind: 'image', source: 'rawg', ask: 'Quel est ce jeu vidéo ?', needs: ['RAWG_API_KEY'] },
+  { id: 'jeux-steam', label: 'Captures de jeux vidéo (Steam)', emoji: '🕹️', group: 'Jeux vidéo & anime', kind: 'image', source: 'steam', ask: 'Quel est ce jeu vidéo ?' },
+  { id: 'jeux-captures', label: 'Captures de jeux vidéo (RAWG)', emoji: '👾', group: 'Jeux vidéo & anime', kind: 'image', source: 'rawg', ask: 'Quel est ce jeu vidéo ?', needs: ['RAWG_API_KEY'] },
   { id: 'anime-affiches', label: 'Affiches d’anime', emoji: '🍥', group: 'Jeux vidéo & anime', kind: 'image', source: 'jikan', ask: 'Quel est cet anime ?' },
 ];
 

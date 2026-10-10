@@ -143,7 +143,7 @@ export default function BlindTest() {
   const [catInfo, setCatInfo] = useState([]);
   const [guess, setGuess] = useState('');
   const [needTap, setNeedTap] = useState(false);
-  const [volume, setVolume] = useState(0.8);
+  const [volume, setVolume] = useState(0.2);
 
   const playersRef = useRef([]);
   const channelRef = useRef(null);
@@ -152,7 +152,7 @@ export default function BlindTest() {
   const loadingRef = useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const preloadRef = useRef<HTMLAudioElement | null>(null);
-  const volumeRef = useRef(0.8);
+  const volumeRef = useRef(0.2);
   const { soundOn, toggleSound } = useSoundAndClickFx();
 
   useEffect(() => {
@@ -701,15 +701,22 @@ export default function BlindTest() {
   // flou : part de MAX_BLUR et s'estompe jusqu'à zéro un peu avant la fin du chrono
   const blurPx = phase === 'play' ? Math.max(0, MAX_BLUR * (1 - elapsed / (bt.duration * 1000 * 0.95))) : 0;
 
-  // Indice : lettres du titre qui apparaissent après 40 % du temps (réponse libre)
-  const hintLine = (() => {
+  // Indice : lettres du titre qui apparaissent après 40 % du temps (réponse libre).
+  // Un tiret bas par lettre, les mots restent séparés (« _ _ _ / _ _ _ _ »).
+  const hintWords = (() => {
     if (!secret || !settings.hints || settings.answerMode !== 'free' || phase !== 'play') return null;
     const chars = Array.from(secret.d);
     const letters = chars.map((ch, i) => (normAns(ch) ? i : -1)).filter((i) => i >= 0);
     const r = elapsed / (bt.duration * 1000);
     const count = r < 0.4 ? 0 : Math.min(Math.floor(letters.length / 2), 1 + Math.floor((r - 0.4) / 0.15));
     const shown = new Set(seededOrder(item?.id || '', letters).slice(0, count));
-    return chars.map((ch, i) => (!normAns(ch) ? ch : shown.has(i) ? ch.toUpperCase() : '_')).join(' ');
+    const words: string[][] = [[]];
+    chars.forEach((ch, i) => {
+      if (/\s/.test(ch)) {
+        if (words[words.length - 1].length) words.push([]);
+      } else words[words.length - 1].push(!normAns(ch) ? ch : shown.has(i) ? ch.toUpperCase() : '_');
+    });
+    return words.filter((w) => w.length);
   })();
 
   // ==========================================
@@ -848,7 +855,13 @@ export default function BlindTest() {
             <span className="text-xs text-gray-400 font-mono shrink-0">Extrait<br />{Math.min(bt.round + 1, bt.total)}/{bt.total}</span>
             <div className="text-center min-w-0">
               <p className="text-base sm:text-lg font-bold">{item?.ask || '…'}</p>
-              {hintLine && <p className="font-mono text-lg sm:text-xl tracking-[0.12em] font-bold text-purple-200 break-all">{hintLine}</p>}
+              {hintWords && (
+                <p className="font-mono text-lg sm:text-xl font-bold text-purple-200 flex flex-wrap justify-center gap-x-12 gap-y-1" aria-label={`${hintWords.length} mot${hintWords.length > 1 ? 's' : ''}`}>
+                  {hintWords.map((w, wi) => (
+                    <span key={wi} className="tracking-[0.1em] whitespace-nowrap">{w.join(' ')}</span>
+                  ))}
+                </p>
+              )}
             </div>
             <div className={`shrink-0 font-heading text-2xl w-14 text-right ${timerDanger ? 'text-red-400 animate-pulse' : 'text-purple-300'}`}>{phase === 'play' || phase === 'reveal' ? secsLeft : ''}</div>
           </div>

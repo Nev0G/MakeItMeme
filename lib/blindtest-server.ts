@@ -298,6 +298,58 @@ const rawgItem = async (cat: BlindCategory, used: Set<string>, range: Range): Pr
   return null;
 };
 
+// ---------- Steam (captures de jeux, sans clé) ----------
+// SteamSpy fournit la liste des jeux les plus joués, la boutique Steam les captures d'écran.
+const steamItem = async (cat: BlindCategory, used: Set<string>, range: Range): Promise<Cand | null> => {
+  let list: any[] = [];
+  try {
+    const [a, b] = await Promise.all([
+      getJson('https://steamspy.com/api.php?request=top100forever', {}, 6 * 3600 * 1000),
+      getJson('https://steamspy.com/api.php?request=top100owned', {}, 6 * 3600 * 1000).catch(() => ({})),
+    ]);
+    list = Object.values({ ...(b || {}), ...(a || {}) }) as any[];
+  } catch {
+    return null;
+  }
+  const pool = shuffled(list.map((g) => g.name as string).filter(Boolean)).slice(0, 40);
+  const cands = shuffled(list.filter((g) => g.name && !used.has(normAns(g.name))));
+  for (const g of cands.slice(0, hasRange(range) ? 8 : 4)) {
+    let d: any;
+    try {
+      const data = await limit(() => getJson(`https://store.steampowered.com/api/appdetails?appids=${g.appid}&cc=fr&l=french`));
+      d = data?.[g.appid]?.success ? data[g.appid].data : null;
+    } catch {
+      continue;
+    }
+    const shots = (d?.screenshots || []) as any[];
+    if (!d || d.type !== 'game' || shots.length < 2) continue;
+    const year = yearOf((String(d.release_date?.date || '').match(/\d{4}/) || [])[0]);
+    if (!inRange(year, range)) continue;
+    // la première capture est souvent l'écran-titre avec le logo : on l'évite
+    const shot = pick(shots.slice(1, 9));
+    const name = String(d.name).replace(/[™®]/g, '').trim();
+    used.add(normAns(g.name));
+    return {
+      item: {
+        id: '',
+        cat: cat.id,
+        kind: 'image',
+        ask: cat.ask,
+        url: shot.path_full,
+        display: name,
+        sub: year ? String(year) : '',
+        year,
+        cover: d.header_image,
+        answers: uniq([name, g.name, name.split(':')[0], name.split(' - ')[0]]),
+        extras: [],
+        choices: [],
+      },
+      pool,
+    };
+  }
+  return null;
+};
+
 // ---------- Jikan (anime, sans clé) ----------
 const jikanItem = async (cat: BlindCategory, used: Set<string>, range: Range): Promise<Cand | null> => {
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -370,6 +422,7 @@ const makeOne = async (cat: BlindCategory, used: Set<string>, n: number, range: 
   if (cat.source === 'itunes-title') return itunesTitleItem(cat, used, range);
   if (cat.source === 'tmdb') return tmdbItem(cat, used, range);
   if (cat.source === 'rawg') return rawgItem(cat, used, range);
+  if (cat.source === 'steam') return steamItem(cat, used, range);
   return jikanItem(cat, used, range);
 };
 
