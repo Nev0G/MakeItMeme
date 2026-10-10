@@ -22,11 +22,54 @@ const PALETTE = ['#1b1008', '#ffffff', '#d9453a', '#e8832a', '#f0c43a', '#3fae7d
 const SIZES = [4, 9, 18];
 const STAMPS = ['⭐', '❤️', '🔥', '🍕', '🦆', '👑', '💩', '🎩'];
 const REACTIONS = ['👏', '😂', '🔥', '🤔', '😱', '❤️'];
+// Événements chaos : « ms » = durée. Les malus (autopen…tiny) pénalisent le dessinateur.
 const CHAOS = {
-  shake: { label: '🌪️ Tremblement de terre ! Le crayon n’en fait qu’à sa tête', cls: 'pc-chaos-shake' },
-  fog: { label: '🌫️ Brouillard ! Plus rien n’est net', cls: 'pc-chaos-fog' },
-  mirror: { label: '🪞 Miroir magique ! Tout est à l’envers', cls: 'pc-chaos-mirror' },
+  shake: { label: '🌪️ Tremblement de terre ! Le crayon n’en fait qu’à sa tête', cls: 'pc-chaos-shake', ms: 7000 },
+  fog: { label: '🌫️ Brouillard ! Plus rien n’est net', cls: 'pc-chaos-fog', ms: 7000 },
+  mirror: { label: '🪞 Miroir magique ! Tout est à l’envers', cls: 'pc-chaos-mirror', ms: 7000 },
+  autopen: { label: '✒️ Stylo possédé ! Il dessine tout le temps, même sans cliquer', cls: '', ms: 8000 },
+  nopalette: { label: '🙈 Palette cachée ! Impossible de changer de couleur', cls: '', ms: 9000 },
+  blind: { label: '🕶️ Dessin à l’aveugle ! Le dessinateur ne voit plus son dessin', cls: '', ms: 8000 },
+  invert: { label: '🔄 Souris inversée ! Droite devient gauche, haut devient bas', cls: '', ms: 9000 },
+  symmetry: { label: '🦋 Symétrie ! Chaque trait est reflété de l’autre côté', cls: '', ms: 9000 },
+  tiny: { label: '🔬 Tout petit cadre ! Impossible de dessiner hors de la zone', cls: '', ms: 10000 },
 };
+const CHAOS_TYPES = Object.keys(CHAOS);
+const TINY = { x0: 0.35, y0: 0.35, x1: 0.65, y1: 0.65 }; // zone autorisée pendant « tout petit cadre »
+const CHAOS_PACE = { rare: [24000, 12000], normal: [16000, 9000], many: [9000, 6000] }; // [délai de base, aléa] en ms
+
+// Couleurs : conversions pour la palette complète
+const hslToHex = (h, sat, lig) => {
+  const sN = sat / 100;
+  const lN = lig / 100;
+  const k = (n) => (n + h / 30) % 12;
+  const a = sN * Math.min(lN, 1 - lN);
+  const f = (n) => lN - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  const to = (x) => Math.round(255 * x).toString(16).padStart(2, '0');
+  return `#${to(f(0))}${to(f(8))}${to(f(4))}`;
+};
+const hexToHsl = (hex) => {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+  if (!m) return [0, 85, 50];
+  const n = parseInt(m[1], 16);
+  const r = ((n >> 16) & 255) / 255;
+  const g = ((n >> 8) & 255) / 255;
+  const b = (n & 255) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  const d = max - min;
+  if (d === 0) return [0, 0, Math.round(l * 100)];
+  const sat = d / (1 - Math.abs(2 * l - 1));
+  let h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  h = Math.round(h * 60);
+  return [(h + 360) % 360, Math.round(sat * 100), Math.round(l * 100)];
+};
+// Grille de nuances : 6 luminosités × 12 teintes, plus une rangée de gris
+const SWATCHES = [
+  ...[90, 76, 62, 50, 38, 24].flatMap((l) => Array.from({ length: 12 }, (_, i) => hslToHex(i * 30, 85, l))),
+  ...Array.from({ length: 12 }, (_, i) => hslToHex(0, 0, Math.round(100 - (i * 100) / 11))),
+];
 
 const DEFAULT_SETTINGS = {
   visibility: 'private',
@@ -37,6 +80,8 @@ const DEFAULT_SETTINGS = {
   difficulty: 'mix', // 'easy' | 'mix' | 'hard'
   hints: true, // lettres révélées au fil du temps
   chaos: true, // événements surprises pendant le dessin
+  chaosRate: 'normal', // 'rare' | 'normal' | 'many' : fréquence des événements
+  chaosGuarantee: true, // au moins un événement à chaque dessin
 };
 const INITIAL_PC = {
   phase: 'lobby', // 'lobby' | 'choose' | 'draw' | 'reveal' | 'final'
@@ -70,7 +115,7 @@ const RULES_STEPS = [
   { title: 'Un dessinateur, trois mots', text: 'À chaque tour, un joueur choisit un mot secret parmi trois et le dessine. Pas de lettres, pas de chiffres !' },
   { title: 'Les autres devinent', text: 'Tape tes propositions dans la boîte à droite. Plus tu trouves vite, plus tu gagnes de points. « Tu chauffes ! » te dit quand tu es à une lettre près.' },
   { title: 'Des indices au fil du temps', text: 'Quand le temps file, des lettres du mot se dévoilent. Le dessinateur gagne des points à chaque joueur qui trouve.' },
-  { title: 'Gadgets du dessinateur', text: 'Pinceau arc-en-ciel 🌈, tampons emoji ⭐, gomme, annuler… et gare aux événements chaos : tremblement de terre, brouillard, miroir magique !' },
+  { title: 'Gadgets du dessinateur', text: 'Pinceau arc-en-ciel 🌈, tampons emoji ⭐, gomme, annuler… et gare aux événements chaos : tremblement de terre, brouillard, miroir… et des malus pour le dessinateur (stylo possédé, palette cachée, dessin à l’aveugle, souris inversée, symétrie, tout petit cadre) !' },
   { title: 'Réactions', text: 'Tout le monde peut balancer des emojis qui flottent au-dessus du dessin. À utiliser sans modération.' },
 ];
 
@@ -126,6 +171,117 @@ const paintOp = (ctx, op) => {
   } else paintSegment(ctx, op, 2);
 };
 
+// Palette complète : grille de nuances, curseurs teinte / saturation / luminosité, code hexadécimal,
+// pipette (si le navigateur la gère) et couleurs récentes.
+const ColorPicker = ({ color, onPick, recent }) => {
+  const [open, setOpen] = useState(false);
+  const [hsl, setHsl] = useState(() => hexToHsl(color));
+  const [hex, setHex] = useState(color);
+  const boxRef = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e) => {
+      if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, [open]);
+  useEffect(() => {
+    setHex(color);
+    setHsl(hexToHsl(color));
+  }, [color]);
+  const setFromHsl = (next) => {
+    setHsl(next);
+    const h = hslToHex(next[0], next[1], next[2]);
+    setHex(h);
+    onPick(h);
+  };
+  const eyeDropper = typeof window !== 'undefined' && (window as any).EyeDropper;
+  const pipette = async () => {
+    try {
+      const res = await new (window as any).EyeDropper().open();
+      if (res?.sRGBHex) onPick(res.sRGBHex);
+    } catch {
+      // annulé
+    }
+  };
+  return (
+    <div className="relative" ref={boxRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        title="Palette complète"
+        aria-label="Ouvrir la palette complète"
+        aria-expanded={open}
+        className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border-2 text-xs font-bold transition active:scale-95 ${open ? 'border-purple-300 bg-purple-900/60' : 'border-transparent bg-black/25 hover:bg-black/40'}`}
+      >
+        <span className="w-5 h-5 rounded-full border-2 border-white/70" style={{ background: color }} />
+        🎨 Palette
+      </button>
+      {open && (
+        <div className="absolute bottom-full left-0 mb-2 z-40 w-[min(22rem,88vw)] rounded-2xl border border-gray-700 bg-gray-900 p-3 shadow-2xl animate-fadein">
+          <div className="grid grid-cols-12 gap-0.5 mb-3">
+            {SWATCHES.map((c, i) => (
+              <button
+                key={`${c}-${i}`}
+                type="button"
+                aria-label={`Couleur ${c}`}
+                onClick={() => onPick(c)}
+                className={`aspect-square rounded-[3px] transition hover:scale-125 hover:z-10 ${color.toLowerCase() === c ? 'ring-2 ring-white scale-110 z-10' : ''}`}
+                style={{ background: c }}
+              />
+            ))}
+          </div>
+          <div className="space-y-2 text-[11px] text-gray-400 font-bold">
+            <label className="flex items-center gap-2">
+              <span className="w-16">Teinte</span>
+              <input type="range" min={0} max={359} value={hsl[0]} onChange={(e) => setFromHsl([Number(e.target.value), hsl[1] || 80, hsl[2]])} className="flex-1 h-3 rounded-full appearance-none cursor-pointer" style={{ background: 'linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)' }} />
+            </label>
+            <label className="flex items-center gap-2">
+              <span className="w-16">Saturation</span>
+              <input type="range" min={0} max={100} value={hsl[1]} onChange={(e) => setFromHsl([hsl[0], Number(e.target.value), hsl[2]])} className="flex-1 h-3 rounded-full appearance-none cursor-pointer" style={{ background: `linear-gradient(90deg,${hslToHex(hsl[0], 0, hsl[2])},${hslToHex(hsl[0], 100, hsl[2])})` }} />
+            </label>
+            <label className="flex items-center gap-2">
+              <span className="w-16">Luminosité</span>
+              <input type="range" min={0} max={100} value={hsl[2]} onChange={(e) => setFromHsl([hsl[0], hsl[1], Number(e.target.value)])} className="flex-1 h-3 rounded-full appearance-none cursor-pointer" style={{ background: `linear-gradient(90deg,#000,${hslToHex(hsl[0], hsl[1], 50)},#fff)` }} />
+            </label>
+          </div>
+          <div className="flex items-center gap-2 mt-3">
+            <span className="w-9 h-9 rounded-lg border-2 border-white/60 shrink-0" style={{ background: color }} />
+            <input
+              type="text"
+              value={hex}
+              maxLength={7}
+              spellCheck={false}
+              aria-label="Code couleur hexadécimal"
+              onChange={(e) => {
+                const v = e.target.value.startsWith('#') ? e.target.value : `#${e.target.value}`;
+                setHex(v);
+                if (/^#[0-9a-f]{6}$/i.test(v)) onPick(v.toLowerCase());
+              }}
+              className="w-24 p-1.5 bg-gray-950 border border-gray-700 rounded-lg font-mono text-sm text-center uppercase"
+            />
+            <input type="color" value={/^#[0-9a-f]{6}$/i.test(color) ? color : '#000000'} onChange={(e) => onPick(e.target.value)} aria-label="Sélecteur de couleur du navigateur" className="w-9 h-9 rounded-lg bg-transparent cursor-pointer border border-gray-700" />
+            {eyeDropper && (
+              <button type="button" onClick={pipette} title="Pipette : prendre une couleur à l’écran" className="px-2.5 h-9 rounded-lg bg-black/30 hover:bg-black/50 text-sm font-bold transition active:scale-95">💧</button>
+            )}
+          </div>
+          {recent.length > 0 && (
+            <div className="mt-3">
+              <p className="text-[10px] uppercase tracking-wide text-gray-500 font-bold mb-1">Récentes</p>
+              <div className="flex flex-wrap gap-1">
+                {recent.map((c) => (
+                  <button key={c} type="button" aria-label={`Couleur récente ${c}`} onClick={() => onPick(c)} className="w-6 h-6 rounded-full border-2 border-black/40 hover:scale-110 transition" style={{ background: c }} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function Pictionary() {
   const [player, setPlayer] = useState({ id: null, name: '', avatar: AVATAR_EMOJIS[0] });
   useEffect(() => {
@@ -157,7 +313,12 @@ export default function Pictionary() {
 
   // Outils du dessinateur
   const [tool, setTool] = useState('brush'); // 'brush' | 'rainbow' | 'eraser' | 'stamp'
-  const [color, setColor] = useState(PALETTE[0]);
+  const [color, setColorRaw] = useState(PALETTE[0]);
+  const [recentColors, setRecentColors] = useState([]);
+  const setColor = (c) => {
+    setColorRaw(c);
+    setRecentColors((r) => [c, ...r.filter((x) => x !== c)].slice(0, 10));
+  };
   const [size, setSize] = useState(SIZES[1]);
   const [stamp, setStamp] = useState(STAMPS[0]);
   const [guess, setGuess] = useState('');
@@ -166,7 +327,8 @@ export default function Pictionary() {
   const canvasRef = useRef(null);
   const opsRef = useRef([]);
   const strokeRef = useRef(null); // trait en cours (dessinateur)
-  const pendingRef = useRef({ sid: null, meta: null, pts: [] });
+  const pendingRef = useRef({}); // sid -> { meta, pts } : points à envoyer au prochain lot
+  const chaosCountRef = useRef(0); // nombre d'événements chaos déclenchés pendant le dessin en cours
   const flushTimerRef = useRef(null);
   const channelRef = useRef(null);
   const isHostRef = useRef(false);
@@ -232,10 +394,11 @@ export default function Pictionary() {
   const flushStroke = () => {
     clearTimeout(flushTimerRef.current);
     flushTimerRef.current = null;
-    const pend = pendingRef.current;
-    if (!pend.pts.length) return;
-    broadcast('ops', { sid: pend.sid, meta: pend.meta, pts: pend.pts });
-    pendingRef.current = { sid: pend.sid, meta: null, pts: [] };
+    Object.entries(pendingRef.current).forEach(([sid, pend]: any) => {
+      if (!pend.pts.length) return;
+      broadcast('ops', { sid, meta: pend.meta, pts: pend.pts });
+      pendingRef.current[sid] = { meta: null, pts: [] };
+    });
   };
 
   const chaosActive = pc.chaos && now < pc.chaos.until ? pc.chaos.type : null;
@@ -245,49 +408,89 @@ export default function Pictionary() {
 
   const pointOf = (e) => {
     const rect = canvasRef.current.getBoundingClientRect();
-    return [Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)), Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height))];
+    const x = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    const y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
+    // Malus « souris inversée » : le curseur et le trait vont en sens opposé
+    return chaosActive === 'invert' ? [1 - x, 1 - y] : [x, y];
   };
   const round3 = (n) => Math.round(n * 1000) / 1000;
+  const inTinyFrame = (x, y) => x >= TINY.x0 && x <= TINY.x1 && y >= TINY.y0 && y <= TINY.y1;
+  const blockedByFrame = (x, y) => chaosActive === 'tiny' && !inTinyFrame(x, y);
+
+  // Ajoute un point à un trait : dessiné tout de suite en local, envoyé par petits lots
+  const addPoint = (sid, x, y, meta) => {
+    const pt = [round3(x), round3(y)];
+    applyOps({ sid, meta, pts: pt });
+    const pend = pendingRef.current[sid] || (pendingRef.current[sid] = { meta, pts: [] });
+    pend.pts.push(...pt);
+    if (!flushTimerRef.current) flushTimerRef.current = setTimeout(flushStroke, 100);
+  };
+  const startStroke = (x, y, auto = false) => {
+    if (blockedByFrame(x, y)) return;
+    const meta = { c: color, w: size, r: tool === 'rainbow' ? 1 : 0, e: tool === 'eraser' ? 1 : 0, h: Math.floor(Math.random() * 360) };
+    const sids = [makeId('s')];
+    addPoint(sids[0], x, y, meta);
+    // Malus « symétrie » : un deuxième trait, reflété de l'autre côté
+    if (chaosActive === 'symmetry') {
+      sids.push(makeId('s'));
+      addPoint(sids[1], 1 - x, y, { ...meta });
+    }
+    strokeRef.current = { sids, meta, last: [x, y], auto };
+  };
   const onDown = (e) => {
     if (!canDraw) return;
     e.preventDefault();
+    if (strokeRef.current?.auto) onUp();
     e.currentTarget.setPointerCapture?.(e.pointerId);
     const [x, y] = pointOf(e);
     if (tool === 'stamp') {
-      const m = { k: 'st', e: stamp, x: round3(x), y: round3(y), s: 40 + size * 4 };
-      applyOps(m);
-      broadcast('ops', m);
+      if (blockedByFrame(x, y)) return;
+      const size2 = 40 + size * 4;
+      const places = chaosActive === 'symmetry' ? [x, 1 - x] : [x];
+      places.forEach((px) => {
+        const m = { k: 'st', e: stamp, x: round3(px), y: round3(y), s: size2 };
+        applyOps(m);
+        broadcast('ops', m);
+      });
       playSfx('click');
       return;
     }
-    const meta = { c: color, w: size, r: tool === 'rainbow' ? 1 : 0, e: tool === 'eraser' ? 1 : 0, h: Math.floor(Math.random() * 360) };
-    const sid = makeId('s');
-    strokeRef.current = { sid, last: [x, y] };
-    pendingRef.current = { sid, meta, pts: [] };
-    const first = [round3(x), round3(y)];
-    applyOps({ sid, meta, pts: first });
-    pendingRef.current.pts.push(...first);
-    flushTimerRef.current = setTimeout(flushStroke, 100);
+    startStroke(x, y);
   };
   const onMove = (e) => {
-    const s = strokeRef.current;
-    if (!s || !canDraw) return;
+    if (!canDraw) return;
     let [x, y] = pointOf(e);
+    const s = strokeRef.current;
+    if (!s) {
+      // Malus « stylo possédé » : le trait démarre tout seul dès que la souris bouge sur le dessin
+      if (chaosActive === 'autopen' && tool !== 'stamp') startStroke(x, y, true);
+      return;
+    }
+    // Le malus est fini et le bouton n'est pas enfoncé : on lève le stylo
+    if (s.auto && chaosActive !== 'autopen' && e.buttons === 0) {
+      onUp();
+      return;
+    }
     if (Math.hypot(x - s.last[0], y - s.last[1]) < 0.003) return;
+    if (blockedByFrame(x, y)) {
+      onUp(); // sortie du petit cadre : le trait s'arrête
+      return;
+    }
     s.last = [x, y];
     if (chaosActive === 'shake') {
       x = Math.min(1, Math.max(0, x + (Math.random() - 0.5) * 0.05));
       y = Math.min(1, Math.max(0, y + (Math.random() - 0.5) * 0.05));
     }
-    const pts = [round3(x), round3(y)];
-    applyOps({ sid: s.sid, pts });
-    pendingRef.current.pts.push(...pts);
-    if (!flushTimerRef.current) flushTimerRef.current = setTimeout(flushStroke, 100);
+    addPoint(s.sids[0], x, y, s.meta);
+    if (s.sids[1]) addPoint(s.sids[1], 1 - x, y, s.meta);
   };
   const onUp = () => {
     if (!strokeRef.current) return;
     strokeRef.current = null;
     flushStroke();
+  };
+  const onLeave = () => {
+    if (strokeRef.current?.auto) onUp();
   };
   const sendAction = (k) => {
     if (!canDraw) return;
@@ -332,7 +535,10 @@ export default function Pictionary() {
     const b = pcRef.current;
     const cfg = settingsRef.current;
     const letters = Array.from(word).map((ch, i) => (norm(ch) ? i : -1)).filter((i) => i >= 0);
-    chaosNextRef.current = Date.now() + 12000 + Math.random() * 6000;
+    // Le premier événement chaos arrive tôt dans le dessin (35 % de la durée au plus), pour qu'il y en ait au moins un
+    chaosCountRef.current = 0;
+    const early = cfg.chaosRate === 'many' ? 0.08 + Math.random() * 0.12 : 0.15 + Math.random() * 0.25;
+    chaosNextRef.current = Date.now() + cfg.seconds * 1000 * early;
     commitPc({ ...b, phase: 'draw', word, used: [...b.used, word], startedAt: Date.now(), duration: cfg.seconds, hintOrder: shuffle(letters), solved: {}, gained: {}, feed: [], chaos: null });
   };
   const finishTurn = () => {
@@ -406,10 +612,19 @@ export default function Pictionary() {
       if (t > b.startedAt + b.duration * 1000 && stepRef.current !== step) {
         stepRef.current = step;
         finishTurn();
-      } else if (settingsRef.current.chaos && t > chaosNextRef.current && b.startedAt + b.duration * 1000 - t > 12000) {
-        const type = ['shake', 'fog', 'mirror'][Math.floor(Math.random() * 3)];
-        chaosNextRef.current = t + 16000 + Math.random() * 8000;
-        commitPc({ chaos: { type, until: t + 7000, t } });
+      } else if (settingsRef.current.chaos && t > chaosNextRef.current && b.startedAt + b.duration * 1000 - t > 6000) {
+        const cfg = settingsRef.current;
+        const [base, spread] = CHAOS_PACE[cfg.chaosRate] || CHAOS_PACE.normal;
+        const first = chaosCountRef.current === 0;
+        chaosNextRef.current = t + base + Math.random() * spread;
+        // Sans « au moins un par dessin », un créneau peut rester vide
+        const skip = !cfg.chaosGuarantee && (first ? Math.random() < 0.35 : cfg.chaosRate === 'rare' && Math.random() < 0.4);
+        if (!skip) {
+          const choices = CHAOS_TYPES.filter((x) => x !== b.chaos?.type);
+          const type = choices[Math.floor(Math.random() * choices.length)];
+          chaosCountRef.current += 1;
+          commitPc({ chaos: { type, until: t + CHAOS[type].ms, t } });
+        }
       }
     } else if (b.phase === 'reveal' && t > b.until && stepRef.current !== step) {
       stepRef.current = step;
@@ -819,6 +1034,10 @@ export default function Pictionary() {
             <button key={s} type="button" onClick={() => setStamp(s)} className={`w-8 h-8 rounded-lg text-lg transition active:scale-90 ${stamp === s ? 'bg-purple-900/70 ring-2 ring-purple-300' : 'bg-black/25 hover:bg-black/40'}`}>{s}</button>
           ))}
         </div>
+      ) : chaosActive === 'nopalette' ? (
+        <div className="flex items-center gap-2 rounded-lg bg-red-900/40 border border-red-500/50 px-3 py-1.5 text-sm font-bold text-red-200 animate-pulse">
+          🙈 Palette cachée !
+        </div>
       ) : (
         <div className="flex flex-wrap items-center gap-1">
           {PALETTE.map((c) => (
@@ -834,6 +1053,14 @@ export default function Pictionary() {
               style={{ backgroundColor: c }}
             />
           ))}
+          <ColorPicker
+            color={color}
+            recent={recentColors}
+            onPick={(c) => {
+              setColor(c);
+              if (tool === 'eraser') setTool('brush');
+            }}
+          />
         </div>
       )}
       <div className="flex items-center gap-1.5">
@@ -872,7 +1099,11 @@ export default function Pictionary() {
   const renderGame = () => {
     const chaosInfo = chaosActive ? CHAOS[chaosActive] : null;
     const wrapCls = chaosActive === 'shake' ? 'pc-chaos-shake' : '';
-    const canvasCls = !iAmDrawer && chaosActive === 'fog' ? 'pc-chaos-fog' : !iAmDrawer && chaosActive === 'mirror' ? 'pc-chaos-mirror' : '';
+    const canvasCls =
+      !iAmDrawer && chaosActive === 'fog' ? 'pc-chaos-fog'
+      : !iAmDrawer && chaosActive === 'mirror' ? 'pc-chaos-mirror'
+      : iAmDrawer && chaosActive === 'blind' ? 'pc-chaos-blind'
+      : '';
     const timerDanger = phase === 'draw' && secsLeft <= 10;
     return (
       <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-0">
@@ -902,6 +1133,7 @@ export default function Pictionary() {
                 onPointerMove={onMove}
                 onPointerUp={onUp}
                 onPointerCancel={onUp}
+                onPointerLeave={onLeave}
                 className={`w-full h-full rounded-md touch-none ${canvasCls} ${canDraw ? (tool === 'eraser' ? 'cursor-cell' : 'cursor-crosshair') : 'cursor-default'}`}
                 style={{ background: PAPER }}
               />
@@ -909,7 +1141,18 @@ export default function Pictionary() {
             {chaosInfo && (
               <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 animate-pop paper px-4 py-1.5 text-sm font-bold whitespace-nowrap max-w-[96%] truncate pointer-events-none">{chaosInfo.label}</div>
             )}
+            {chaosActive === 'blind' && iAmDrawer && (
+              <div className="absolute inset-0 z-10 rounded-md pointer-events-none flex items-end justify-center pb-3">
+                <span className="paper px-3 py-1 text-xs font-bold text-gray-300">🕶️ Tu dessines à l’aveugle… fais confiance à ta main</span>
+              </div>
+            )}
             <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-md z-10">
+              {chaosActive === 'tiny' && (
+                <div
+                  className="pc-tiny-frame absolute"
+                  style={{ left: `${TINY.x0 * 100}%`, top: `${TINY.y0 * 100}%`, width: `${(TINY.x1 - TINY.x0) * 100}%`, height: `${(TINY.y1 - TINY.y0) * 100}%` }}
+                />
+              )}
               {floaters.map((f) => (
                 <span key={f.k} className="pc-float absolute bottom-2 text-4xl" style={{ left: `${f.x}%` }}>{f.e}</span>
               ))}
@@ -1099,7 +1342,20 @@ export default function Pictionary() {
           </div>
           <div className="mt-4 pt-4 border-t border-gray-800 text-sm space-y-3">
             <ToggleRow label="Indices progressifs" hint="Des lettres du mot se dévoilent quand le temps file" checked={settings.hints !== false} disabled={!isHost} onChange={(v) => updateSettings({ hints: v })} />
-            <ToggleRow label="Événements chaos" hint="Tremblement de terre, brouillard, miroir magique… en plein dessin" checked={settings.chaos !== false} disabled={!isHost} onChange={(v) => updateSettings({ chaos: v })} />
+            <ToggleRow label="Événements chaos" hint="Tremblement de terre, brouillard, miroir… et malus : stylo possédé, palette cachée, dessin à l’aveugle, souris inversée, symétrie, tout petit cadre" checked={settings.chaos !== false} disabled={!isHost} onChange={(v) => updateSettings({ chaos: v })} />
+            {settings.chaos !== false && (
+              <>
+                <ToggleRow label="Au moins un chaos par dessin" hint="Garantit qu'au moins un événement survient à chaque tour de dessin" checked={settings.chaosGuarantee !== false} disabled={!isHost} onChange={(v) => updateSettings({ chaosGuarantee: v })} />
+                <div>
+                  <label className="block text-gray-500 mb-1 text-xs">Fréquence des événements</label>
+                  <select disabled={!isHost} value={settings.chaosRate || 'normal'} onChange={(e) => updateSettings({ chaosRate: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 font-bold disabled:opacity-60">
+                    <option value="rare">Rares</option>
+                    <option value="normal">Normale</option>
+                    <option value="many">Nombreux (le chaos total)</option>
+                  </select>
+                </div>
+              </>
+            )}
           </div>
         </div>
         {isHost ? (

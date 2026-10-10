@@ -1043,3 +1043,11 @@ input:focus, select:focus, textarea:focus { box-shadow: 0 0 0 3px rgba(227, 181,
   border-radius: 12px;
   box-shadow: 0 0 0 2px #b98a35, 0 0 0 3px #1a0f08, 0 0 0 4px rgba(246, 227, 161, 0.3), inset 0 1px 0 rgba(255, 225, 160, 0.2), inset 0 0 28px rgba(0, 0, 0, 0.45), 0 22px 44px rgba(0, 0, 0, 0.6);
 }
+/* Pictionary : malus du dessinateur */
+.pc-chaos-blind { opacity: 0; }
+.pc-tiny-frame {
+  border: 2px dashed var(--lime);
+  box-shadow: 0 0 0 200vmax rgba(0, 0, 0, 0.55), 0 0 18px rgba(217, 248, 145, 0.5);
+  border-radius: 6px;
+  animation: pop 0.35s ease-out;
+}
