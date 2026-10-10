@@ -539,6 +539,7 @@ export default function Pictionary() {
     chaosCountRef.current = 0;
     const early = cfg.chaosRate === 'many' ? 0.08 + Math.random() * 0.12 : 0.15 + Math.random() * 0.25;
     chaosNextRef.current = Date.now() + cfg.seconds * 1000 * early;
+    // (en mode « Nombreux », le premier chaos démarre dès le début du dessin : voir l'automatisme du host)
     commitPc({ ...b, phase: 'draw', word, used: [...b.used, word], startedAt: Date.now(), duration: cfg.seconds, hintOrder: shuffle(letters), solved: {}, gained: {}, feed: [], chaos: null });
   };
   const finishTurn = () => {
@@ -612,7 +613,13 @@ export default function Pictionary() {
       if (t > b.startedAt + b.duration * 1000 && stepRef.current !== step) {
         stepRef.current = step;
         finishTurn();
-      } else if (settingsRef.current.chaos && t > chaosNextRef.current && b.startedAt + b.duration * 1000 - t > 6000) {
+      } else if (settingsRef.current.chaos && settingsRef.current.chaosRate === 'many' && (!b.chaos || t >= b.chaos.until - 250) && b.startedAt + b.duration * 1000 - t > 1500) {
+        // Mode « Nombreux » : un chaos est actif en permanence, le suivant démarre dès que le précédent se termine
+        const choices = CHAOS_TYPES.filter((x) => x !== b.chaos?.type);
+        const type = choices[Math.floor(Math.random() * choices.length)];
+        chaosCountRef.current += 1;
+        commitPc({ chaos: { type, until: t + CHAOS[type].ms, t } });
+      } else if (settingsRef.current.chaos && settingsRef.current.chaosRate !== 'many' && t > chaosNextRef.current && b.startedAt + b.duration * 1000 - t > 6000) {
         const cfg = settingsRef.current;
         const [base, spread] = CHAOS_PACE[cfg.chaosRate] || CHAOS_PACE.normal;
         const first = chaosCountRef.current === 0;
@@ -1345,13 +1352,13 @@ export default function Pictionary() {
             <ToggleRow label="Événements chaos" hint="Tremblement de terre, brouillard, miroir… et malus : stylo possédé, palette cachée, dessin à l’aveugle, souris inversée, symétrie, tout petit cadre" checked={settings.chaos !== false} disabled={!isHost} onChange={(v) => updateSettings({ chaos: v })} />
             {settings.chaos !== false && (
               <>
-                <ToggleRow label="Au moins un chaos par dessin" hint="Garantit qu'au moins un événement survient à chaque tour de dessin" checked={settings.chaosGuarantee !== false} disabled={!isHost} onChange={(v) => updateSettings({ chaosGuarantee: v })} />
+                <ToggleRow label="Au moins un chaos par dessin" hint="Garantit qu'au moins un événement survient à chaque tour de dessin (inutile en mode permanent)" checked={settings.chaosGuarantee !== false} disabled={!isHost} onChange={(v) => updateSettings({ chaosGuarantee: v })} />
                 <div>
                   <label className="block text-gray-500 mb-1 text-xs">Fréquence des événements</label>
                   <select disabled={!isHost} value={settings.chaosRate || 'normal'} onChange={(e) => updateSettings({ chaosRate: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 font-bold disabled:opacity-60">
                     <option value="rare">Rares</option>
                     <option value="normal">Normale</option>
-                    <option value="many">Nombreux (le chaos total)</option>
+                    <option value="many">Permanent (un chaos actif en continu)</option>
                   </select>
                 </div>
               </>
