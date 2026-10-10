@@ -3,6 +3,7 @@
 //   TMDB_API_KEY ou TMDB_READ_TOKEN (films & séries), RAWG_API_KEY (jeux vidéo). iTunes et Jikan n'en demandent pas.
 import { BLIND_CATEGORIES, BlindCategory, categoryById } from './blindtest-catalog';
 import { normAns } from './blindtest-judge';
+import { KEYS } from './blindtest-keys';
 
 export type BlindItem = {
   id: string;
@@ -49,7 +50,7 @@ const uniq = (list: string[]) => {
 };
 
 // ---------- disponibilité ----------
-const hasEnv = (names?: string[]) => !names || names.some((n) => !!process.env[n]);
+const hasEnv = (names?: string[]) => !names || names.some((n) => !!KEYS[n]);
 export const categoryInfo = () =>
   BLIND_CATEGORIES.map((c) => ({
     id: c.id,
@@ -195,8 +196,8 @@ const itunesTitleItem = async (cat: BlindCategory, used: Set<string>, range: Ran
 
 // ---------- TMDB ----------
 const tmdbAuth = () => {
-  const token = process.env.TMDB_READ_TOKEN;
-  const key = process.env.TMDB_API_KEY;
+  const token = KEYS.TMDB_READ_TOKEN;
+  const key = KEYS.TMDB_API_KEY;
   return { headers: token ? { Authorization: `Bearer ${token}` } : {}, key: !token && key ? `&api_key=${key}` : '' };
 };
 const tmdbItem = async (cat: BlindCategory, used: Set<string>, range: Range): Promise<Cand | null> => {
@@ -210,7 +211,7 @@ const tmdbItem = async (cat: BlindCategory, used: Set<string>, range: Range): Pr
     let results: any[] = [];
     try {
       const data = await getJson(
-        `https://api.themoviedb.org/3/discover/${type}?language=fr-FR&sort_by=popularity.desc&vote_count.gte=${type === 'movie' ? (hasRange(range) ? 400 : 1500) : 200}${dates}&page=${page}${key}`,
+        `https://api.themoviedb.org/3/discover/${type}?language=fr-FR&sort_by=popularity.desc&vote_count.gte=${type === 'movie' ? (hasRange(range) ? 400 : 1500) : 200}${dates}${type === 'movie' ? '&certification_country=FR&certification.lte=16' : ''}&page=${page}${key}`,
         headers
       );
       results = (data?.results || []) as any[];
@@ -259,7 +260,7 @@ const tmdbItem = async (cat: BlindCategory, used: Set<string>, range: Range): Pr
 
 // ---------- RAWG ----------
 const rawgItem = async (cat: BlindCategory, used: Set<string>, range: Range): Promise<Cand | null> => {
-  const key = process.env.RAWG_API_KEY;
+  const key = KEYS.RAWG_API_KEY;
   if (!key) return null;
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const page = 1 + Math.floor(Math.random() * (hasRange(range) ? 5 : 10));
@@ -448,7 +449,13 @@ export const buildDeck = async (catIds: string[], total: number, opts: { range?:
     })
   );
   // Si certaines catégories ont échoué, on complète depuis celles qui répondent
-  let deck = shuffled(found).slice(0, total);
+  // Requêtes parallèles d'une même catégorie : on retire les doublons
+  const seenNames = new Set<string>();
+  const unique = found.filter((c) => {
+    const k = `${c.item.cat}:${normAns(c.item.display)}`;
+    return !seenNames.has(k) && !!seenNames.add(k);
+  });
+  let deck = shuffled(unique).slice(0, total);
   if (deck.length < total && found.length) {
     const okCats = Array.from(new Set(found.map((c) => c.item.cat)));
     const used = new Set<string>(found.map((c) => normAns(c.item.display)));

@@ -24,7 +24,7 @@ Variables d'environnement (sinon un projet Supabase de démo est utilisé) :
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
-Blind Test (`/api/blindtest`, côté serveur — les clés ne sont jamais envoyées au navigateur) :
+Blind Test (`/api/blindtest`, côté serveur — les clés ne sont jamais envoyées au navigateur). Les clés se règlent par variables d'environnement (ou dans `lib/blindtest-keys.ts`) :
 
 - `TMDB_API_KEY` (ou `TMDB_READ_TOKEN`) : affiches et scènes de films et de séries (clé gratuite sur themoviedb.org)
 - `RAWG_API_KEY` : captures de jeux vidéo, source en plus (clé gratuite sur rawg.io)
