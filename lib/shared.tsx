@@ -276,6 +276,7 @@ const GAMES = [
   { id: 'blind-test', name: 'Blind Test', emoji: '🎧', status: 'live', href: '/blind-test', gradient: 'from-orange-500 via-purple-500 to-teal-400' },
   { id: 'top-ten', name: 'Top Ten', emoji: '🔟', status: 'live', href: '/top-ten', gradient: 'from-purple-500 via-orange-500 to-teal-400' },
   { id: 'codenames', name: 'Codenames', emoji: '🕵️', status: 'live', href: '/codenames', gradient: 'from-red-500 via-purple-500 to-sky-400' },
+  { id: 'quoridor', name: 'Quoridor', emoji: '🧱', status: 'live', href: '/quoridor', gradient: 'from-amber-500 via-orange-500 to-teal-400' },
 ];
 
 
@@ -290,6 +291,7 @@ const SESSION_KEYS = {
   'blind-test': 'blindtest-session',
   'top-ten': 'topten-session',
   codenames: 'codenames-session',
+  quoridor: 'quoridor-session',
 };
 
 const goToGame = (gameId, me, code, delay) => {

@@ -89,6 +89,17 @@ const HOME_GAMES = [
     players: '4 à 12 joueurs',
     duration: '20 min',
   },
+  {
+    id: 'quoridor',
+    glow: '#e3b559',
+    href: '/quoridor',
+    kicker: 'Stratégie & blocus',
+    name: 'Quoridor',
+    emoji: '🧱',
+    text: 'Traverse le plateau avant les autres, et dresse des murs pour leur barrer la route. Un jeu de blocus où chaque mur compte.',
+    players: '2 à 4 joueurs',
+    duration: '15 min',
+  },
 ];
 
 const STEPS = [

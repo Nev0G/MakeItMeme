@@ -229,6 +229,21 @@ const CodenamesArt = ({ p }) => (
   </g>
 );
 
+const QuoridorArt = ({ p }) => (
+  <g>
+    <Backdrop p={p} glow="gold" />
+    <g stroke="#5a3d0e" strokeWidth="1.5" fill="#cdbb9b">
+      {[0, 1, 2, 3].map((r) => [0, 1, 2, 3].map((c) => (
+        <rect key={`${r}-${c}`} x={46 + c * 28} y={24 + r * 24} width="24" height="20" rx="3" />
+      )))}
+    </g>
+    <rect x="44" y="45" width="54" height="4" rx="2" fill="#e3b559" />
+    <rect x="97" y="22" width="4" height="48" rx="2" fill="#e3b559" />
+    <circle cx="116" cy="106" r="9" fill="#d9453a" stroke="#5a3d0e" strokeWidth="2" />
+    <circle cx="58" cy="34" r="8" fill="#43bfaa" stroke="#5a3d0e" strokeWidth="2" />
+  </g>
+);
+
 const ARTS = {
   'caption-battle': CaptionArt,
   imposteur: ImposteurArt,
@@ -237,6 +252,7 @@ const ARTS = {
   'blind-test': BlindTestArt,
   'top-ten': TopTenArt,
   codenames: CodenamesArt,
+  quoridor: QuoridorArt,
   home: HomeArt,
 };
 
