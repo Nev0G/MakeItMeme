@@ -244,6 +244,20 @@ const QuoridorArt = ({ p }) => (
   </g>
 );
 
+const PipopipetteArt = ({ p }) => (
+  <g>
+    <Backdrop p={p} glow="gold" />
+    <rect x="70" y="48" width="30" height="30" fill="#43bfaa" fillOpacity="0.7" />
+    <g stroke="#e3b559" strokeWidth="4" strokeLinecap="round">
+      <path d="M70 48 H130 M70 78 H130 M70 48 V108 M100 48 V108" />
+      <path d="M70 108 H100" stroke="#d9453a" />
+    </g>
+    <g fill="#f3e6c8">
+      {[70, 100, 130].map((x) => [48, 78, 108].map((y) => <circle key={`${x}-${y}`} cx={x} cy={y} r="5" />))}
+    </g>
+  </g>
+);
+
 const ARTS = {
   'caption-battle': CaptionArt,
   imposteur: ImposteurArt,
@@ -253,6 +267,7 @@ const ARTS = {
   'top-ten': TopTenArt,
   codenames: CodenamesArt,
   quoridor: QuoridorArt,
+  pipopipette: PipopipetteArt,
   home: HomeArt,
 };
 

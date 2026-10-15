@@ -100,6 +100,17 @@ const HOME_GAMES = [
     players: '2 à 4 joueurs',
     duration: '15 min',
   },
+  {
+    id: 'pipopipette',
+    glow: '#43bfaa',
+    href: '/pipopipette',
+    kicker: 'Points & carrés',
+    name: 'Pipopipette',
+    emoji: '🔲',
+    text: 'Relie les points un trait à la fois et ferme des carrés pour les rafler. Qui osera poser le troisième côté ?',
+    players: '2 à 4 joueurs',
+    duration: '10 min',
+  },
 ];
 
 const STEPS = [

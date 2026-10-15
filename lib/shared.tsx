@@ -277,13 +277,14 @@ const GAMES = [
   { id: 'top-ten', name: 'Top Ten', emoji: '🔟', status: 'live', href: '/top-ten', gradient: 'from-purple-500 via-orange-500 to-teal-400' },
   { id: 'codenames', name: 'Codenames', emoji: '🕵️', status: 'live', href: '/codenames', gradient: 'from-red-500 via-purple-500 to-sky-400' },
   { id: 'quoridor', name: 'Quoridor', emoji: '🧱', status: 'live', href: '/quoridor', gradient: 'from-amber-500 via-orange-500 to-teal-400' },
+  { id: 'pipopipette', name: 'Pipopipette', emoji: '🔲', status: 'live', href: '/pipopipette', gradient: 'from-teal-500 via-sky-500 to-purple-400' },
 ];
 
 
 // ---- Changer de jeu sans quitter le salon ----
 // Le host clique sur un autre jeu dans la barre de gauche : tout le salon le suit
 // avec le même code (pas de nouveau lien à envoyer). Un petit canal "hub:CODE" relaie l'ordre.
-const SESSION_KEYS = {
+const SESSION_KEYS: Record<string, string> = {
   'caption-battle': 'caption-battle-session',
   imposteur: 'imposteur-session',
   'bomb-party': 'bombparty-session',
@@ -292,6 +293,7 @@ const SESSION_KEYS = {
   'top-ten': 'topten-session',
   codenames: 'codenames-session',
   quoridor: 'quoridor-session',
+  pipopipette: 'pipopipette-session',
 };
 
 const goToGame = (gameId, me, code, delay) => {
