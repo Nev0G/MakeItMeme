@@ -581,12 +581,43 @@ const useDiscordAuth = (onProfile?: any, onSignedOut?: any) => {
   useEffect(() => {
     // Relit la session mémorisée (renouvelée si besoin avec le refresh token). Une erreur réseau
     // passagère ne déconnecte pas : on garde l'utilisateur déjà connu.
-    const sync = () =>
-      supabase.auth
+    let retries = 0;
+    let retryTimer: any = null;
+    const cachedUser = () => {
+      try {
+        return JSON.parse(localStorage.getItem('makeitmeme-auth') || 'null')?.user ?? null;
+      } catch {
+        return null;
+      }
+    };
+    const sync = () => {
+      // getSession peut patienter longtemps si le renouvellement du jeton échoue : on affiche vite l'utilisateur mémorisé
+      const slow = setTimeout(() => {
+        setUser((prev) => prev ?? cachedUser());
+        setReady(true);
+      }, 2500);
+      return supabase.auth
         .getSession()
-        .then(({ data, error }) => setUser((prev) => (data.session ? data.session.user : error ? prev : null)))
-        .catch(() => {})
-        .finally(() => setReady(true));
+        .then(({ data, error }) => {
+          if (data.session) {
+            retries = 0;
+            return setUser(data.session.user);
+          }
+          if (!error) return setUser(null);
+          // Renouvellement impossible pour l'instant (réseau coupé...) : on garde l'utilisateur mémorisé
+          // et on réessaie un peu plus tard, sans effacer la session.
+          setUser((prev) => prev ?? cachedUser());
+          if (retries++ < 5) {
+            clearTimeout(retryTimer);
+            retryTimer = setTimeout(sync, 4000 * retries);
+          }
+        })
+        .catch(() => setUser((prev) => prev ?? cachedUser()))
+        .finally(() => {
+          clearTimeout(slow);
+          setReady(true);
+        });
+    };
     sync();
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       // INITIAL_SESSION sans session ne doit pas écraser une session retrouvée juste après
@@ -605,6 +636,7 @@ const useDiscordAuth = (onProfile?: any, onSignedOut?: any) => {
       // ignore
     }
     return () => {
+      clearTimeout(retryTimer);
       sub.subscription.unsubscribe();
       window.removeEventListener('pageshow', sync);
       document.removeEventListener('visibilitychange', onVisible);
