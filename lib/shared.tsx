@@ -279,6 +279,9 @@ const GAMES = [
   { id: 'codenames', name: 'Codenames', emoji: '🕵️', status: 'live', href: '/codenames', gradient: 'from-red-500 via-purple-500 to-sky-400' },
   { id: 'quoridor', name: 'Quoridor', emoji: '🧱', status: 'live', href: '/quoridor', gradient: 'from-amber-500 via-orange-500 to-teal-400' },
   { id: 'pipopipette', name: 'Pipopipette', emoji: '🔲', status: 'live', href: '/pipopipette', gradient: 'from-teal-500 via-sky-500 to-purple-400' },
+  { id: 'puissance4', name: 'Puissance 4', emoji: '🔴', status: 'live', href: '/puissance4', gradient: 'from-blue-600 via-blue-500 to-yellow-400' },
+  { id: 'uno', name: 'Uno', emoji: '🃏', status: 'live', href: '/uno', gradient: 'from-red-600 via-yellow-500 to-green-500' },
+  { id: 'scrabble', name: 'Scrabble', emoji: '🔤', status: 'live', href: '/scrabble', gradient: 'from-amber-600 via-yellow-500 to-orange-400' },
 ];
 
 
@@ -295,6 +298,9 @@ const SESSION_KEYS: Record<string, string> = {
   codenames: 'codenames-session',
   quoridor: 'quoridor-session',
   pipopipette: 'pipopipette-session',
+  puissance4: 'puissance4-session',
+  uno: 'uno-session',
+  scrabble: 'scrabble-session',
 };
 
 const goToGame = (gameId, me, code, delay) => {

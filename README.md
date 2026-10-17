@@ -13,6 +13,9 @@ Des jeux entre potes, jouables dans le navigateur, avec un habillage « vieux jo
 - `/quoridor` : jeu de blocus à 2 ou 4 joueurs, on avance son pion jusqu'au bord opposé en posant des murs pour ralentir les adversaires
 - `/` : accueil en bento avec chat global en temps réel (Supabase Realtime, sans base de données)
 - `/pipopipette` : jeu des petits carrés pour 2 à 4 joueurs, on relie les points et on rejoue à chaque carré fermé
+- `/puissance4` : alignement de 4 jetons à 2 joueurs
+- `/uno` : jeu de cartes Uno de 2 à 6 joueurs
+- `/scrabble` : Scrabble en français de 2 à 4 joueurs (mots vérifiés via le Wiktionnaire)
 
 Chaque jeu a des salons **fermés** (code) ou **ouverts** (listés sur l'accueil), un chat écrit, et le host peut expulser un joueur.
 **Changer de jeu sans nouveau lien** : dans un salon, le host clique sur un autre jeu dans la barre de gauche ; tout le salon le suit avec le même code.

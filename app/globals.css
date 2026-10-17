@@ -940,7 +940,6 @@ body::after { display: none; }
   background: linear-gradient(180deg, #fda4af, #fb7185);
   border: 0;
   border-radius: 14px;
-  padding-right: 0;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 8px 22px rgba(251, 113, 133, 0.28);
   transition: filter 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
 }
@@ -1036,3 +1035,11 @@ input:focus, select:focus, textarea:focus { border-color: rgba(251, 113, 133, 0.
 @media (prefers-reduced-motion: reduce) {
   .bt-vinyl-spin, .bt-eq .bt-eq-on { animation: none; }
 }
+
+/* Puissance 4 : le jeton tombe depuis le haut de la grille */
+.c4-drop { animation: c4-drop 0.45s cubic-bezier(0.55, 0, 0.9, 0.6) both; }
+@keyframes c4-drop {
+  from { transform: translateY(calc(var(--drop, 300%) * -1)); }
+  to { transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) { .c4-drop { animation: none; } }

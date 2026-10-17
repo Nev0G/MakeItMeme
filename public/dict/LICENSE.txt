@@ -1,0 +1,5 @@
+Liste de mots français (fr.txt) : dérivée de la « Liste de mots français Gutenberg » du projet OpenLexicon
+(Pallier, C., New, B. & Bourgin, J. (2019), OpenLexicon, https://github.com/chrplr/openlexicon),
+distribuée sous licence CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/).
+Modifications : mots passés en majuscules sans accents, 2 à 15 lettres, mots de 2 lettres limités à la liste du Scrabble, doublons retirés.
+Ce fichier est redistribué sous la même licence CC BY-SA 4.0.
