@@ -3,150 +3,18 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Users, Clock, Sparkles } from 'lucide-react';
+import { ArrowRight, Users, Sparkles } from 'lucide-react';
 import {
   SoundToggle, useSoundAndClickFx, useDiscordAuth, AccountButton, useDirectoryListing, PlayerDot, readIdentity, readEdition,
 } from '@/lib/shared';
 import { GameArt } from '@/lib/art';
 import { dateline, weatherOf } from '@/lib/press';
 import { GlobalChat } from '@/lib/globalchat';
+import { GameBrowser } from '@/lib/gamebrowser';
+import { HOME_GAMES } from '@/lib/catalog';
 
 const LAST_GAME_KEY = 'makeitmeme-last-game';
 
-const HOME_GAMES = [
-  {
-    id: 'caption-battle',
-    glow: '#60a5fa',
-    href: '/caption-battle',
-    kicker: 'Concours de légendes',
-    name: 'Caption Battle',
-    emoji: '😂',
-    text: 'Chacun poste un meme, tout le monde le légende, et le salon vote pour la punchline la plus cruelle. Les images y laissent des plumes.',
-    players: '2 à 12 joueurs',
-    duration: '15 min',
-  },
-  {
-    id: 'imposteur',
-    glow: '#9b6bd6',
-    href: '/imposteur',
-    kicker: 'Enquête',
-    name: 'Imposteur',
-    emoji: '🕵️',
-    text: 'Un mot pour tous, sauf pour un. À chaque tour, un indice : qui bluffe ? Notre rédaction a mené l’enquête, personne n’est au-dessus de tout soupçon.',
-    players: '3 à 12 joueurs',
-    duration: '10 min',
-  },
-  {
-    id: 'bomb-party',
-    glow: '#d9453a',
-    href: '/bomb-party',
-    kicker: 'Course contre la montre',
-    name: 'Bomb Party',
-    emoji: '💣',
-    text: 'Une syllabe, une bombe, quelques secondes : trouve un mot qui la contient avant que tout explose. Le dernier survivant remporte l’édition.',
-    players: '2 à 12 joueurs',
-    duration: '10 min',
-  },
-  {
-    id: 'pictionary',
-    glow: '#3b82c4',
-    href: '/pictionary',
-    kicker: 'Dessin & devinettes',
-    name: 'Pictionary',
-    emoji: '🎨',
-    text: 'Un dessinateur, un mot secret, et toute la bande qui crie des bêtises. Pinceau arc-en-ciel, tampons, indices et chaos : le crayon n’a jamais été aussi dangereux.',
-    players: '3 à 12 joueurs',
-    duration: '15 min',
-  },
-  {
-    id: 'blind-test',
-    glow: '#e69d59',
-    href: '/blind-test',
-    kicker: 'Musiques & images',
-    name: 'Blind Test',
-    emoji: '🎧',
-    text: 'Un extrait sonore ou une image floutée qui se dévoile peu à peu : musiques, films, séries, jeux vidéo, anime. Le plus rapide à trouver rafle les points.',
-    players: '2 à 12 joueurs',
-    duration: '15 min',
-  },
-  {
-    id: 'top-ten',
-    glow: '#fb7185',
-    href: '/top-ten',
-    kicker: 'Coopératif',
-    name: 'Top Ten',
-    emoji: '🔟',
-    text: 'Chacun reçoit un numéro secret de 1 à 100 et répond au thème en conséquence. Le capitaine doit remettre tout le monde dans l’ordre sans perdre ses vies.',
-    players: '3 à 12 joueurs',
-    duration: '20 min',
-  },
-  {
-    id: 'codenames',
-    glow: '#b5382e',
-    href: '/codenames',
-    kicker: 'Mots & espionnage',
-    name: 'Codenames',
-    emoji: '🕵️',
-    text: 'Deux équipes, deux maîtres-espions. Un indice, un nombre : retrouve tes agents sur le plateau et évite l’assassin.',
-    players: '4 à 12 joueurs',
-    duration: '20 min',
-  },
-  {
-    id: 'quoridor',
-    glow: '#fb7185',
-    href: '/quoridor',
-    kicker: 'Stratégie & blocus',
-    name: 'Quoridor',
-    emoji: '🧱',
-    text: 'Traverse le plateau avant les autres, et dresse des murs pour leur barrer la route. Un jeu de blocus où chaque mur compte.',
-    players: '2 à 4 joueurs',
-    duration: '15 min',
-  },
-  {
-    id: 'pipopipette',
-    glow: '#43bfaa',
-    href: '/pipopipette',
-    kicker: 'Points & carrés',
-    name: 'Pipopipette',
-    emoji: '🔲',
-    text: 'Relie les points un trait à la fois et ferme des carrés pour les rafler. Qui osera poser le troisième côté ?',
-    players: '2 à 4 joueurs',
-    duration: '10 min',
-  },
-  {
-    id: 'puissance4',
-    glow: '#3b82f6',
-    href: '/puissance4',
-    kicker: 'Duel de stratégie',
-    name: 'Puissance 4',
-    emoji: '🔴',
-    text: 'Fais tomber tes jetons et aligne-en quatre avant ton adversaire. Simple à apprendre, impossible à lâcher.',
-    players: '2 joueurs',
-    duration: '5 min',
-  },
-  {
-    id: 'uno',
-    glow: '#ef4444',
-    href: '/uno',
-    kicker: 'Jeu de cartes',
-    name: 'Uno',
-    emoji: '🃏',
-    text: 'Défausse toutes tes cartes en premier : +2, inversions, jokers… et n’oublie pas de crier « Uno ! » avant la dernière.',
-    players: '2 à 6 joueurs',
-    duration: '15 min',
-  },
-  {
-    id: 'scrabble',
-    glow: '#f59e0b',
-    href: '/scrabble',
-    kicker: 'Mots & points',
-    name: 'Scrabble',
-    emoji: '🔤',
-    text: 'Pose tes lettres sur le plateau, forme des mots valides et profite des cases bonus pour marquer un maximum de points.',
-    players: '2 à 4 joueurs',
-    duration: '25 min',
-  },
-];
 
 export default function Home() {
   const { soundOn, toggleSound } = useSoundAndClickFx();
@@ -191,13 +59,6 @@ export default function Home() {
     router.push(`${game.href}?room=${encodeURIComponent(clean)}`);
   };
 
-  // Taille de chaque tuile dans la grille bento (desktop)
-  const SPAN: Record<string, string> = {
-    'caption-battle': 'lg:col-span-2',
-    pictionary: 'lg:row-span-2',
-    imposteur: 'lg:row-span-2',
-  };
-
   return (
     <div className="relative z-10 min-h-screen px-4 sm:px-8 py-4 md:py-6 md:overflow-y-auto md:h-[100dvh] text-white">
       <div className="max-w-[88rem] mx-auto">
@@ -220,114 +81,68 @@ export default function Home() {
           </div>
         </header>
 
-        {/* Bento */}
-        <main className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 lg:auto-rows-[minmax(13rem,auto)] lg:grid-flow-dense">
-          {/* Hero + code */}
-          <section className="paper p-6 sm:p-8 flex flex-col justify-between sm:col-span-2 lg:row-span-2 overflow-hidden">
-            <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-purple-400/20 blur-3xl pointer-events-none" aria-hidden="true" />
-            <div className="relative">
-              <p className="eyebrow">Jeux entre potes · n° {paper.edition}</p>
-              <h1 className="font-masthead text-4xl sm:text-5xl lg:text-6xl mt-3 leading-[1.02]">À quel jeu joue&#8209;t&#8209;on ce&nbsp;soir&nbsp;?</h1>
-              <p className="text-gray-400 mt-4 text-base max-w-md">
-                {HOME_GAMES.length} jeux, zéro excuse. Crée un salon, invite la bande, et que le meilleur gagne.
-              </p>
-              <div className="flex flex-wrap items-center gap-2 mt-5 text-xs font-semibold">
-                <span className="rounded-full border border-gray-700 bg-gray-900/60 px-3 py-1.5">{HOME_GAMES.length} jeux</span>
-                <span className="rounded-full border border-gray-700 bg-gray-900/60 px-3 py-1.5">2 à 12 joueurs</span>
-                <span className="rounded-full border border-purple-400/40 bg-purple-400/10 text-purple-300 px-3 py-1.5 inline-flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-purple-300 animate-pulse" />
-                  {directory.ready ? `${directory.rooms.length} salon${directory.rooms.length > 1 ? 's' : ''} ouvert${directory.rooms.length > 1 ? 's' : ''}` : 'connexion…'}
-                </span>
-              </div>
-            </div>
-            <form onSubmit={joinWithCode} className="relative mt-8 rounded-2xl border border-gray-800 bg-gray-950/60 p-4">
-              <p className="font-heading text-lg leading-tight">Tu as un code&nbsp;?</p>
-              <div className="flex flex-wrap gap-2 mt-3">
-                <select
-                  value={codeGame}
-                  onChange={(e) => setCodeGame(e.target.value)}
-                  aria-label="Jeu du salon"
-                  className="bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 font-semibold text-sm min-w-0 flex-1 basis-36"
-                >
-                  {HOME_GAMES.map((g) => (
-                    <option key={g.id} value={g.id}>{g.name}</option>
-                  ))}
-                </select>
-                <input
-                  type="text"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  placeholder="CODE"
-                  aria-label="Code du salon"
-                  className="min-w-0 flex-1 basis-28 px-3 py-2.5 bg-gray-900 border border-gray-700 rounded-xl text-center font-mono uppercase font-bold"
-                />
-                <button type="submit" disabled={!code.trim()} className="tag-dark px-5 py-2.5 flex items-center gap-1.5 disabled:opacity-40 active:scale-95 cursor-pointer">
-                  Rejoindre <ArrowRight size={14} />
-                </button>
-              </div>
-            </form>
-          </section>
+        {/* Titre + code d'invitation, sur une seule bande */}
+        <section className="paper relative overflow-hidden p-5 sm:p-6 mb-4 flex flex-wrap items-center justify-between gap-5">
+          <div className="absolute -top-24 -left-16 w-72 h-72 rounded-full bg-purple-400/15 blur-3xl pointer-events-none" aria-hidden="true" />
+          <div className="relative min-w-0">
+            <h1 className="font-masthead text-3xl sm:text-4xl leading-tight">À quel jeu joue&#8209;t&#8209;on ce&nbsp;soir&nbsp;?</h1>
+            <p className="text-gray-400 mt-1.5 text-sm flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span>{HOME_GAMES.length} jeux · 2 à 12 joueurs</span>
+              <span className="inline-flex items-center gap-1.5 text-purple-300 font-semibold">
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-300 animate-pulse" />
+                {directory.ready ? `${directory.rooms.length} salon${directory.rooms.length > 1 ? 's' : ''} ouvert${directory.rooms.length > 1 ? 's' : ''}` : 'connexion…'}
+              </span>
+            </p>
+          </div>
+          <form onSubmit={joinWithCode} className="relative flex flex-wrap gap-2 w-full lg:w-auto" aria-label="Rejoindre avec un code">
+            <select
+              value={codeGame}
+              onChange={(e) => setCodeGame(e.target.value)}
+              aria-label="Jeu du salon"
+              className="bg-gray-950 border border-gray-700 rounded-xl px-3 py-2.5 font-semibold text-sm min-w-0 flex-1 basis-36 lg:flex-none"
+            >
+              {HOME_GAMES.map((g) => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
+            <input
+              type="text"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="CODE"
+              aria-label="Code du salon"
+              className="min-w-0 flex-1 basis-28 lg:w-32 lg:flex-none px-3 py-2.5 bg-gray-950 border border-gray-700 rounded-xl text-center font-mono uppercase font-bold"
+            />
+            <button type="submit" disabled={!code.trim()} className="tag-dark whitespace-nowrap px-5 py-2.5 flex items-center gap-1.5 disabled:opacity-40 active:scale-95 cursor-pointer">
+              Rejoindre <ArrowRight size={14} />
+            </button>
+          </form>
+        </section>
 
-          {/* Les jeux */}
-          {HOME_GAMES.map((g) => {
-            const isLast = lastGame === g.id;
-            const wide = g.id === 'caption-battle';
-            const tall = !wide && !!SPAN[g.id];
-            return (
-              <Link
-                key={g.id}
-                href={g.href}
-                onClick={() => rememberGame(g.id)}
-                style={{ '--glow': g.glow } as React.CSSProperties}
-                className={`group deco-card relative overflow-hidden flex flex-col justify-end p-5 min-h-[13rem] cursor-pointer ${SPAN[g.id] || ''}`}
-              >
-                <div className="!absolute inset-0 print-photo !rounded-none" aria-hidden="true">
-                  <GameArt id={g.id} className={`print-subject absolute opacity-90 transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-2 ${wide ? 'top-0 right-2 w-[36%] h-[85%]' : tall ? 'top-3 left-1/2 -translate-x-1/2 w-[85%] h-[50%]' : 'top-1 right-1 w-[48%] h-[58%]'}`} />
-                </div>
-                <div className="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/55 to-transparent" aria-hidden="true" />
-                {isLast && <span className="stamp absolute left-4 top-4 z-10">Ton dernier jeu</span>}
-                <div className="relative z-10">
-                  <p className="eyebrow">{g.kicker}</p>
-                  <h3 className="font-heading text-2xl sm:text-3xl mt-1 leading-tight">{g.name}</h3>
-                  {(wide || tall) && <p className="text-sm leading-relaxed text-gray-300 mt-2 max-w-md line-clamp-3">{g.text}</p>}
-                  <div className="flex items-center justify-between gap-3 mt-3">
-                    <div className="flex items-center gap-3 text-xs font-medium text-gray-400">
-                      <span className="inline-flex items-center gap-1.5"><Users size={13} aria-hidden="true" /> {g.players}</span>
-                      <span className="inline-flex items-center gap-1.5"><Clock size={13} aria-hidden="true" /> {g.duration}</span>
-                    </div>
-                    <span className="w-9 h-9 rounded-full bg-white/10 group-hover:bg-purple-300 group-hover:text-gray-950 flex items-center justify-center transition shrink-0" aria-hidden="true">
-                      <ArrowRight size={16} />
-                    </span>
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
+        {/* Jeux filtrables */}
+        <GameBrowser lastGame={lastGame} onPick={rememberGame} />
 
-          {/* Chat global */}
-          <GlobalChat auth={auth} className="sm:col-span-2 lg:row-span-2 h-[30rem] lg:h-auto" />
+        {/* Chat + salons ouverts */}
+        <div className="grid gap-4 lg:grid-cols-2">
+          <GlobalChat auth={auth} className="h-[26rem]" />
 
-          {/* Salons ouverts */}
-          <section className="paper p-5 sm:p-6 sm:col-span-2 lg:col-span-2 lg:row-span-2 flex flex-col min-h-0 max-h-[34rem]">
+          <section className="paper p-5 sm:p-6 flex flex-col min-h-0 h-[26rem]" aria-label="Salons ouverts">
             <div className="flex flex-wrap items-end justify-between gap-3 pb-4 border-b border-gray-800">
               <div>
                 <p className="eyebrow">En direct</p>
-                <h2 className="font-heading text-2xl leading-none mt-1.5">Salons ouverts</h2>
+                <h2 className="font-heading text-xl leading-none mt-1.5">Salons ouverts</h2>
               </div>
-              <div className="flex flex-wrap gap-1.5">
-                {[{ id: 'all', label: 'Tous' }, ...HOME_GAMES.map((g) => ({ id: g.id, label: g.name }))].map((f) => (
-                  <button
-                    key={f.id}
-                    type="button"
-                    onClick={() => setFilter(f.id)}
-                    className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition active:scale-95 cursor-pointer ${
-                      filter === f.id ? 'bg-purple-300 text-gray-950 border-purple-300' : 'border-gray-700 text-gray-400 hover:text-white hover:border-gray-600'
-                    }`}
-                  >
-                    {f.label}
-                  </button>
+              <select
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                aria-label="Filtrer les salons par jeu"
+                className="bg-gray-950 border border-gray-700 rounded-xl px-3 py-1.5 text-xs font-semibold"
+              >
+                <option value="all">Tous les jeux</option>
+                {HOME_GAMES.map((g) => (
+                  <option key={g.id} value={g.id}>{g.name}</option>
                 ))}
-              </div>
+              </select>
             </div>
 
             <div className="flex-1 min-h-0 overflow-y-auto">
@@ -345,8 +160,8 @@ export default function Home() {
                     if (!game) return null;
                     return (
                       <li key={`${r.game}-${r.code}`} className="animate-fadein flex flex-wrap items-center gap-x-4 gap-y-2 py-3.5">
-                        <GameArt id={game.id} className="w-14 h-10 shrink-0 rounded-xl bg-gray-950/60" />
-                        <div className="min-w-0 flex-1 basis-48">
+                        <GameArt id={game.id} className="w-12 h-10 shrink-0 rounded-xl bg-gray-950/60 p-1" />
+                        <div className="min-w-0 flex-1 basis-40">
                           <p className="font-heading text-base leading-tight truncate">{r.name}</p>
                           <p className="text-xs text-gray-500 flex items-center gap-1.5">
                             {game.name} · <PlayerDot id={r.code} avatar={r.hostAvatar} /> {r.host}
@@ -370,8 +185,7 @@ export default function Home() {
               )}
             </div>
           </section>
-
-        </main>
+        </div>
 
         <p className="text-center text-[11px] uppercase tracking-[0.2em] text-gray-600 mt-8 pb-8">
           Aucun imposteur n’a été blessé pendant la conception de ce site
