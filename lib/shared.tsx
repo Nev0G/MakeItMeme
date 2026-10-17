@@ -352,57 +352,83 @@ const useRoomHub = ({ gameId, code, player, isHost }) => {
   }, [code, player.id, isHost]);
 };
 
-const GamesRail = ({ currentId }) => (
-  <nav
-    aria-label="Jeux"
-    className="fixed z-30 top-0 left-0 right-0 h-12 px-3 flex flex-row items-center gap-2 bg-gray-900/95 border-b border-purple-500/20 overflow-x-auto md:overflow-visible md:top-3 md:bottom-3 md:left-3 md:right-auto md:h-auto md:w-16 md:flex-col md:px-0 md:py-3 md:gap-3 md:rounded-2xl md:border md:shadow-xl md:shadow-black/40"
-  >
-    {GAMES.map((g, i) => {
-      const isCurrent = g.id === currentId;
-      const tileClass = `w-10 h-10 md:w-11 md:h-11 flex items-center justify-center text-xl transition-all duration-200 ${
-        isCurrent
-          ? `bg-gradient-to-br ${g.gradient} rounded-xl shadow-lg shadow-black/50`
-          : 'rounded-2xl bg-gray-800 hover:bg-purple-600 hover:rounded-xl active:scale-95'
-      }`;
-      return (
-        <React.Fragment key={g.id}>
-          <div className="group relative shrink-0 flex items-center justify-center">
-            {isCurrent && (
-              <span className="hidden md:block absolute md:-left-[10px] top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full bg-purple-300" />
-            )}
-            {isCurrent ? (
-              <button type="button" aria-label={g.name} aria-current="page" className={tileClass}>
-                <GameIcon id={g.id} className="w-8 h-8" />
-              </button>
-            ) : (
-              <Link
-                href={g.href}
-                aria-label={g.name}
-                className={tileClass}
-                onClick={(e) => {
-                  const hub = typeof window !== 'undefined' ? window.__mimHub : null;
-                  if (hub && hub.isHost && g.id !== 'home' && g.status === 'live') {
-                    e.preventDefault();
-                    if (window.confirm(`Passer tout le salon sur ${g.name} ?`)) hub.switchTo(g.id);
-                  }
-                }}
-              >
-                <GameIcon id={g.id} className="w-8 h-8" />
-              </Link>
-            )}
-            <span
-              role="tooltip"
-              className="hidden md:block pointer-events-none absolute left-full ml-4 top-1/2 -translate-y-1/2 whitespace-nowrap rounded-lg bg-gray-950 border border-purple-500/60 px-3 py-1.5 text-xs font-bold text-purple-200 opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-xl"
-            >
-              {g.name}
-            </span>
-          </div>
-          {i === 0 && <span className="shrink-0 w-px h-6 md:w-7 md:h-px bg-purple-500/30" />}
-        </React.Fragment>
-      );
-    })}
-  </nav>
-);
+const GamesRail = ({ currentId }) => {
+  const [tip, setTip] = useState<{ name: string; top: number } | null>(null);
+  const currentRef = React.useRef<HTMLElement | null>(null);
+  // La barre défile : on amène le jeu en cours dans la zone visible
+  useEffect(() => {
+    currentRef.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [currentId]);
+  const showTip = (name: string, el: HTMLElement) => {
+    const r = el.getBoundingClientRect();
+    setTip({ name, top: r.top + r.height / 2 });
+  };
+  return (
+    <>
+      <nav
+        aria-label="Jeux"
+        onScroll={() => setTip(null)}
+        className="fixed z-30 top-0 left-0 right-0 h-12 px-3 flex flex-row items-center gap-2 bg-gray-900/95 border-b border-purple-500/20 overflow-x-auto md:top-3 md:bottom-3 md:left-3 md:right-auto md:h-auto md:w-16 md:flex-col md:px-0 md:py-3 md:gap-2 md:rounded-2xl md:border md:shadow-xl md:shadow-black/40 md:overflow-x-hidden md:overflow-y-auto md:items-center [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {GAMES.map((g, i) => {
+          const isCurrent = g.id === currentId;
+          const tileClass = `w-10 h-10 md:w-11 md:h-11 flex items-center justify-center text-xl transition-all duration-200 ${
+            isCurrent
+              ? `bg-gradient-to-br ${g.gradient} rounded-xl shadow-lg shadow-black/50`
+              : 'rounded-2xl bg-gray-800 hover:bg-purple-600 hover:rounded-xl active:scale-95'
+          }`;
+          const hover = {
+            onMouseEnter: (e: React.MouseEvent<HTMLElement>) => showTip(g.name, e.currentTarget),
+            onMouseLeave: () => setTip(null),
+            onFocus: (e: React.FocusEvent<HTMLElement>) => showTip(g.name, e.currentTarget),
+            onBlur: () => setTip(null),
+          };
+          return (
+            <React.Fragment key={g.id}>
+              <div className="relative shrink-0 flex items-center justify-center">
+                {isCurrent && (
+                  <span className="hidden md:block absolute md:-left-[10px] top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full bg-purple-300" />
+                )}
+                {isCurrent ? (
+                  <button type="button" ref={(el) => { currentRef.current = el; }} aria-label={g.name} aria-current="page" className={tileClass} {...hover}>
+                    <GameIcon id={g.id} className="w-8 h-8" />
+                  </button>
+                ) : (
+                  <Link
+                    href={g.href}
+                    aria-label={g.name}
+                    className={tileClass}
+                    {...hover}
+                    onClick={(e) => {
+                      const hub = typeof window !== 'undefined' ? window.__mimHub : null;
+                      if (hub && hub.isHost && g.id !== 'home' && g.status === 'live') {
+                        e.preventDefault();
+                        if (window.confirm(`Passer tout le salon sur ${g.name} ?`)) hub.switchTo(g.id);
+                      }
+                    }}
+                  >
+                    <GameIcon id={g.id} className="w-8 h-8" />
+                  </Link>
+                )}
+              </div>
+              {i === 0 && <span className="shrink-0 w-px h-6 md:w-7 md:h-px bg-purple-500/30" />}
+            </React.Fragment>
+          );
+        })}
+      </nav>
+      {/* Infobulle hors de la barre (qui défile) pour ne pas être rognée */}
+      {tip && (
+        <span
+          role="tooltip"
+          style={{ top: tip.top }}
+          className="hidden md:block pointer-events-none fixed left-[5.25rem] z-40 -translate-y-1/2 whitespace-nowrap rounded-lg bg-gray-950 border border-purple-500/60 px-3 py-1.5 text-xs font-bold text-purple-200 shadow-xl"
+        >
+          {tip.name}
+        </span>
+      )}
+    </>
+  );
+};
 
 const FUN_WAITING_PHRASES = [
   'Recomptage des votes à la main...',
