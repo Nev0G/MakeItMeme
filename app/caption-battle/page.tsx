@@ -391,7 +391,7 @@ const DownloadButton = ({ onClick, className = '' }) => (
   <button
     onClick={onClick}
     title="Télécharger le média"
-    className={`bg-black/60 hover:bg-black/80 text-[#f1e7c9] p-2 rounded-lg transition ${className}`}
+    className={`bg-black/60 hover:bg-black/80 text-[#f5f5fa] p-2 rounded-lg transition ${className}`}
   >
     <Download size={16} />
   </button>
@@ -1912,7 +1912,7 @@ export default function CaptionBattle() {
         playerCount={players.length}
       />
       {videoComposeProgress !== null && (
-        <div className="fixed inset-0 z-[999] bg-black/80 text-[#f1e7c9] flex flex-col items-center justify-center gap-4 p-4">
+        <div className="fixed inset-0 z-[999] bg-black/80 text-[#f5f5fa] flex flex-col items-center justify-center gap-4 p-4">
           <Loader2 size={40} className="text-purple-400 animate-spin" />
           <p className="font-bold">Génération de la vidéo avec la légende incrustée...</p>
           <div className="w-64 h-2 bg-gray-800 rounded-full overflow-hidden">

@@ -72,7 +72,7 @@ const Hearts = ({ lives, max }: { lives: number; max: number }) => (
 // L'échelle du thème, avec éventuellement un repère pour le numéro du joueur
 const Scale = ({ theme, mark }: { theme: any; mark?: number }) => (
   <div className="mt-3">
-    <div className="relative h-3 rounded-full" style={{ background: 'linear-gradient(90deg, #2f9468, #e0b552, #c9661f, #b0302a)' }}>
+    <div className="relative h-3 rounded-full" style={{ background: 'linear-gradient(90deg, #3b82f6, #fb7185, #c9661f, #b0302a)' }}>
       {mark ? (
         <span className="absolute -top-1.5 w-1.5 h-6 rounded bg-white shadow-lg ring-2 ring-black/60" style={{ left: `calc(${mark}% - 3px)` }} />
       ) : null}

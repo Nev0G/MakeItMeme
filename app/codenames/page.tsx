@@ -429,7 +429,7 @@ export default function Codenames() {
         const team = c === 'R' ? 'red' : c === 'B' ? 'blue' : null;
         let cls = 'bg-gray-900 border-gray-700 text-white hover:border-purple-300';
         if (revealed) {
-          cls = c === 'A' ? 'bg-black text-white border-gray-600' : team ? TEAM[team].card : 'bg-[#cdbb9b] text-[#2b1c12] border-[#a38d6a]';
+          cls = c === 'A' ? 'bg-black text-white border-gray-600' : team ? TEAM[team].card : 'bg-[#d6d9e6] text-[#1a1a26] border-[#9ea2b8]';
         } else if (showKey) {
           cls = c === 'A' ? 'bg-black/80 border-white/70 text-white' : team ? `${TEAM[team].tint} text-white` : 'bg-gray-700/25 border-gray-500/60 text-gray-300';
         }
@@ -468,7 +468,7 @@ export default function Codenames() {
             <p className={`font-bold ${TEAM[e.team].text}`}>{TEAM[e.team].emoji} {e.clue} · {e.num === 0 ? '∞' : e.num}</p>
             <div className="flex flex-wrap gap-1 mt-1">
               {e.results.map((r, k) => (
-                <span key={k} className={`text-[11px] font-bold rounded px-1.5 py-0.5 ${r.c === 'R' ? 'bg-[#b5382e]' : r.c === 'B' ? 'bg-[#2c6fa8]' : r.c === 'A' ? 'bg-black border border-white/40' : 'bg-[#cdbb9b] text-[#2b1c12]'}`}>{r.w}</span>
+                <span key={k} className={`text-[11px] font-bold rounded px-1.5 py-0.5 ${r.c === 'R' ? 'bg-[#b5382e]' : r.c === 'B' ? 'bg-[#2c6fa8]' : r.c === 'A' ? 'bg-black border border-white/40' : 'bg-[#d6d9e6] text-[#1a1a26]'}`}>{r.w}</span>
               ))}
             </div>
           </li>

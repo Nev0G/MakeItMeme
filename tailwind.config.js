@@ -1,7 +1,8 @@
+const colors = require('tailwindcss/colors');
 /** @type {import('tailwindcss').Config} */
-// Ambiance "Speakeasy" : bois de noyer, cadres en laiton, parchemin, gemmes colorées.
+// Direction "Bento nuit" : fond quasi noir bleuté, cartes arrondies, accent rose vif, secondaire bleu.
 // On redéfinit les échelles gray / purple / pink / orange (et white) pour restyler tout le site d'un coup :
-// gray = bois, purple = laiton (action), pink = émeraude, orange = cuivre.
+// gray = encre bleutée, purple = rose (couleur d'action), pink = bleu, orange = orange.
 module.exports = {
   content: [
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
@@ -12,42 +13,22 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        white: '#f3e6c8', // parchemin
-        // bois sombre (noyer) : fonds, cadres, textes secondaires
+        white: '#f5f5fa',
         gray: {
-          50: '#f8f2e4', 100: '#efe6d2', 200: '#e0d3b8', 300: '#cdbb9b', 400: '#b09a7a',
-          500: '#8f785a', 600: '#6a5238', 700: '#443020', 800: '#2b1c12', 900: '#1b110a', 950: '#0d0805',
+          50: '#f8f8fc', 100: '#f0f0f6', 200: '#e0e0ea', 300: '#c4c4d4', 400: '#9a9ab0',
+          500: '#6f6f86', 600: '#454558', 700: '#2a2a3a', 800: '#1a1a26', 900: '#0f0f18', 950: '#08080d',
         },
-        // laiton (couleur d'action principale)
-        purple: {
-          50: '#fdf8e6', 100: '#f9edc0', 200: '#f3df94', 300: '#ecce6e', 400: '#e0b552',
-          500: '#c9953a', 600: '#a67526', 700: '#805a1d', 800: '#5a3f15', 900: '#3c2a0e', 950: '#201507',
-        },
-        // émeraude (accent secondaire, gemmes)
-        pink: {
-          50: '#ecf8f1', 100: '#cdeedd', 200: '#9fdfbf', 300: '#6fcd9f', 400: '#3fae7d',
-          500: '#2f9468', 600: '#247653', 700: '#1d5c42', 800: '#174834', 900: '#10342a', 950: '#09211a',
-        },
-        // cuivre (imposteur)
-        orange: {
-          50: '#fcf1e6', 100: '#f8dcc0', 200: '#f0bd8a', 300: '#e69d59', 400: '#da7f38',
-          500: '#c9661f', 600: '#ad531a', 700: '#8a4118', 800: '#6a3217', 900: '#4a2411', 950: '#2a1409',
-        },
-        // lime / teal (utilisés par Bomb Party) suivent la palette : laiton et émeraude
-        lime: {
-          50: '#fdf8e6', 100: '#f9edc0', 200: '#f3df94', 300: '#ecce6e', 400: '#e0b552',
-          500: '#c9953a', 600: '#a67526', 700: '#805a1d', 800: '#5a3f15', 900: '#3c2a0e', 950: '#201507',
-        },
-        teal: {
-          50: '#ecf8f1', 100: '#cdeedd', 200: '#9fdfbf', 300: '#6fcd9f', 400: '#3fae7d',
-          500: '#2f9468', 600: '#247653', 700: '#1d5c42', 800: '#174834', 900: '#10342a', 950: '#09211a',
-        },
+        purple: colors.rose,
+        pink: colors.blue,
+        orange: colors.orange,
+        lime: colors.lime,
+        teal: colors.teal,
       },
       fontFamily: {
-        mono: ['"Courier Prime"', '"Courier New"', 'monospace'],
+        mono: ['"JetBrains Mono"', '"Courier New"', 'monospace'],
       },
       borderRadius: {
-        none: '0', sm: '4px', DEFAULT: '6px', md: '8px', lg: '12px', xl: '16px', '2xl': '20px', '3xl': '28px', full: '9999px',
+        none: '0', sm: '6px', DEFAULT: '8px', md: '10px', lg: '14px', xl: '18px', '2xl': '24px', '3xl': '32px', full: '9999px',
       },
       boxShadow: {
         DEFAULT: '0 2px 8px rgba(0, 0, 0, 0.4)',

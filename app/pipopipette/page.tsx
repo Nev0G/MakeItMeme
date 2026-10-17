@@ -26,7 +26,7 @@ const INITIAL_P: any = {
   last: null, // dernier trait posé : { o, r, c }
 };
 
-const COLORS = ['#e3b559', '#43bfaa', '#d9453a', '#9b6bd6'];
+const COLORS = ['#fbbf24', '#2dd4bf', '#f43f5e', '#a78bfa'];
 
 const RULES_STEPS = [
   { title: 'Relie les points', text: 'À ton tour, trace un trait entre deux points voisins (clique sur l’espace entre eux).' },
@@ -312,7 +312,7 @@ export default function Pipopipette() {
     );
   };
   const board = (
-    <svg viewBox={`0 0 ${W} ${W}`} className="w-full max-w-[36rem] mx-auto rounded-xl bg-[#2b1c12] select-none" role="img" aria-label="Plateau de pipopipette">
+    <svg viewBox={`0 0 ${W} ${W}`} className="w-full max-w-[36rem] mx-auto rounded-xl bg-[#1a1a26] select-none" role="img" aria-label="Plateau de pipopipette">
       {p.boxes.map((v: number, k: number) => {
         if (!v) return null;
         const r = Math.floor(k / n);
@@ -328,7 +328,7 @@ export default function Pipopipette() {
       {Array.from({ length: (n + 1) * n }, (_, k) => edge('h', Math.floor(k / n), k % n))}
       {Array.from({ length: n * (n + 1) }, (_, k) => edge('v', Math.floor(k / (n + 1)), k % (n + 1)))}
       {Array.from({ length: (n + 1) * (n + 1) }, (_, k) => (
-        <circle key={`d${k}`} cx={M + (k % (n + 1)) * S} cy={M + Math.floor(k / (n + 1)) * S} r="5.5" fill="#f3e6c8" />
+        <circle key={`d${k}`} cx={M + (k % (n + 1)) * S} cy={M + Math.floor(k / (n + 1)) * S} r="5.5" fill="#f5f5fa" />
       ))}
     </svg>
   );

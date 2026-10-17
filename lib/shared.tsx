@@ -49,7 +49,7 @@ const fireConfetti = ({ count = 140, duration = 3200 } = {}) => {
   if (!ctx) return; // canvas indisponible : pas de confettis, mais pas d'erreur
   document.body.appendChild(canvas);
 
-  const colors = ['#d6a948', '#43bfaa', '#f97316', '#eab308', '#7fb069', '#e3c27a', '#2aa897'];
+  const colors = ['#fb7185', '#43bfaa', '#f97316', '#eab308', '#7fb069', '#fb7185', '#2aa897'];
   const pieces = Array.from({ length: count }, () => ({
     x: Math.random() * canvas.width,
     y: -20 - Math.random() * canvas.height * 0.5,
@@ -95,7 +95,7 @@ const shuffle = (arr) => {
   return a;
 };
 
-const PLAYER_COLORS = ['#d6a948', '#43bfaa', '#f97316', '#9bc87a', '#e0705f', '#6aa6d6', '#c58ad6', '#e3c27a'];
+const PLAYER_COLORS = ['#fb7185', '#43bfaa', '#f97316', '#9bc87a', '#e0705f', '#6aa6d6', '#c58ad6', '#fb7185'];
 const colorForPlayer = (id) => {
   if (!id) return PLAYER_COLORS[0];
   let hash = 0;
@@ -737,7 +737,7 @@ const ToastHost = () => {
   return (
     <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[990] flex flex-col items-center gap-2 pointer-events-none">
       {items.map((t) => (
-        <div key={t.id} className="animate-fadein bg-gray-800 border border-gray-950 shadow-[0_0_0_2px_#b98a35,0_0_0_3px_#1a0f08,0_10px_24px_rgba(0,0,0,0.6)] text-white text-sm font-bold rounded-full px-5 py-2.5">
+        <div key={t.id} className="animate-fadein bg-gray-800 border border-gray-950 shadow-[0_0_0_2px_#fb7185,0_0_0_3px_#0b0b14,0_10px_24px_rgba(0,0,0,0.6)] text-white text-sm font-bold rounded-full px-5 py-2.5">
           {t.message}
         </div>
       ))}

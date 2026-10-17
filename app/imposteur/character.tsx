@@ -15,7 +15,7 @@ export const SeatCharacter = ({ avatar, color, state = '', isMe = false, classNa
       <rect x="51" y="0" width="18" height="16" rx="4" fill="#d9a77c" />
       <path d="M4 60 Q6 22 42 15 L78 15 Q114 22 116 60 Z" fill={color} />
       <path d="M4 60 Q6 22 42 15 L78 15 Q114 22 116 60 Z" fill="#000" opacity="0.3" />
-      <path d="M44 15 L60 40 L76 15 Z" fill="#f4ecd8" />
+      <path d="M44 15 L60 40 L76 15 Z" fill="#f5f5fa" />
       <path d="M44 15 L36 36 L58 52 L60 40 Z M76 15 L84 36 L62 52 L60 40 Z" fill={color} />
       <path d="M44 15 L36 36 L58 52 L60 40 Z M76 15 L84 36 L62 52 L60 40 Z" fill="#fff" opacity={isMe ? 0.28 : 0.12} />
       <path d="M57 28 H63 L65 50 L60 56 L55 50 Z" fill="#b3261e" />

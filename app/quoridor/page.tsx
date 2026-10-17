@@ -24,7 +24,7 @@ const INITIAL_Q = {
   wins: {} as Record<string, number>,
 };
 
-const COLORS = ['#e3b559', '#43bfaa', '#d9453a', '#9b6bd6'];
+const COLORS = ['#fbbf24', '#2dd4bf', '#f43f5e', '#a78bfa'];
 const GOAL_LABEL = ['en haut', 'en bas', 'à droite', 'à gauche'];
 
 const RULES_STEPS = [
@@ -281,7 +281,7 @@ export default function Quoridor() {
 
   const board = (
     <div
-      className="grid w-full max-w-[36rem] mx-auto aspect-square rounded-xl bg-[#2b1c12] p-2 select-none"
+      className="grid w-full max-w-[36rem] mx-auto aspect-square rounded-xl bg-[#1a1a26] p-2 select-none"
       style={{ gridTemplateColumns: 'repeat(8, minmax(0,1fr) 0.45fr) minmax(0,1fr)', gridTemplateRows: 'repeat(8, minmax(0,1fr) 0.45fr) minmax(0,1fr)' }}
       onMouseLeave={() => setHover(null)}
     >
@@ -297,7 +297,7 @@ export default function Quoridor() {
             disabled={!can}
             onClick={() => clickCell(r, c)}
             style={{ gridRow: 2 * r + 1, gridColumn: 2 * c + 1 }}
-            className={`relative rounded-md flex items-center justify-center transition ${can ? 'bg-emerald-500/50 hover:bg-emerald-400/70 cursor-pointer ring-2 ring-emerald-300' : 'bg-[#cdbb9b] cursor-default'}`}
+            className={`relative rounded-md flex items-center justify-center transition ${can ? 'bg-emerald-500/50 hover:bg-emerald-400/70 cursor-pointer ring-2 ring-emerald-300' : 'bg-[#d6d9e6] cursor-default'}`}
           >
             {pawnId && (
               <span className={`w-[70%] aspect-square rounded-full border-2 border-black/40 shadow-md ${q.turn === pawnId ? 'animate-pulse' : ''}`} style={{ backgroundColor: colorOf(pawnId) }} />
@@ -306,7 +306,7 @@ export default function Quoridor() {
         );
       })}
       {q.walls.map((w: Wall, i: number) => (
-        <div key={i} style={wallStyle(w)} className="bg-[#e3b559] rounded-full z-10 shadow" />
+        <div key={i} style={wallStyle(w)} className="bg-[#fb7185] rounded-full z-10 shadow" />
       ))}
       {canWall && q.phase === 'play' && (
         <>

@@ -982,7 +982,7 @@ export default function Imposteur() {
                   </linearGradient>
                 </defs>
                 <path d="M75 0 V10" stroke="#8a6b2c" strokeWidth="3" />
-                <path d="M30 56 Q36 14 75 12 Q114 14 120 56 Z" fill="url(#lampShade)" stroke="#c9a24b" strokeWidth="2" />
+                <path d="M30 56 Q36 14 75 12 Q114 14 120 56 Z" fill="url(#lampShade)" stroke="#fb7185" strokeWidth="2" />
                 <ellipse cx="75" cy="58" rx="46" ry="6" fill="#bfffd5" opacity="0.55" />
               </svg>
               <div className="lamp-glow w-[26rem] h-40 -mt-2" />
