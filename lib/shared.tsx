@@ -282,6 +282,7 @@ const GAMES = [
   { id: 'puissance4', name: 'Puissance 4', emoji: '🔴', status: 'live', href: '/puissance4', gradient: 'from-blue-600 via-blue-500 to-yellow-400' },
   { id: 'uno', name: 'Uno', emoji: '🃏', status: 'live', href: '/uno', gradient: 'from-red-600 via-yellow-500 to-green-500' },
   { id: 'scrabble', name: 'Scrabble', emoji: '🔤', status: 'live', href: '/scrabble', gradient: 'from-amber-600 via-yellow-500 to-orange-400' },
+  { id: 'liars-bar', name: 'Liar’s Bar', emoji: '🎭', status: 'live', href: '/liars-bar', gradient: 'from-red-700 via-red-500 to-amber-400' },
 ];
 
 
@@ -301,6 +302,7 @@ const SESSION_KEYS: Record<string, string> = {
   puissance4: 'puissance4-session',
   uno: 'uno-session',
   scrabble: 'scrabble-session',
+  'liars-bar': 'liarsbar-session',
 };
 
 const goToGame = (gameId, me, code, delay) => {
