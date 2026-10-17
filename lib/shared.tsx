@@ -3,6 +3,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { createClient } from '@supabase/supabase-js';
 import { Loader2, Volume2, VolumeX, LogIn, LogOut, MessageCircle, Send, X, Globe, Lock, Users, Copy, Check } from 'lucide-react';
 import { dateline } from '@/lib/press';
@@ -368,7 +369,7 @@ const GamesRail = ({ currentId }) => (
                 <GameIcon id={g.id} className="w-8 h-8" />
               </button>
             ) : (
-              <a
+              <Link
                 href={g.href}
                 aria-label={g.name}
                 className={tileClass}
@@ -381,7 +382,7 @@ const GamesRail = ({ currentId }) => (
                 }}
               >
                 <GameIcon id={g.id} className="w-8 h-8" />
-              </a>
+              </Link>
             )}
             <span
               role="tooltip"
@@ -568,7 +569,7 @@ const useSoundAndClickFx = () => {
 
 // Connexion (optionnelle) avec Discord via Supabase Auth. Le compte sert à
 // préremplir le pseudo et à garder le même identifiant de joueur d'une partie à l'autre.
-const useDiscordAuth = (onProfile, onSignedOut) => {
+const useDiscordAuth = (onProfile?: any, onSignedOut?: any) => {
   const [user, setUser] = useState(null);
   const [ready, setReady] = useState(false);
   const onProfileRef = React.useRef(onProfile);
@@ -578,16 +579,36 @@ const useDiscordAuth = (onProfile, onSignedOut) => {
   const announcedRef = React.useRef(null);
 
   useEffect(() => {
-    supabase.auth
-      .getSession()
-      .then(({ data }) => setUser(data.session?.user ?? null))
-      .catch(() => setUser(null))
-      .finally(() => setReady(true));
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    // Relit la session mémorisée (renouvelée si besoin avec le refresh token). Une erreur réseau
+    // passagère ne déconnecte pas : on garde l'utilisateur déjà connu.
+    const sync = () =>
+      supabase.auth
+        .getSession()
+        .then(({ data, error }) => setUser((prev) => (data.session ? data.session.user : error ? prev : null)))
+        .catch(() => {})
+        .finally(() => setReady(true));
+    sync();
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      // INITIAL_SESSION sans session ne doit pas écraser une session retrouvée juste après
+      if (event === 'INITIAL_SESSION' && !session) return;
       setUser(session?.user ?? null);
       setReady(true);
     });
-    return () => sub.subscription.unsubscribe();
+    // Au retour sur l'onglet (ou depuis le cache du navigateur), on resynchronise la session
+    const onVisible = () => document.visibilityState === 'visible' && sync();
+    window.addEventListener('pageshow', sync);
+    document.addEventListener('visibilitychange', onVisible);
+    // Demande au navigateur de ne pas effacer le stockage du site (garde la connexion plus longtemps)
+    try {
+      navigator.storage?.persist?.();
+    } catch {
+      // ignore
+    }
+    return () => {
+      sub.subscription.unsubscribe();
+      window.removeEventListener('pageshow', sync);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, []);
 
   const profile = React.useMemo(() => {
@@ -1151,6 +1172,8 @@ const bumpEdition = () => {
 
 export {
   readEdition,
+  cleanChatMessage,
+  CHAT_TEXT_MAX,
   bumpEdition,
   toast,
   ToastHost,

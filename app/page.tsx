@@ -1,15 +1,17 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ArrowRight, Users, Clock, Sparkles } from 'lucide-react';
 import {
   SoundToggle, useSoundAndClickFx, useDiscordAuth, AccountButton, useDirectoryListing, PlayerDot, readIdentity, readEdition,
 } from '@/lib/shared';
 import { GameArt } from '@/lib/art';
-import { dateline, weatherOf, SIGNS, horoscope, signFromName } from '@/lib/press';
+import { dateline, weatherOf } from '@/lib/press';
+import { GlobalChat } from '@/lib/globalchat';
 
 const LAST_GAME_KEY = 'makeitmeme-last-game';
-const SIGN_KEY = 'makeitmeme-sign';
 
 const HOME_GAMES = [
   {
@@ -113,21 +115,15 @@ const HOME_GAMES = [
   },
 ];
 
-const STEPS = [
-  { n: 'I', title: 'Choisis ton jeu', text: 'Une carte à la une, un clic.' },
-  { n: 'II', title: 'Crée ton salon', text: 'Un code à 6 lettres, fermé ou ouvert.' },
-  { n: 'III', title: 'Lance la partie', text: 'Dès que la bande est là, le host démarre.' },
-];
-
 export default function Home() {
   const { soundOn, toggleSound } = useSoundAndClickFx();
   const auth = useDiscordAuth();
-  const [lastGame, setLastGame] = useState(null);
+  const [lastGame, setLastGame] = useState<string | null>(null);
   const [code, setCode] = useState('');
   const [codeGame, setCodeGame] = useState('caption-battle');
   const [filter, setFilter] = useState('all');
   const [paper, setPaper] = useState({ date: '', weather: '', edition: 1 });
-  const [sign, setSign] = useState(0);
+  const router = useRouter();
   const directory = useDirectoryListing();
   const visibleRooms = directory.rooms.filter((r) => filter === 'all' || r.game === filter);
 
@@ -141,8 +137,6 @@ export default function Home() {
     setPaper({ date: dateline(), weather: weatherOf(), edition: readEdition() + 1 });
     try {
       setLastGame(localStorage.getItem(LAST_GAME_KEY));
-      const savedSign = localStorage.getItem(SIGN_KEY);
-      setSign(savedSign !== null ? Number(savedSign) : signFromName(readIdentity()?.name || 'lecteur'));
     } catch {
       // stockage indisponible
     }
@@ -155,26 +149,14 @@ export default function Home() {
       // ignore
     }
   };
-  const changeSign = (value) => {
-    setSign(value);
-    try {
-      localStorage.setItem(SIGN_KEY, String(value));
-    } catch {
-      // ignore
-    }
-  };
-
   const joinWithCode = (e) => {
     e.preventDefault();
     const clean = code.trim().toUpperCase();
     if (!clean) return;
     const game = HOME_GAMES.find((g) => g.id === codeGame) || HOME_GAMES[0];
     rememberGame(game.id);
-    window.location.href = `${game.href}?room=${encodeURIComponent(clean)}`;
+    router.push(`${game.href}?room=${encodeURIComponent(clean)}`);
   };
-
-  const fortune = horoscope(sign);
-  const advised = HOME_GAMES.find((g) => g.id === fortune.game);
 
   // Taille de chaque tuile dans la grille bento (desktop)
   const SPAN: Record<string, string> = {
@@ -259,7 +241,7 @@ export default function Home() {
             const wide = g.id === 'caption-battle';
             const tall = !wide && !!SPAN[g.id];
             return (
-              <a
+              <Link
                 key={g.id}
                 href={g.href}
                 onClick={() => rememberGame(g.id)}
@@ -285,12 +267,15 @@ export default function Home() {
                     </span>
                   </div>
                 </div>
-              </a>
+              </Link>
             );
           })}
 
+          {/* Chat global */}
+          <GlobalChat auth={auth} className="sm:col-span-2 lg:row-span-2 h-[30rem] lg:h-auto" />
+
           {/* Salons ouverts */}
-          <section className="paper p-5 sm:p-6 sm:col-span-2 lg:col-span-3 lg:row-span-2 flex flex-col min-h-0">
+          <section className="paper p-5 sm:p-6 sm:col-span-2 lg:col-span-2 lg:row-span-2 flex flex-col min-h-0 max-h-[34rem]">
             <div className="flex flex-wrap items-end justify-between gap-3 pb-4 border-b border-gray-800">
               <div>
                 <p className="eyebrow">En direct</p>
@@ -338,13 +323,13 @@ export default function Home() {
                         <span className={`text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-full border ${r.started ? 'border-orange-400/50 text-orange-300 bg-orange-400/10' : 'border-purple-400/50 text-purple-300 bg-purple-400/10'}`}>
                           {r.started ? 'En cours' : 'Ouvert'}
                         </span>
-                        <a
+                        <Link
                           href={`${game.href}?room=${encodeURIComponent(r.code)}`}
                           onClick={() => rememberGame(game.id)}
                           className="tag-dark px-4 py-2.5 flex items-center gap-1.5 active:scale-95 cursor-pointer"
                         >
                           Rejoindre <ArrowRight size={13} />
-                        </a>
+                        </Link>
                       </li>
                     );
                   })}
@@ -353,40 +338,6 @@ export default function Home() {
             </div>
           </section>
 
-          {/* Horoscope */}
-          <aside className="parchment p-5 flex flex-col">
-            <p className="eyebrow flex items-center gap-1.5"><Sparkles size={13} aria-hidden="true" /> Horoscope du joueur</p>
-            <div className="flex items-center gap-2 mt-3">
-              <select
-                value={sign}
-                onChange={(e) => changeSign(Number(e.target.value))}
-                className="bg-gray-950 border border-gray-700 rounded-xl px-2.5 py-1.5 text-sm font-semibold"
-                aria-label="Ton signe"
-              >
-                {SIGNS.map((name, idx) => (
-                  <option key={name} value={idx}>{name}</option>
-                ))}
-              </select>
-              <span className="text-xs text-gray-500">du jour</span>
-            </div>
-            <p className="font-heading text-base leading-snug mt-4 text-gray-200 flex-1">« {fortune.text} »</p>
-            {advised && (
-              <a href={advised.href} onClick={() => rememberGame(advised.id)} className="inline-flex items-center gap-1.5 mt-4 text-sm font-semibold text-purple-300 hover:text-purple-200 transition cursor-pointer">
-                Jeu conseillé : {advised.name} <ArrowRight size={14} />
-              </a>
-            )}
-          </aside>
-
-          {/* Mode d'emploi */}
-          {STEPS.map((s, i) => (
-            <section key={s.n} className="paper p-5 flex flex-col justify-between lg:col-span-1">
-              <span className="font-masthead text-4xl leading-none">{i + 1}</span>
-              <div>
-                <p className="font-heading text-lg leading-tight">{s.title}</p>
-                <p className="text-sm text-gray-500 mt-1">{s.text}</p>
-              </div>
-            </section>
-          ))}
         </main>
 
         <p className="text-center text-[11px] uppercase tracking-[0.2em] text-gray-600 mt-8 pb-8">

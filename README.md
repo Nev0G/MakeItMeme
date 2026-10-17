@@ -11,6 +11,7 @@ Des jeux entre potes, jouables dans le navigateur, avec un habillage « vieux jo
 - `/top-ten` : jeu coopératif, un capitaine classe les joueurs selon leur numéro secret (1 à 100) et leurs réponses à un thème ; chaque erreur coûte une vie
 - `/codenames` : deux équipes et deux maîtres-espions, indice + nombre pour retrouver ses mots sur le plateau 5×5 sans toucher l'assassin
 - `/quoridor` : jeu de blocus à 2 ou 4 joueurs, on avance son pion jusqu'au bord opposé en posant des murs pour ralentir les adversaires
+- `/` : accueil en bento avec chat global en temps réel (Supabase Realtime, sans base de données)
 - `/pipopipette` : jeu des petits carrés pour 2 à 4 joueurs, on relie les points et on rejoue à chaque carré fermé
 
 Chaque jeu a des salons **fermés** (code) ou **ouverts** (listés sur l'accueil), un chat écrit, et le host peut expulser un joueur.
