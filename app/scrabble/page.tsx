@@ -49,7 +49,7 @@ const RULES_STEPS = [
 ];
 
 const Tile_ = ({ ch, blank = false, small = false, selected = false, onClick, staged = false }: { ch: string; blank?: boolean; small?: boolean; selected?: boolean; onClick?: () => void; staged?: boolean }) => {
-  const cls = `relative flex items-center justify-center rounded-md font-heading font-black text-gray-900 ${staged ? 'bg-amber-200 ring-2 ring-purple-300' : 'bg-amber-100'} border border-amber-700/60 shadow ${small ? 'w-full h-full text-[11px] sm:text-base' : 'w-10 h-10 sm:w-12 sm:h-12 text-xl sm:text-2xl'} ${selected ? '-translate-y-2 ring-2 ring-purple-300' : ''} ${blank ? 'italic text-gray-500' : ''}`;
+  const cls = `relative flex items-center justify-center rounded-md font-heading font-black text-gray-900 ${staged || small ? 'card-in' : ''} ${staged ? 'bg-amber-200 ring-2 ring-purple-300' : 'bg-amber-100'} border border-amber-700/60 shadow ${small ? 'w-full h-full text-[11px] sm:text-base' : 'w-10 h-10 sm:w-12 sm:h-12 text-xl sm:text-2xl'} ${selected ? '-translate-y-2 ring-2 ring-purple-300' : ''} ${blank ? 'italic text-gray-500' : ''}`;
   const pts = blank ? 0 : POINTS[ch.toUpperCase()] ?? 0;
   const inner = (
     <>
@@ -427,7 +427,7 @@ export default function Scrabble() {
     const ready = players.length >= 2;
     return shell(
       <div className="paper p-6 sm:p-8 w-full max-w-2xl mx-auto text-center md:overflow-y-auto">
-        <GameArt id="scrabble" className="h-28 mx-auto -mt-2 mb-2" />
+        <GameArt id="scrabble" className="h-28 mx-auto -mt-2 mb-2 float-y" />
         <RoomCodeBlock g={g} />
         {Object.keys(s.wins).length > 0 && (
           <p className="mb-4 text-sm text-gray-300">🏆 {Object.entries(s.wins).map(([id, n]) => `${nameOf(id)} ${n}`).join(' · ')}</p>

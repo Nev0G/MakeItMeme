@@ -289,7 +289,7 @@ export default function Pipopipette() {
     const ready = players.length >= 2;
     return shell(
       <div className="paper p-6 sm:p-8 w-full max-w-2xl mx-auto text-center md:overflow-y-auto">
-        <GameArt id="pipopipette" className="h-28 mx-auto -mt-2 mb-2" />
+        <GameArt id="pipopipette" className="h-28 mx-auto -mt-2 mb-2 float-y" />
         <RoomCodeBlock g={g} />
         {Object.keys(p.wins).length > 0 && (
           <p className="mb-4 text-sm text-gray-300">🏆 {Object.entries(p.wins).map(([id, n]) => `${nameOf(id)} ${n}`).join(' · ')}</p>

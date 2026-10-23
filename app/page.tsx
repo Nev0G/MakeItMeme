@@ -87,7 +87,7 @@ export default function Home() {
           <div className="relative min-w-0">
             <h1 className="font-masthead text-3xl sm:text-4xl leading-tight">À quel jeu joue&#8209;t&#8209;on ce&nbsp;soir&nbsp;?</h1>
             <p className="text-gray-400 mt-1.5 text-sm flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span>{HOME_GAMES.length} jeux · 2 à 12 joueurs</span>
+              <span>{HOME_GAMES.length} jeux · 2 à {Math.max(...HOME_GAMES.map((g) => g.max))} joueurs</span>
               <span className="inline-flex items-center gap-1.5 text-purple-300 font-semibold">
                 <span className="w-1.5 h-1.5 rounded-full bg-purple-300 animate-pulse" />
                 {directory.ready ? `${directory.rooms.length} salon${directory.rooms.length > 1 ? 's' : ''} ouvert${directory.rooms.length > 1 ? 's' : ''}` : 'connexion…'}

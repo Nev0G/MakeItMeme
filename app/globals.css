@@ -1043,3 +1043,90 @@ input:focus, select:focus, textarea:focus { border-color: rgba(251, 113, 133, 0.
   to { transform: translateY(0); }
 }
 @media (prefers-reduced-motion: reduce) { .c4-drop { animation: none; } }
+
+/* ==========================================================
+   Passe visuelle : fond animé, entrées en douceur, micro-interactions
+   (tout est coupé si le navigateur demande « réduire les animations »)
+   ========================================================== */
+
+/* Aurore : trois halos qui dérivent lentement derrière tout le site */
+.aurora { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.aurora span { position: absolute; border-radius: 9999px; filter: blur(90px); opacity: 0.32; will-change: transform; }
+.aurora span:nth-child(1) { width: 38vw; height: 38vw; left: -8vw; top: -10vw; background: #fb7185; animation: aurora-a 38s ease-in-out infinite alternate; }
+.aurora span:nth-child(2) { width: 34vw; height: 34vw; right: -8vw; top: 6vh; background: #60a5fa; animation: aurora-b 46s ease-in-out infinite alternate; }
+.aurora span:nth-child(3) { width: 30vw; height: 30vw; left: 30vw; bottom: -14vw; background: #a78bfa; opacity: 0.22; animation: aurora-c 52s ease-in-out infinite alternate; }
+@keyframes aurora-a { to { transform: translate3d(14vw, 10vh, 0) scale(1.15); } }
+@keyframes aurora-b { to { transform: translate3d(-12vw, 14vh, 0) scale(0.9); } }
+@keyframes aurora-c { to { transform: translate3d(-10vw, -12vh, 0) scale(1.2); } }
+
+/* Les cartes arrivent en douceur (zéro spécificité : « animate-rise » & co. gardent la priorité) */
+:where(.paper) { animation: paper-in 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes paper-in { from { opacity: 0; transform: translateY(10px) scale(0.985); } to { opacity: 1; transform: none; } }
+
+/* Tuiles de l'accueil : apparition en cascade */
+.tile-in { animation: tile-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes tile-in { from { opacity: 0; transform: translateY(18px) scale(0.96); } to { opacity: 1; transform: none; } }
+
+/* Icônes des jeux : léger flottement, décalé d'une tuile à l'autre */
+.float-y { animation: float-y 6s ease-in-out infinite; }
+li:nth-child(2n) > a .float-y, li:nth-child(2n) .float-y { animation-delay: -2s; }
+li:nth-child(3n) .float-y { animation-delay: -4s; }
+@keyframes float-y { 0%, 100% { transform: translateY(0) rotate(-1.5deg); } 50% { transform: translateY(-5px) rotate(1.5deg); } }
+
+/* Retour tactile : un appui enfonce légèrement le bouton (propriété « scale » : ne gêne pas les translate de Tailwind) */
+button:not(:disabled), a[class*='tag-dark'], .deco-card { transition-property: transform, scale, background-color, border-color, color, opacity, box-shadow, filter; }
+button:not(:disabled):active { scale: 0.97; }
+.tag-dark:not(:disabled):hover { translate: 0 -1px; }
+
+/* Titre : l'éclat du dégradé se déplace doucement */
+.font-masthead, .ink-in { background-size: 100% 220%; animation: masthead-shine 7s ease-in-out infinite alternate; }
+@keyframes masthead-shine { from { background-position: 0 0; } to { background-position: 0 100%; } }
+
+/* Barre des jeux : l'icône survolée grossit, celle du jeu en cours respire */
+nav[aria-label='Jeux'] img { transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1); }
+nav[aria-label='Jeux'] a:hover img, nav[aria-label='Jeux'] button:hover img { transform: scale(1.18) rotate(-4deg); }
+nav[aria-label='Jeux'] button[aria-current='page'] { animation: rail-glow 3s ease-in-out infinite; }
+@keyframes rail-glow { 0%, 100% { box-shadow: 0 0 0 0 rgba(251, 113, 133, 0); } 50% { box-shadow: 0 0 18px 2px rgba(251, 113, 133, 0.45); } }
+
+/* Éléments qui apparaissent : pastilles, lignes de liste */
+.stamp { animation: stamp-in 0.5s cubic-bezier(0.3, 1.6, 0.5, 1) 0.3s both; }
+@keyframes stamp-in { from { opacity: 0; transform: scale(0.6) rotate(-8deg); } to { opacity: 1; transform: none; } }
+
+/* Carte jouée / posée : petit rebond */
+.card-in { animation: card-in 0.4s cubic-bezier(0.3, 1.5, 0.5, 1) both; }
+@keyframes card-in { from { opacity: 0; transform: translateY(-14px) scale(0.85) rotate(-6deg); } to { opacity: 1; transform: none; } }
+
+/* ---------- Loup-Garou : le ciel change avec la nuit et le jour ---------- */
+.ww-sky { position: relative; isolation: isolate; overflow-x: hidden; transition: background 0.9s ease, border-color 0.9s ease; border: 1px solid transparent; }
+.ww-sky > * { position: relative; z-index: 1; }
+.ww-night { background: radial-gradient(ellipse 70% 40% at 15% 0%, rgba(99, 102, 241, 0.38), transparent 70%), linear-gradient(180deg, #0c1233, #060818 75%); border-color: rgba(129, 140, 248, 0.28); }
+.ww-day { background: radial-gradient(ellipse 60% 40% at 85% 0%, rgba(251, 191, 36, 0.3), transparent 65%), linear-gradient(180deg, #2b2338, #15121d 80%); border-color: rgba(251, 191, 36, 0.22); }
+.ww-over { background: radial-gradient(ellipse 70% 40% at 50% 0%, rgba(251, 113, 133, 0.28), transparent 70%), linear-gradient(180deg, #1c1626, #0e0c14 80%); border-color: rgba(251, 113, 133, 0.25); }
+.ww-night::before, .ww-day::before { content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none; border-radius: inherit; }
+.ww-night::before {
+  background-image:
+    radial-gradient(1.5px 1.5px at 12% 18%, #fff 50%, transparent 52%), radial-gradient(1px 1px at 28% 8%, #fff 50%, transparent 52%),
+    radial-gradient(1.5px 1.5px at 44% 24%, #c7d2fe 50%, transparent 52%), radial-gradient(1px 1px at 61% 12%, #fff 50%, transparent 52%),
+    radial-gradient(2px 2px at 78% 20%, #fff 50%, transparent 52%), radial-gradient(1px 1px at 90% 9%, #c7d2fe 50%, transparent 52%),
+    radial-gradient(1px 1px at 6% 46%, #fff 50%, transparent 52%), radial-gradient(1.5px 1.5px at 94% 40%, #fff 50%, transparent 52%);
+  animation: ww-twinkle 3.6s ease-in-out infinite alternate;
+}
+.ww-day::before { background: conic-gradient(from 200deg at 88% -6%, transparent 0 8%, rgba(251, 191, 36, 0.1) 10% 12%, transparent 14% 18%, rgba(251, 191, 36, 0.08) 20% 22%, transparent 24% 100%); animation: ww-twinkle 6s ease-in-out infinite alternate; }
+@keyframes ww-twinkle { from { opacity: 0.45; } to { opacity: 1; } }
+.ww-orb { display: inline-block; animation: ww-float 4.5s ease-in-out infinite; filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.35)); }
+@keyframes ww-float { 0%, 100% { transform: translateY(0) rotate(-6deg); } 50% { transform: translateY(-4px) rotate(6deg); } }
+.role-flip { animation: role-flip 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes role-flip { 0% { opacity: 0; transform: perspective(700px) rotateY(-90deg) scale(0.9); } 60% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+.ww-tile { animation: tile-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.death-in { animation: death-in 0.9s ease both; }
+@keyframes death-in { 0% { opacity: 0; transform: translateX(-8px); color: #f87171; } 25% { transform: translateX(6px); } 50% { transform: translateX(-4px); } 100% { opacity: 1; transform: none; } }
+.sleep-z { animation: sleep-z 2.4s ease-in-out infinite; }
+@keyframes sleep-z { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+
+/* Réduire les animations : on coupe tout ce qui bouge en continu et les entrées */
+@media (prefers-reduced-motion: reduce) {
+  .aurora span, .float-y, .font-masthead, .ink-in, nav[aria-label='Jeux'] button[aria-current='page'],
+  .ww-orb, .ww-night::before, .ww-day::before, .sleep-z { animation: none !important; }
+  :where(.paper), .tile-in, .stamp, .card-in, .role-flip, .ww-tile, .death-in { animation: none !important; }
+  button:not(:disabled):active { scale: 1; }
+}

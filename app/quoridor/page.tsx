@@ -271,7 +271,7 @@ export default function Quoridor() {
     const playing = Math.min(players.length >= 4 ? 4 : 2, players.length);
     return shell(
       <div className="paper p-6 sm:p-8 w-full max-w-2xl mx-auto text-center md:overflow-y-auto">
-        <GameArt id="quoridor" className="h-28 mx-auto -mt-2 mb-2" />
+        <GameArt id="quoridor" className="h-28 mx-auto -mt-2 mb-2 float-y" />
         <RoomCodeBlock g={g} />
         {Object.keys(q.wins).length > 0 && (
           <p className="mb-4 text-sm text-gray-300">🏆 {Object.entries(q.wins).map(([id, n]) => `${nameOf(id)} ${n}`).join(' · ')}</p>
@@ -330,7 +330,7 @@ export default function Quoridor() {
             className={`relative rounded-md flex items-center justify-center transition ${can ? 'bg-emerald-500/50 hover:bg-emerald-400/70 cursor-pointer ring-2 ring-emerald-300' : 'bg-[#d6d9e6] cursor-default'}`}
           >
             {pawnId && (
-              <span className={`w-[70%] aspect-square rounded-full border-2 border-black/40 shadow-md ${q.turn === pawnId ? 'animate-pulse' : ''}`} style={{ backgroundColor: colorOf(pawnId) }} />
+              <span className={`w-[70%] aspect-square rounded-full border-2 border-black/40 shadow-md card-in ${q.turn === pawnId ? 'animate-pulse' : ''}`} style={{ backgroundColor: colorOf(pawnId) }} />
             )}
           </button>
         );

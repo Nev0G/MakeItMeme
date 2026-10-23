@@ -1050,7 +1050,7 @@ export default function BombParty() {
   if (phase === 'lobby') {
     return renderAppShell(
       <div className="bg-gray-900 p-8 rounded-2xl w-full max-w-3xl mx-auto shadow-2xl border border-gray-800 text-center">
-        <GameArt id="bomb-party" className="h-28 mx-auto -mt-2 mb-2" />
+        <GameArt id="bomb-party" className="h-28 mx-auto -mt-2 mb-2 float-y" />
         <h2 className="font-heading text-2xl mb-2">Code de la Room</h2>
         <div className="relative mb-8">
           <div className="text-4xl sm:text-6xl font-black font-mono tracking-widest text-purple-300 bg-gray-950 py-4 rounded-xl border border-gray-800">

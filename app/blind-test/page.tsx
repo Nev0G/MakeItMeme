@@ -1039,7 +1039,7 @@ export default function BlindTest() {
     const toggleCat = (id) => updateSettings({ categories: selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id] });
     return renderShell(
       <div className="paper p-6 sm:p-8 w-full max-w-3xl mx-auto text-center md:overflow-y-auto">
-        <GameArt id="blind-test" className="h-28 mx-auto -mt-2 mb-2" />
+        <GameArt id="blind-test" className="h-28 mx-auto -mt-2 mb-2 float-y" />
         <h2 className="font-heading text-2xl mb-2">Code de la Room</h2>
         <div className="relative mb-5">
           <div className="text-4xl sm:text-6xl font-black font-mono tracking-widest text-purple-300 bg-gray-950 py-4 rounded-xl border border-gray-800">{room?.code}</div>

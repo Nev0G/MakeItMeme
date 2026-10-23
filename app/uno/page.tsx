@@ -46,7 +46,7 @@ const UnoCard = ({ card, playable = false, onClick, small = false, hidden = fals
       <span className="absolute bottom-1 right-1.5 text-xs font-bold leading-none rotate-180">{label(card)}</span>
     </>
   );
-  const cls = `relative shrink-0 flex items-center justify-center text-white border-2 border-white shadow-lg select-none ${size} ${playable ? 'cursor-pointer -translate-y-2 hover:-translate-y-4 ring-2 ring-white/80 transition-transform' : ''}`;
+  const cls = `relative shrink-0 flex items-center justify-center text-white border-2 border-white shadow-lg select-none ${!small && !hidden && !onClick ? 'card-in' : ''} ${size} ${playable ? 'cursor-pointer -translate-y-2 hover:-translate-y-4 ring-2 ring-white/80 transition-transform' : ''}`;
   return onClick ? (
     <button type="button" data-sfx="off" onClick={onClick} disabled={!playable} aria-label={card ? `${COLOR_NAME[card[0]]} ${label(card)}` : 'Carte'} className={`${cls} ${playable ? '' : 'opacity-70 cursor-not-allowed'}`} style={{ backgroundColor: bg }}>{inner}</button>
   ) : (
@@ -254,7 +254,7 @@ export default function Uno() {
     const ready = players.length >= 2;
     return shell(
       <div className="paper p-6 sm:p-8 w-full max-w-2xl mx-auto text-center md:overflow-y-auto">
-        <GameArt id="uno" className="h-28 mx-auto -mt-2 mb-2" />
+        <GameArt id="uno" className="h-28 mx-auto -mt-2 mb-2 float-y" />
         <RoomCodeBlock g={g} />
         {Object.keys(u.wins).length > 0 && (
           <p className="mb-4 text-sm text-gray-300">🏆 {Object.entries(u.wins).map(([id, n]) => `${nameOf(id)} ${n}`).join(' · ')}</p>
@@ -316,7 +316,7 @@ export default function Uno() {
             <UnoCard hidden />
             <span className="absolute -bottom-2 -right-2 text-[11px] font-bold bg-gray-900 border border-gray-700 rounded-full px-2 py-0.5">{game.deck.length}</span>
           </button>
-          <UnoCard card={top} />
+          <UnoCard key={top} card={top} />
           <div className="flex flex-col items-center gap-1.5" title="Couleur à jouer">
             <span className="w-10 h-10 rounded-full border-2 border-white shadow-lg" style={{ backgroundColor: BG[game.color] }} />
             <span className="text-[11px] font-bold text-gray-300">{COLOR_NAME[game.color]}</span>

@@ -367,7 +367,7 @@ export default function Spyfall() {
     const many = players.length >= 7;
     return shell(
       <div className="paper p-6 sm:p-8 w-full max-w-2xl mx-auto text-center md:overflow-y-auto">
-        <GameArt id="spyfall" className="h-28 mx-auto -mt-2 mb-2" />
+        <GameArt id="spyfall" className="h-28 mx-auto -mt-2 mb-2 float-y" />
         <RoomCodeBlock g={g} />
         {(sf.wins.players > 0 || sf.wins.spies > 0) && (
           <p className="mb-4 text-sm text-gray-300">🕵️ Espions {sf.wins.spies} — {sf.wins.players} Enquêteurs 🔎</p>

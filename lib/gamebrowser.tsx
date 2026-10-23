@@ -129,7 +129,7 @@ export const GameBrowser = ({ lastGame, onPick }: { lastGame: string | null; onP
       ) : (
         <ul className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
           {shown.map((g) => (
-            <li key={g.id} className="animate-fadein">
+            <li key={g.id} className="tile-in" style={{ animationDelay: `${Math.min(shown.indexOf(g), 14) * 45}ms` }}>
               <Link
                 href={g.href}
                 onClick={() => onPick(g.id)}
@@ -138,7 +138,7 @@ export const GameBrowser = ({ lastGame, onPick }: { lastGame: string | null; onP
               >
                 {lastGame === g.id && <span className="stamp absolute right-2.5 top-2.5 z-10">Dernier jeu</span>}
                 <div className="print-photo h-20 sm:h-24 flex items-center justify-center mb-3">
-                  <GameArt id={g.id} className="print-subject h-14 sm:h-16 w-14 sm:w-16 transition-transform duration-300 group-hover:scale-110" />
+                  <GameArt id={g.id} className="print-subject float-y h-14 sm:h-16 w-14 sm:w-16 transition-transform duration-300 group-hover:scale-110" />
                 </div>
                 <p className="eyebrow !text-[10px] truncate">{g.cat}</p>
                 <h3 className="font-heading text-lg sm:text-xl leading-tight mt-0.5">{g.name}</h3>

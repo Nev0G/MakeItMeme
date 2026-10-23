@@ -401,7 +401,7 @@ export default function TopTen() {
   if (phase === 'lobby') {
     return shell(
       <div className="paper p-6 sm:p-8 w-full max-w-3xl mx-auto text-center md:overflow-y-auto">
-        <GameArt id="top-ten" className="h-28 mx-auto -mt-2 mb-2" />
+        <GameArt id="top-ten" className="h-28 mx-auto -mt-2 mb-2 float-y" />
         <RoomCodeBlock g={g} />
         <div className="text-left mb-6 bg-gray-950/70 border border-gray-800 rounded-xl p-4">
           <h3 className="flex items-center gap-2 text-gray-400 font-bold mb-3 uppercase text-sm"><Settings size={16} /> Paramètres de la partie</h3>

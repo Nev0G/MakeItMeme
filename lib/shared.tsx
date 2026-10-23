@@ -285,6 +285,7 @@ const GAMES = [
   { id: 'scrabble', name: 'Scrabble', emoji: '🔤', status: 'live', href: '/scrabble', gradient: 'from-amber-600 via-yellow-500 to-orange-400' },
   { id: 'liars-bar', name: 'Liar’s Bar', emoji: '🎭', status: 'live', href: '/liars-bar', gradient: 'from-red-700 via-red-500 to-amber-400' },
   { id: 'spyfall', name: 'Spyfall', emoji: '🕵️', status: 'live', href: '/spyfall', gradient: 'from-slate-700 via-red-600 to-amber-400' },
+  { id: 'loup-garou', name: 'Loup-Garou', emoji: '🐺', status: 'live', href: '/loup-garou', gradient: 'from-indigo-800 via-purple-700 to-red-500' },
 ];
 
 
@@ -306,6 +307,7 @@ const SESSION_KEYS: Record<string, string> = {
   scrabble: 'scrabble-session',
   'liars-bar': 'liarsbar-session',
   spyfall: 'spyfall-session',
+  'loup-garou': 'loupgarou-session',
 };
 
 const goToGame = (gameId, me, code, delay) => {

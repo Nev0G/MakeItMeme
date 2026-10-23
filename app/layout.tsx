@@ -34,6 +34,11 @@ export default function RootLayout({
         />
       </head>
       <body>
+        <div className="aurora" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </div>
         {children}
         <ToastHost />
       </body>

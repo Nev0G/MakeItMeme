@@ -368,7 +368,7 @@ export default function Codenames() {
     const ready = count('red') >= 2 && count('blue') >= 2;
     return shell(
       <div className="paper p-6 sm:p-8 w-full max-w-4xl mx-auto text-center md:overflow-y-auto">
-        <GameArt id="codenames" className="h-28 mx-auto -mt-2 mb-2" />
+        <GameArt id="codenames" className="h-28 mx-auto -mt-2 mb-2 float-y" />
         <RoomCodeBlock g={g} />
         {(cn.wins.red > 0 || cn.wins.blue > 0) && (
           <p className="mb-4 font-heading text-lg">🔴 {cn.wins.red} — {cn.wins.blue} 🔵</p>

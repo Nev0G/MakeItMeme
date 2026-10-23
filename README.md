@@ -18,6 +18,7 @@ Des jeux entre potes, jouables dans le navigateur, avec un habillage « vieux jo
 - `/scrabble` : Scrabble en français de 2 à 4 joueurs (mots vérifiés via le Wiktionnaire)
 - `/liars-bar` : jeu de bluff aux cartes (Rois, Dames, As) avec roulette russe, de 2 à 4 joueurs
 - `/spyfall` : un lieu secret et un espion qui l'ignore, on s'interroge à tour de rôle pour le démasquer (3 à 12 joueurs)
+- `/loup-garou` : le jeu du village et des loups-garous avec narrateur automatique (nuit, jour, vote), de 5 à 16 joueurs
 
 Chaque jeu a des salons **fermés** (code) ou **ouverts** (listés sur l'accueil), un chat écrit, et le host peut expulser un joueur.
 **Changer de jeu sans nouveau lien** : dans un salon, le host clique sur un autre jeu dans la barre de gauche ; tout le salon le suit avec le même code.
@@ -60,3 +61,7 @@ Quoridor, Pipopipette, Puissance 4, Uno, Scrabble et Liar's Bar proposent des va
 ## Curseurs partagés
 
 Dans tous les jeux, on voit la souris des autres joueurs et on peut gribouiller (Maj + souris). Chacun règle ça pour lui-même, à tout moment, avec le bouton en bas à droite (au-dessus du chat) : voir les curseurs des autres, montrer le sien, dessiner. Raccourci : Alt + C coupe ou rétablit tout. Le host peut aussi les désactiver pour toute la salle dans les paramètres.
+
+## Animations
+
+Fond en aurore, cartes qui apparaissent en douceur, tuiles de l'accueil en cascade, icônes qui flottent, retour tactile sur les boutons, décor jour/nuit du Loup-Garou. Tout est désactivé automatiquement si le navigateur demande de réduire les animations.
