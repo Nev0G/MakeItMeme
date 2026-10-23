@@ -857,7 +857,7 @@ export default function Imposteur() {
     <div className="min-h-screen md:h-[100dvh] md:overflow-hidden bg-gray-950/95 text-white relative z-10 flex justify-center p-4 pt-16 md:pt-4 md:pl-28">
       <VersionBadge />
       <GamesRail />
-      <ChatWidget extras={extras} me={player} enabled={settings.chatEnabled !== false} />
+      <ChatWidget extras={extras} me={player} enabled={settings.chatEnabled !== false} cursors={settings.cursorsEnabled !== false} players={players.length} />
       {hostToast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[960] animate-fadein bg-gray-900 border border-purple-600 shadow-xl shadow-purple-900/40 text-white text-sm font-bold rounded-full px-5 py-2.5 flex items-center gap-2">
           <Crown size={16} className="text-yellow-400" /> {hostToast}
@@ -941,7 +941,7 @@ export default function Imposteur() {
       <div className="bureau-room min-h-screen md:h-[100dvh] md:overflow-hidden p-3 pt-16 md:pt-4 md:pl-24 md:p-4 z-10">
         <VersionBadge />
         <GamesRail />
-        <ChatWidget extras={extras} me={player} enabled={settings.chatEnabled !== false} />
+        <ChatWidget extras={extras} me={player} enabled={settings.chatEnabled !== false} cursors={settings.cursorsEnabled !== false} players={players.length} />
         {hostToast && (
           <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[960] animate-fadein bg-gray-900 border border-amber-500 shadow-xl text-white text-sm font-bold rounded-full px-5 py-2.5 flex items-center gap-2">
             <Crown size={16} className="text-yellow-400" /> {hostToast}

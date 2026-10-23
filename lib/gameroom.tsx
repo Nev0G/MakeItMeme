@@ -340,7 +340,7 @@ export const GameShell = ({
   <div className="min-h-screen md:h-[100dvh] md:overflow-hidden text-white relative z-10 flex justify-center p-4 pt-16 md:pt-4 md:pl-28">
     <GameVersion label={gameId} />
     <SharedGamesRail currentId={gameId} />
-    <ChatWidget extras={g.extras} me={g.player} enabled={g.settings.chatEnabled !== false} />
+    <ChatWidget extras={g.extras} me={g.player} enabled={g.settings.chatEnabled !== false} cursors={g.settings.cursorsEnabled !== false} players={g.players.length} />
     {g.hostToast && (
       <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[960] animate-fadein paper px-5 py-2.5 text-sm font-bold flex items-center gap-2">
         <Crown size={16} className="text-yellow-400" /> {g.hostToast}

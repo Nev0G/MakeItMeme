@@ -8,6 +8,7 @@ import { createClient } from '@supabase/supabase-js';
 import { Loader2, Volume2, VolumeX, LogIn, LogOut, MessageCircle, Send, X, Globe, Lock, Users, Copy, Check } from 'lucide-react';
 import { dateline } from '@/lib/press';
 import { GameIcon } from '@/lib/art';
+import { SharedCursors, emitCursor } from '@/lib/cursors';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://hidtcsztkjpqngwlrzqy.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_CREIog57Ep_e7sUZ0rx-VA_8ooqaGTJ';
@@ -980,6 +981,13 @@ const RoomOptions = ({ settings, updateSettings, isHost }) => (
       disabled={!isHost}
       onChange={(v) => updateSettings({ chatEnabled: v })}
     />
+    <ToggleRow
+      label="Curseurs partagés"
+      hint="Voir la souris des autres et gribouiller (Maj + souris). Chacun peut aussi les couper pour lui."
+      checked={settings.cursorsEnabled !== false}
+      disabled={!isHost}
+      onChange={(v) => updateSettings({ cursorsEnabled: v })}
+    />
   </div>
 );
 
@@ -1019,6 +1027,7 @@ const useRoomExtras = ({ channelRef, me, isHost, hostId, onKicked }) => {
 
   // À appeler dans connectToRoom, avant channel.subscribe()
   const attach = (channel) => {
+    channel.on('broadcast', { event: 'cursor' }, ({ payload }) => emitCursor(payload));
     channel.on('broadcast', { event: 'chat' }, ({ payload }) => addMessages([payload?.msg]));
     channel.on('broadcast', { event: 'chat_history' }, ({ payload }) => addMessages(Array.isArray(payload?.messages) ? payload.messages : []));
     channel.on('broadcast', { event: 'kick' }, ({ payload }) => {
@@ -1067,10 +1076,10 @@ const useRoomExtras = ({ channelRef, me, isHost, hostId, onKicked }) => {
     setMessages([]);
   };
 
-  return { messages, send, kick, attach, onPresenceJoin, reset };
+  return { messages, send, kick, attach, onPresenceJoin, reset, channelRef };
 };
 
-const ChatWidget = ({ extras, me, enabled }) => {
+const ChatWidget = ({ extras, me, enabled, cursors = true, players = 2 }: { extras: any; me: any; enabled: boolean; cursors?: boolean; players?: number }) => {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
   const [seen, setSeen] = useState(0);
@@ -1084,7 +1093,8 @@ const ChatWidget = ({ extras, me, enabled }) => {
     }
   }, [open, msgs.length]);
 
-  if (!enabled) return null;
+  const cursorLayer = <SharedCursors channelRef={extras.channelRef} me={me} allowed={cursors && !!me.id} playerCount={players} />;
+  if (!enabled) return cursorLayer;
   const unread = open ? 0 : Math.max(0, msgs.length - seen);
   const submit = (e) => {
     e.preventDefault();
@@ -1092,6 +1102,8 @@ const ChatWidget = ({ extras, me, enabled }) => {
   };
 
   return (
+    <>
+    {cursorLayer}
     <div className="fixed bottom-6 right-4 z-[940] flex flex-col items-end gap-2">
       {open && (
         <div className="w-[min(20rem,calc(100vw-2rem))] h-96 max-h-[60vh] bg-gray-900 border border-purple-500/30 rounded-2xl shadow-2xl shadow-black/60 flex flex-col animate-fadein overflow-hidden">
@@ -1146,6 +1158,7 @@ const ChatWidget = ({ extras, me, enabled }) => {
         )}
       </button>
     </div>
+    </>
   );
 };
 

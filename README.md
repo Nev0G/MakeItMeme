@@ -55,3 +55,7 @@ pour Caption Battle, au stockage des fichiers (bucket public `game-media`).
 ## Variantes de jeu
 
 Quoridor, Pipopipette, Puissance 4, Uno, Scrabble et Liar's Bar proposent des variantes configurables par le host dans le salon (encadré « Variantes ») : chronomètre par tour avec coup automatique, taille de grille, murs et obstacles, carrés en or, Pop-out, cumul des +2/+4, règle 7-0, objectif de points, cases bonus aléatoires, balles/jokers/cartes en main.
+
+## Curseurs partagés
+
+Dans tous les jeux, on voit la souris des autres joueurs et on peut gribouiller (Maj + souris). Chacun règle ça pour lui-même, à tout moment, avec le bouton en bas à droite (au-dessus du chat) : voir les curseurs des autres, montrer le sien, dessiner. Raccourci : Alt + C coupe ou rétablit tout. Le host peut aussi les désactiver pour toute la salle dans les paramètres.
