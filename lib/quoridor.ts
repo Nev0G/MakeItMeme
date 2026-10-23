@@ -77,3 +77,29 @@ export const canPlaceWall = (walls: Wall[], pawns: Pos[], active: number[], [r, 
   const next: Wall[] = [...walls, [r, c, o]];
   return active.every((i) => hasPath(next, pawns[i], i));
 };
+
+// Distance (en cases) d'un pion à son but, murs pris en compte, autres pions ignorés
+export const distanceToGoal = (walls: Wall[], from: Pos, idx: number) => {
+  const seen = new Map<number, number>([[from[0] * N + from[1], 0]]);
+  const queue: Pos[] = [from];
+  for (let h = 0; h < queue.length; h++) {
+    const [r, c] = queue[h];
+    const d = seen.get(r * N + c) as number;
+    if (goalReached(idx, [r, c])) return d;
+    for (const [dr, dc] of DIRS) {
+      const nr = r + dr;
+      const nc = c + dc;
+      if (!inside(nr, nc) || seen.has(nr * N + nc) || blocked(walls, r, c, nr, nc)) continue;
+      seen.set(nr * N + nc, d + 1);
+      queue.push([nr, nc]);
+    }
+  }
+  return Infinity;
+};
+
+// Coup automatique : la case légale qui rapproche le plus du but
+export const autoMove = (walls: Wall[], pawns: Pos[], me: number): Pos | null => {
+  const moves = legalMoves(walls, pawns, me);
+  if (!moves.length) return null;
+  return moves.map((m) => ({ m, d: distanceToGoal(walls, m, me) })).sort((a, b) => a.d - b.d)[0].m;
+};

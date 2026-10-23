@@ -18,7 +18,13 @@ export type Reveal = {
   until: number; // fin de l'animation côté host
 };
 
+// Variantes : balles dans le revolver, jokers dans le paquet, cartes en main, deux cartes valides à la table
+export type LiarOpts = { bullets: number; jokers: number; hand: number; duo: boolean };
+export const DEFAULT_OPTS: LiarOpts = { bullets: 1, jokers: 2, hand: HAND, duo: false };
+
 export type LiarState = {
+  opts: LiarOpts;
+  table2: Card | null; // seconde carte valide à la table (variante « duo »)
   order: string[];
   out: string[]; // joueurs éliminés ou partis
   hands: Record<string, Card[]>;
@@ -26,7 +32,7 @@ export type LiarState = {
   turn: string;
   lastPlay: { id: string; count: number } | null;
   played: Card[]; // cartes réelles du dernier coup (cachées aux joueurs)
-  guns: Record<string, { shots: number; bullet: number }>;
+  guns: Record<string, { shots: number; bullets: number[] }>; // bullets : chambres chargées (0 à 5)
   reveal: Reveal | null;
   winner: string | null;
   round: number;
@@ -42,7 +48,7 @@ export const shuffled = <T,>(arr: T[], rnd: () => number = Math.random) => {
   return a;
 };
 
-export const buildDeck = (): Card[] => [...Array(6).fill('K'), ...Array(6).fill('Q'), ...Array(6).fill('A'), 'J', 'J'];
+export const buildDeck = (jokers = 2): Card[] => [...Array(6).fill('K'), ...Array(6).fill('Q'), ...Array(6).fill('A'), ...Array(jokers).fill('J')];
 export const aliveOf = (s: Pick<LiarState, 'order' | 'out'>) => s.order.filter((id) => !s.out.includes(id));
 
 export const nextAlive = (s: Pick<LiarState, 'order' | 'out'>, from: string) => {
@@ -58,21 +64,25 @@ export const nextAlive = (s: Pick<LiarState, 'order' | 'out'>, from: string) => 
 // Nouvelle manche : nouvelle carte de la table, 5 cartes chacun, `starter` ouvre le tour
 const startRound = (s: LiarState, starter: string, rnd: () => number): LiarState => {
   const alive = aliveOf(s);
-  let deck = shuffled(buildDeck(), rnd);
+  let deck = shuffled(buildDeck(s.opts.jokers), rnd);
   const hands: Record<string, Card[]> = {};
   for (const id of s.order) hands[id] = [];
+  // Assez de cartes pour tout le monde, même sans jokers
+  const hand = Math.max(1, Math.min(s.opts.hand, Math.floor(deck.length / alive.length)));
   for (const id of alive) {
-    hands[id] = deck.slice(0, HAND);
-    deck = deck.slice(HAND);
+    hands[id] = deck.slice(0, hand);
+    deck = deck.slice(hand);
   }
-  const table = (['K', 'Q', 'A'] as Card[])[Math.floor(rnd() * 3)];
-  return { ...s, hands, table, turn: alive.includes(starter) ? starter : alive[0], lastPlay: null, played: [], reveal: null, round: s.round + 1, log: '' };
+  const types = shuffled(['K', 'Q', 'A'] as Card[], rnd);
+  const table = types[0];
+  const table2 = s.opts.duo ? types[1] : null;
+  return { ...s, hands, table, table2, turn: alive.includes(starter) ? starter : alive[0], lastPlay: null, played: [], reveal: null, round: s.round + 1, log: '' };
 };
 
-export const newGame = (order: string[], rnd: () => number = Math.random): LiarState => {
+export const newGame = (order: string[], opts: LiarOpts = DEFAULT_OPTS, rnd: () => number = Math.random): LiarState => {
   const guns: LiarState['guns'] = {};
-  for (const id of order) guns[id] = { shots: 0, bullet: Math.floor(rnd() * CHAMBERS) };
-  const base: LiarState = { order, out: [], hands: {}, table: 'K', turn: order[0], lastPlay: null, played: [], guns, reveal: null, winner: null, round: 0, log: '' };
+  for (const id of order) guns[id] = { shots: 0, bullets: shuffled([0, 1, 2, 3, 4, 5], rnd).slice(0, Math.max(1, Math.min(5, opts.bullets))) };
+  const base: LiarState = { opts, table2: null, order, out: [], hands: {}, table: 'K', turn: order[0], lastPlay: null, played: [], guns, reveal: null, winner: null, round: 0, log: '' };
   return startRound(base, order[0], rnd);
 };
 
@@ -97,10 +107,10 @@ export const playCards = (s: LiarState, id: string, idxs: number[]): LiarState |
 export const callLiar = (s: LiarState, id: string, until: number): LiarState | null => {
   if (s.winner || s.reveal || s.turn !== id || !s.lastPlay) return null;
   const liar = s.lastPlay.id;
-  const truthful = s.played.every((c) => c === s.table || c === 'J');
+  const truthful = s.played.every((c) => c === s.table || c === s.table2 || c === 'J');
   const loser = truthful ? id : liar;
   const gun = s.guns[loser];
-  const hit = gun.shots === gun.bullet;
+  const hit = gun.bullets.includes(gun.shots);
   const reveal: Reveal = { caller: id, liar, cards: s.played, truthful, loser, hit, chamber: gun.shots + 1, until };
   return { ...s, guns: { ...s.guns, [loser]: { ...gun, shots: gun.shots + 1 } }, reveal };
 };
@@ -131,3 +141,20 @@ export const forfeitPlayer = (s: LiarState, id: string, rnd: () => number = Math
 
 // Le joueur peut-il poser des cartes ? Sinon il doit traiter le précédent de menteur.
 export const mustCallLiar = (s: LiarState, id: string) => (s.hands[id]?.length ?? 0) === 0 && !!s.lastPlay;
+
+// Probabilité (en %) que le prochain tir soit fatal
+export const riskOf = (gun: { shots: number; bullets: number[] }) => {
+  const left = CHAMBERS - gun.shots;
+  if (left <= 0) return 100;
+  return Math.round((100 * gun.bullets.filter((b) => b >= gun.shots).length) / left);
+};
+
+// Coup automatique quand le temps est écoulé : on joue une carte « honnête » si on en a une, sinon une au hasard
+export const autoStep = (s: LiarState, until: number, rnd: () => number = Math.random): LiarState => {
+  const id = s.turn;
+  if (mustCallLiar(s, id)) return callLiar(s, id, until) || s;
+  const hand = s.hands[id] || [];
+  const honest = hand.findIndex((c) => c === s.table || c === s.table2 || c === 'J');
+  const idx = honest >= 0 ? honest : Math.floor(rnd() * hand.length);
+  return playCards(s, id, [idx]) || s;
+};

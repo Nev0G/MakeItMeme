@@ -1,6 +1,13 @@
 // Règles du Uno, en fonctions pures : chaque action renvoie le nouvel état (ou null si elle est interdite).
 // Carte = "<couleur><valeur>" : couleur R/Y/G/B (ou W pour les jokers), valeur 0-9, S (passe), R (inverse), D (+2), W (joker), F (+4).
+// Variantes : taille de la main, cumul des +2/+4, règle 7-0 (échange / rotation des mains), pioche jusqu'à pouvoir jouer
+export type UnoOpts = { hand: number; stack: boolean; swap: boolean; drawUntil: boolean };
+export const DEFAULT_OPTS: UnoOpts = { hand: 7, stack: false, swap: false, drawUntil: false };
+
 export type UnoState = {
+  opts: UnoOpts;
+  pending: number; // cartes à piocher accumulées (cumul des +2 / +4)
+  pendingKind: 'D' | 'F' | null;
   order: string[]; // joueurs, dans l'ordre des tours
   hands: Record<string, string[]>;
   deck: string[]; // pioche (la fin du tableau est le dessus)
@@ -38,6 +45,11 @@ export const shuffled = <T,>(arr: T[], rnd: () => number = Math.random) => {
 
 export const isWild = (card: string) => card[0] === 'W';
 export const canPlay = (card: string, top: string, color: string) => isWild(card) || card[0] === color || card[1] === top[1];
+// Avec le cumul : face à une pénalité, on ne peut répondre que par un +2 / +4 (un +2 se cumule avec un +2 ou un +4, un +4 seulement avec un +4)
+export const canPlayNow = (s: UnoState, card: string) => {
+  if (s.pending > 0 && s.opts.stack) return s.pendingKind === 'D' ? card[1] === 'D' || card[1] === 'F' : card[1] === 'F';
+  return canPlay(card, s.discard[s.discard.length - 1], s.color);
+};
 export const cardPoints = (card: string) => (isWild(card) ? 50 : /\d/.test(card[1]) ? Number(card[1]) : 20);
 
 export const activeOf = (s: UnoState) => s.order.filter((id) => !s.out.includes(id));
@@ -64,27 +76,30 @@ const draw = (s: UnoState, id: string, n: number): UnoState => {
   return { ...s, deck, discard, hands: { ...s.hands, [id]: hand } };
 };
 
-export const deal = (order: string[], rnd: () => number = Math.random): UnoState => {
+export const deal = (order: string[], opts: UnoOpts = DEFAULT_OPTS, rnd: () => number = Math.random): UnoState => {
   let deck = shuffled(buildDeck(), rnd);
   const hands: Record<string, string[]> = {};
   for (const id of order) {
-    hands[id] = deck.slice(-7);
-    deck = deck.slice(0, -7);
+    hands[id] = deck.slice(-opts.hand);
+    deck = deck.slice(0, -opts.hand);
   }
   // La carte de départ est une carte chiffrée
   let k = deck.length - 1;
   while (k > 0 && !/\d/.test(deck[k][1])) k--;
   const start = deck[k];
   deck = [...deck.slice(0, k), ...deck.slice(k + 1)];
-  return { order, hands, deck, discard: [start], color: start[0], dir: 1, turn: order[0], drew: false, out: [], winner: null, log: 'La partie commence !' };
+  return { opts, pending: 0, pendingKind: null, order, hands, deck, discard: [start], color: start[0], dir: 1, turn: order[0], drew: false, out: [], winner: null, log: 'La partie commence !' };
 };
 
-export const playCard = (s: UnoState, id: string, index: number, chosen?: string): UnoState | null => {
+export const playCard = (s: UnoState, id: string, index: number, chosen?: string, target?: string): UnoState | null => {
   if (s.winner || s.turn !== id) return null;
   const hand = s.hands[id];
   const card = hand?.[index];
-  if (!card || !canPlay(card, s.discard[s.discard.length - 1], s.color)) return null;
+  if (!card || !canPlayNow(s, card)) return null;
   if (isWild(card) && !(COLORS as readonly string[]).includes(chosen || '')) return null;
+  const v = card[1];
+  const swapSeven = s.opts.swap && v === '7' && hand.length > 1;
+  if (swapSeven && !(target && target !== id && activeOf(s).includes(target))) return null;
   let next: UnoState = {
     ...s,
     hands: { ...s.hands, [id]: hand.filter((_, i) => i !== index) },
@@ -95,7 +110,18 @@ export const playCard = (s: UnoState, id: string, index: number, chosen?: string
   };
   if (!next.hands[id].length) return { ...next, winner: id, log: 'Plus de cartes !' };
   const act = activeOf(next);
-  const v = card[1];
+
+  // Règle 7-0
+  if (s.opts.swap && v === '7' && target) {
+    const mine = next.hands[id];
+    next = { ...next, hands: { ...next.hands, [id]: next.hands[target], [target]: mine }, log: 'Échange de mains !' };
+  }
+  if (s.opts.swap && v === '0') {
+    const hands = { ...next.hands };
+    act.forEach((pid) => (hands[nextOf(next, pid)] = next.hands[pid]));
+    next = { ...next, hands, log: 'Rotation des mains !' };
+  }
+
   if (v === 'R') {
     if (act.length === 2) {
       next = { ...next, turn: id, log: 'Sens inversé : le joueur rejoue !' };
@@ -103,25 +129,41 @@ export const playCard = (s: UnoState, id: string, index: number, chosen?: string
     }
     next = { ...next, dir: (next.dir * -1) as 1 | -1, log: 'Changement de sens !' };
   }
-  let target = nextOf(next, id);
+  let target2 = nextOf(next, id);
   if (v === 'S') next = { ...next, log: 'Tour passé !' };
-  if (v === 'D') {
-    next = { ...draw(next, target, 2), log: 'Pioche 2 cartes !' };
+  if (v === 'D' || v === 'F') {
+    const n = v === 'D' ? 2 : 4;
+    if (s.opts.stack) {
+      // Cumul : la pénalité grossit et passe au joueur suivant, qui peut la relancer
+      const pending = s.pending + n;
+      return { ...next, pending, pendingKind: v, turn: target2, drew: false, log: `Pénalité : +${pending} !` };
+    }
+    next = { ...draw(next, target2, n), log: `Pioche ${n} cartes !` };
   }
-  if (v === 'F') {
-    next = { ...draw(next, target, 4), log: 'Pioche 4 cartes !' };
-  }
-  if (v === 'S' || v === 'D' || v === 'F') target = nextOf(next, target);
-  return { ...next, turn: target, drew: false };
+  if (v === 'S' || v === 'D' || v === 'F') target2 = nextOf(next, target2);
+  return { ...next, turn: target2, drew: false };
 };
 
 // Piocher une carte. Si elle ne se joue pas, le tour passe tout de suite.
+// Face à une pénalité cumulée, on pioche toute la pénalité et on passe son tour.
 export const drawOne = (s: UnoState, id: string): UnoState | null => {
   if (s.winner || s.turn !== id || s.drew) return null;
-  const next = draw(s, id, 1);
-  const hand = next.hands[id];
-  const got = hand.length > s.hands[id].length ? hand[hand.length - 1] : null;
-  if (got && canPlay(got, next.discard[next.discard.length - 1], next.color)) return { ...next, drew: true, log: '' };
+  if (s.pending > 0) {
+    const next = draw(s, id, s.pending);
+    return { ...next, pending: 0, pendingKind: null, turn: nextOf(next, id), drew: false, log: `${s.pending} cartes piochées !` };
+  }
+  let next = draw(s, id, 1);
+  let hand = next.hands[id];
+  let got = hand.length > s.hands[id].length ? hand[hand.length - 1] : null;
+  const top = () => next.discard[next.discard.length - 1];
+  // Variante : on pioche jusqu'à tomber sur une carte jouable
+  while (s.opts.drawUntil && got && !canPlay(got, top(), next.color) && (next.deck.length || next.discard.length > 1)) {
+    const before = next.hands[id].length;
+    next = draw(next, id, 1);
+    hand = next.hands[id];
+    got = hand.length > before ? hand[hand.length - 1] : null;
+  }
+  if (got && canPlay(got, top(), next.color)) return { ...next, drew: true, log: '' };
   return { ...next, turn: nextOf(next, id), drew: false, log: '' };
 };
 export const passTurn = (s: UnoState, id: string): UnoState | null => {
@@ -138,4 +180,34 @@ export const forfeitPlayer = (s: UnoState, id: string): UnoState => {
   const act = activeOf(next);
   if (act.length <= 1) return { ...next, winner: act[0] || id, log: 'Les autres joueurs sont partis.' };
   return { ...next, turn: wasTurn ? turnNext : s.turn, drew: wasTurn ? false : s.drew };
+};
+
+// Coup automatique quand le temps est écoulé
+export const autoStep = (s: UnoState): UnoState => {
+  const id = s.turn;
+  const hand = s.hands[id] || [];
+  if (s.pending > 0) return drawOne(s, id) || s;
+  const idx = hand.findIndex((c) => canPlayNow(s, c));
+  const pick = (st: UnoState, i: number) => {
+    const card = st.hands[id][i];
+    let color: string | undefined;
+    if (isWild(card)) {
+      const count: Record<string, number> = { R: 0, Y: 0, G: 0, B: 0 };
+      st.hands[id].forEach((c) => !isWild(c) && count[c[0]]++);
+      color = Object.entries(count).sort((a, b) => b[1] - a[1])[0][0];
+    }
+    let target: string | undefined;
+    if (st.opts.swap && card[1] === '7') {
+      target = activeOf(st).filter((x) => x !== id).sort((a, b) => st.hands[a].length - st.hands[b].length)[0];
+    }
+    return playCard(st, id, i, color, target);
+  };
+  if (idx >= 0) return pick(s, idx) || s;
+  const drawn = drawOne(s, id);
+  if (!drawn) return s;
+  if (drawn.drew && drawn.turn === id) {
+    const j = drawn.hands[id].findIndex((c) => canPlayNow(drawn, c));
+    return (j >= 0 ? pick(drawn, j) : passTurn(drawn, id)) || drawn;
+  }
+  return drawn;
 };

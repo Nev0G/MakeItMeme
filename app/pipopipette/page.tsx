@@ -5,10 +5,11 @@ import { RotateCcw, Settings, Crown } from 'lucide-react';
 import { makeId, shuffle, PlayerDot, playSfx, useSoundAndClickFx, fireConfetti, RoomOptions, KickButton, toast, useRefState } from '@/lib/shared';
 import { useGameRoom, GameHome, GameShell, RoomCodeBlock, RulesDialog, WaitingForHost } from '@/lib/gameroom';
 import { GameArt } from '@/lib/art';
+import { ChoiceRow, VariantsPanel, TimerRow, TurnClock, nextDeadline, timerOf } from '@/lib/variants';
 
 const GAME_ID = 'pipopipette';
 
-const DEFAULT_SETTINGS = { visibility: 'private', roomName: '', chatEnabled: true };
+const DEFAULT_SETTINGS = { visibility: 'private', roomName: '', chatEnabled: true, gold: 0, chain: true, timer: 0 };
 const SIZES = [3, 4, 5, 6, 7]; // nombre de carrés par côté
 const INITIAL_P: any = {
   phase: 'lobby', // 'lobby' | 'play' | 'over'
@@ -24,6 +25,9 @@ const INITIAL_P: any = {
   reason: null,
   wins: {},
   last: null, // dernier trait posé : { o, r, c }
+  gold: [], // cases en or (valent 3 points)
+  opts: { gold: 0, chain: true, timer: 0 }, // variantes de la partie en cours
+  deadline: null, // fin du tour (si chronomètre)
 };
 
 const COLORS = ['#fbbf24', '#2dd4bf', '#f43f5e', '#a78bfa'];
@@ -52,6 +56,8 @@ export default function Pipopipette() {
 
   const commitP = (patch: any) => {
     const next = { ...pRef.current, ...patch };
+    // Chaque trait relance le chronomètre
+    next.deadline = next.phase === 'play' && next.turn ? nextDeadline(next.opts?.timer) : null;
     setP(next);
     broadcast('pp', { p: next });
   };
@@ -68,7 +74,8 @@ export default function Pipopipette() {
     }
     return from;
   };
-  const scoresOf = (b: any) => b.order.map((id: string, i: number) => b.boxes.filter((x: number) => x === i + 1).length);
+  // Score pondéré : un carré en or vaut 3 points
+  const scoresOf = (b: any) => b.order.map((_: string, i: number) => b.boxes.reduce((n: number, x: number, k: number) => (x === i + 1 ? n + ((b.gold || []).includes(k) ? 3 : 1) : n), 0));
   const endGame = (winners: string[], reason: string, extra: any = {}) => {
     const wins = { ...pRef.current.wins };
     winners.forEach((id) => (wins[id] = (wins[id] || 0) + 1));
@@ -86,8 +93,11 @@ export default function Pipopipette() {
     g.broadcast('roster', { known: g.knownRef.current });
     absentRef.current = 0;
     const order = shuffle(present.slice(0, 4));
+    const st = g.settingsRef.current;
+    const opts = { gold: Number(st.gold) || 0, chain: st.chain !== false, timer: timerOf(st) };
+    const gold = shuffle(Array.from({ length: size * size }, (_, k) => k)).slice(0, Math.min(opts.gold, Math.floor(size * size / 3)));
     commitP({
-      ...INITIAL_P, phase: 'play', gameId: makeId('g'), size, order, turn: order[0], wins: pRef.current.wins,
+      ...INITIAL_P, phase: 'play', gameId: makeId('g'), size, order, turn: order[0], wins: pRef.current.wins, gold, opts,
       hs: Array((size + 1) * size).fill(0), vs: Array(size * (size + 1)).fill(0), boxes: Array(size * size).fill(0),
     });
   };
@@ -125,7 +135,27 @@ export default function Pipopipette() {
       const best = Math.max(...sc);
       return endGame(b.order.filter((_: string, i: number) => sc[i] === best), 'full', extra);
     }
-    commitP({ ...extra, turn: got ? id : nextTurn(b, id) });
+    commitP({ ...extra, turn: got && b.opts.chain ? id : nextTurn(b, id) });
+  };
+  // Choisit un trait : d'abord celui qui ferme un carré, sinon un qui n'offre pas de 3e côté, sinon au hasard
+  const pickEdge = (b: any): [string, number, number] | null => {
+    const n = b.size;
+    const sides = (br: number, bc: number) => (b.hs[br * n + bc] ? 1 : 0) + (b.hs[(br + 1) * n + bc] ? 1 : 0) + (b.vs[br * (n + 1) + bc] ? 1 : 0) + (b.vs[br * (n + 1) + bc + 1] ? 1 : 0);
+    const free: { e: [string, number, number]; score: number }[] = [];
+    const consider = (o: string, r: number, c: number) => {
+      const adj = o === 'h' ? [[r - 1, c], [r, c]] : [[r, c - 1], [r, c]];
+      let score = 0;
+      adj.forEach(([br, bc]) => {
+        if (br < 0 || br >= n || bc < 0 || bc >= n) return;
+        const k = sides(br, bc);
+        if (k === 3) score += 10;
+        else if (k === 2) score -= 5;
+      });
+      free.push({ e: [o, r, c], score: score + Math.random() });
+    };
+    for (let r = 0; r <= n; r++) for (let c = 0; c < n; c++) if (!b.hs[r * n + c]) consider('h', r, c);
+    for (let r = 0; r < n; r++) for (let c = 0; c <= n; c++) if (!b.vs[r * (n + 1) + c]) consider('v', r, c);
+    return free.sort((a, b2) => b2.score - a.score)[0]?.e ?? null;
   };
   const forfeit = (id: string) => {
     const b = pRef.current;
@@ -141,6 +171,14 @@ export default function Pipopipette() {
     if (!isHostRef.current) return;
     const b = pRef.current;
     if (b.phase !== 'play' || !b.turn) return;
+    // Temps écoulé : trait automatique (ferme un carré si possible, évite d'offrir un 3e côté)
+    if (b.deadline && Date.now() > b.deadline) {
+      const e = pickEdge(b);
+      if (e) {
+        toast(`${nameOf(b.turn)} a été trop lent : trait automatique.`);
+        return handleEdge(b.turn, e[0], e[1], e[2]);
+      }
+    }
     const t = Date.now();
     if (g.playersRef.current.length > 0 && !presentIds().has(b.turn)) {
       absentRef.current = absentRef.current || t;
@@ -219,7 +257,7 @@ export default function Pipopipette() {
             <PlayerDot id={pl.id} avatar={pl.avatar} size="md" />
             <span className="font-bold truncate flex-1">{pl.name}</span>
             {playing && <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: COLORS[i] }} />}
-            {playing && <span title="Carrés" className="text-xs font-bold text-gray-200 shrink-0">◼ {scores[i] ?? 0}</span>}
+            {playing && <span title="Points" className="text-xs font-bold text-gray-200 shrink-0">◼ {scores[i] ?? 0}</span>}
             {isHost && pl.id !== player.id && <KickButton onClick={() => g.extras.kick(pl.id)} />}
             {pl.id === g.hostId && <span className="text-[9px] font-bold text-purple-300 bg-purple-900/50 px-1.5 py-0.5 rounded shrink-0">HOST</span>}
           </div>
@@ -271,6 +309,11 @@ export default function Pipopipette() {
           <h3 className="flex items-center gap-2 text-gray-400 font-bold mb-3 uppercase text-sm"><Settings size={16} /> Paramètres du salon</h3>
           <RoomOptions settings={g.settings} updateSettings={g.updateSettings} isHost={isHost} />
         </div>
+        <VariantsPanel isHost={isHost}>
+          <ChoiceRow label="Carrés en or ★" hint="Quelques carrés valent 3 points : de quoi renverser la partie." value={g.settings.gold ?? 0} options={[{ value: 0, label: 'Aucun' }, { value: 3, label: '3' }, { value: 6, label: '6' }, { value: 9, label: '9' }]} onChange={(v) => g.updateSettings({ gold: Number(v) })} disabled={!isHost} />
+          <ChoiceRow label="Rejouer après un carré" hint="Désactivé, chaque joueur ne pose qu’un seul trait par tour, même s’il ferme un carré." value={g.settings.chain === false ? 'off' : 'on'} options={[{ value: 'on', label: 'Oui (classique)' }, { value: 'off', label: 'Non' }]} onChange={(v) => g.updateSettings({ chain: v === 'on' })} disabled={!isHost} />
+          <TimerRow value={timerOf(g.settings)} onChange={(v) => g.updateSettings({ timer: v })} disabled={!isHost} />
+        </VariantsPanel>
         {isHost ? (
           <button onClick={startGame} disabled={!ready} className="w-full bg-purple-300 hover:bg-purple-200 !text-gray-950 shadow-md disabled:opacity-50 active:scale-95 font-black py-4 px-6 rounded-lg text-lg transition">
             {ready ? 'Lancer la partie !' : 'Il faut 2 joueurs minimum…'}
@@ -313,6 +356,16 @@ export default function Pipopipette() {
   };
   const board = (
     <svg viewBox={`0 0 ${W} ${W}`} className="w-full max-w-[36rem] mx-auto rounded-xl bg-[#1a1a26] select-none" role="img" aria-label="Plateau de pipopipette">
+      {(p.gold || []).map((k: number) => {
+        const r = Math.floor(k / n);
+        const c = k % n;
+        return (
+          <g key={`g${k}`}>
+            <rect x={M + c * S + 4} y={M + r * S + 4} width={S - 8} height={S - 8} rx="6" fill="#fbbf24" fillOpacity={p.boxes[k] ? 0 : 0.18} stroke="#fbbf24" strokeOpacity="0.55" strokeDasharray="3 3" />
+            {!p.boxes[k] && <text x={M + c * S + S / 2} y={M + r * S + S / 2 + 7} textAnchor="middle" fontSize="20" fill="#fbbf24">★</text>}
+          </g>
+        );
+      })}
       {p.boxes.map((v: number, k: number) => {
         if (!v) return null;
         const r = Math.floor(k / n);
@@ -322,6 +375,7 @@ export default function Pipopipette() {
           <g key={`b${k}`}>
             <rect x={M + c * S + 4} y={M + r * S + 4} width={S - 8} height={S - 8} rx="6" fill={COLORS[v - 1]} fillOpacity="0.75" />
             <text x={M + c * S + S / 2} y={M + r * S + S / 2 + 7} textAnchor="middle" fontSize="20" fontWeight="bold" fill="#1b130c">{(nameOf(id) || '?').slice(0, 1).toUpperCase()}</text>
+            {(p.gold || []).includes(k) && <text x={M + c * S + S - 9} y={M + r * S + 15} textAnchor="end" fontSize="11" fontWeight="bold" fill="#1b130c">+3</text>}
           </g>
         );
       })}
@@ -339,7 +393,7 @@ export default function Pipopipette() {
       <div className="flex-1 min-h-0 md:overflow-y-auto w-full max-w-3xl mx-auto">
         <div className="rounded-xl px-4 py-2.5 mb-3 flex items-center justify-between gap-3 flex-wrap text-white" style={{ backgroundColor: p.turn ? `${colorOf(p.turn)}cc` : '#444' }}>
           <span className="font-heading text-lg">{myTurn ? '👉 À toi de jouer !' : `Tour de ${turnName}`}</span>
-          <span className="text-sm font-bold">{myIdx >= 0 ? `Tes carrés : ${scores[myIdx] ?? 0}` : 'Tu regardes la partie 👀'}</span>
+          <span className="text-sm font-bold flex items-center gap-2">{myIdx >= 0 ? `Tes points : ${scores[myIdx] ?? 0}` : 'Tu regardes la partie 👀'}<TurnClock deadline={p.deadline} now={now} /></span>
         </div>
         {myTurn && <p className="text-xs text-gray-400 text-center mb-2">Clique entre deux points pour tracer un trait. Un carré fermé = tu rejoues !</p>}
         {board}

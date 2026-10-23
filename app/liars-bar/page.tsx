@@ -4,17 +4,20 @@ import React, { useState, useEffect, useRef } from 'react';
 import { RotateCcw, Settings, Crown, Skull, Megaphone } from 'lucide-react';
 import { makeId, shuffle, PlayerDot, playSfx, useSoundAndClickFx, fireConfetti, RoomOptions, KickButton, toast, useRefState } from '@/lib/shared';
 import { useGameRoom, GameHome, GameShell, RoomCodeBlock, RulesDialog, WaitingForHost } from '@/lib/gameroom';
-import { newGame, playCards, callLiar, afterReveal, forfeitPlayer, mustCallLiar, aliveOf, CARD_NAME, CHAMBERS, type LiarState, type Card } from '@/lib/liarsbar';
+import { newGame, playCards, callLiar, afterReveal, forfeitPlayer, mustCallLiar, aliveOf, autoStep, riskOf, CARD_NAME, CHAMBERS, type LiarState, type Card } from '@/lib/liarsbar';
+import { ChoiceRow, VariantsPanel, TimerRow, TurnClock, nextDeadline, timerOf } from '@/lib/variants';
 import { GameArt } from '@/lib/art';
 
 const GAME_ID = 'liars-bar';
 
-const DEFAULT_SETTINGS = { visibility: 'private', roomName: '', chatEnabled: true };
+const DEFAULT_SETTINGS = { visibility: 'private', roomName: '', chatEnabled: true, bullets: 1, jokers: 2, hand: 5, duo: false, timer: 0 };
 const INITIAL_L: any = {
   phase: 'lobby', // 'lobby' | 'play' | 'over'
   gameId: null,
   game: null as LiarState | null,
   wins: {},
+  timer: 0, // temps par tour (secondes, 0 = illimité)
+  deadline: null as number | null,
 };
 
 const FACE: Record<string, { bg: string; fg: string; symbol: string }> = {
@@ -31,6 +34,7 @@ const RULES_STEPS = [
   { title: 'Menteur !', text: 'Au lieu de jouer, tu peux traiter le joueur précédent de menteur. Ses cartes sont retournées. Les Jokers comptent comme n’importe quelle carte.' },
   { title: 'La roulette', text: 'Si le joueur mentait, c’est lui qui tire sur son revolver. S’il disait vrai, c’est toi. 6 chambres, 1 balle : chaque tir sans effet augmente le risque suivant.' },
   { title: 'Plus de cartes ?', text: 'Si ta main est vide, tu dois traiter le joueur précédent de menteur.' },
+  { title: 'Variantes', text: 'Le host peut changer le nombre de balles (1 à 3), le nombre de Jokers, la taille de la main, accepter deux types de cartes à la table, et fixer un temps par tour.' },
   { title: 'Dernier debout', text: 'Une balle et tu es éliminé. Le dernier joueur en vie remporte la partie (2 à 4 joueurs).' },
 ];
 
@@ -73,6 +77,8 @@ export default function LiarsBar() {
 
   const commitL = (patch: any) => {
     const next = { ...lRef.current, ...patch };
+    // Chaque action relance le chronomètre (pas pendant l'épreuve du revolver)
+    next.deadline = next.phase === 'play' && next.game && !next.game.reveal && !next.game.winner ? nextDeadline(next.timer) : null;
     setL(next);
     broadcast('lb', { l: next });
   };
@@ -98,7 +104,14 @@ export default function LiarsBar() {
     }
     g.broadcast('roster', { known: g.knownRef.current });
     absentRef.current = 0;
-    commitL({ phase: 'play', gameId: makeId('g'), game: newGame(shuffle(ids)), wins: lRef.current.wins });
+    const st = g.settingsRef.current;
+    const opts = {
+      bullets: Math.min(3, Math.max(1, Number(st.bullets) || 1)),
+      jokers: [0, 2, 4].includes(Number(st.jokers)) ? Number(st.jokers) : 2,
+      hand: Math.min(5, Math.max(3, Number(st.hand) || 5)),
+      duo: !!st.duo,
+    };
+    commitL({ phase: 'play', gameId: makeId('g'), game: newGame(shuffle(ids), opts), wins: lRef.current.wins, timer: timerOf(st) });
   };
   const backToLobby = () => commitL({ phase: 'lobby', game: null, gameId: null });
 
@@ -121,6 +134,11 @@ export default function LiarsBar() {
         applyGame(next);
       }
       return;
+    }
+    // Temps écoulé : coup automatique
+    if (b.deadline && Date.now() > b.deadline) {
+      toast(`${nameOf(game.turn)} a été trop lent : coup automatique.`);
+      return applyGame(autoStep(game, Date.now() + 7500));
     }
     const t = Date.now();
     if (g.playersRef.current.length > 0 && !presentIds().has(game.turn)) {
@@ -257,6 +275,13 @@ export default function LiarsBar() {
           <h3 className="flex items-center gap-2 text-gray-400 font-bold mb-3 uppercase text-sm"><Settings size={16} /> Paramètres du salon</h3>
           <RoomOptions settings={g.settings} updateSettings={g.updateSettings} isHost={isHost} />
         </div>
+        <VariantsPanel isHost={isHost}>
+          <ChoiceRow label="Balles dans le revolver" hint="Plus il y a de balles, plus chaque tir est dangereux." value={g.settings.bullets ?? 1} options={[{ value: 1, label: '1 (classique)' }, { value: 2, label: '2' }, { value: 3, label: '3' }]} onChange={(v) => g.updateSettings({ bullets: Number(v) })} disabled={!isHost} />
+          <ChoiceRow label="Jokers dans le paquet" hint="Un Joker compte comme n’importe quelle carte : sans lui, bluffer est plus risqué." value={g.settings.jokers ?? 2} options={[{ value: 0, label: 'Aucun' }, { value: 2, label: '2 (classique)' }, { value: 4, label: '4' }]} onChange={(v) => g.updateSettings({ jokers: Number(v) })} disabled={!isHost} />
+          <ChoiceRow label="Cartes en main" value={g.settings.hand ?? 5} options={[{ value: 3, label: '3 (rapide)' }, { value: 4, label: '4' }, { value: 5, label: '5' }]} onChange={(v) => g.updateSettings({ hand: Number(v) })} disabled={!isHost} />
+          <ChoiceRow label="Deux cartes à la table" hint="Chaque manche accepte deux types de cartes (ex. Roi ou Dame) : plus facile de dire vrai, plus dur de démasquer." value={g.settings.duo ? 'on' : 'off'} options={[{ value: 'off', label: 'Non' }, { value: 'on', label: 'Oui' }]} onChange={(v) => g.updateSettings({ duo: v === 'on' })} disabled={!isHost} />
+          <TimerRow value={timerOf(g.settings)} onChange={(v) => g.updateSettings({ timer: v })} disabled={!isHost} hint="Si le temps est écoulé, une carte est posée (ou « Menteur ! » si ta main est vide)." />
+        </VariantsPanel>
         {isHost ? (
           <button onClick={startGame} disabled={!ready} className="w-full bg-purple-300 hover:bg-purple-200 !text-gray-950 shadow-md disabled:opacity-50 active:scale-95 font-black py-4 px-6 rounded-lg text-lg transition">
             {ready ? 'Lancer la partie !' : 'Il faut 2 joueurs minimum…'}
@@ -298,7 +323,7 @@ export default function LiarsBar() {
                 </div>
                 <div className="mt-2 flex items-center justify-center gap-2 text-[10px] text-gray-400">
                   <Cylinder shots={gun.shots} />
-                  <span>{Math.round(100 / (CHAMBERS - gun.shots))}%</span>
+                  <span title="Risque au prochain tir">{riskOf(gun)}%</span>
                 </div>
               </>
             )}
@@ -313,9 +338,13 @@ export default function LiarsBar() {
       <p className="eyebrow">Manche {game.round}</p>
       <div className="flex items-center gap-5">
         <div className="text-center">
-          <p className="text-xs text-gray-400 mb-1">Carte de la table</p>
-          <div className="w-20 h-28 rounded-xl border-2 border-white flex items-center justify-center font-heading font-black text-lg shadow-xl" style={{ backgroundColor: FACE[game.table].bg, color: FACE[game.table].fg }}>
-            {TABLE_LABEL[game.table]}
+          <p className="text-xs text-gray-400 mb-1">{game.table2 ? 'Cartes de la table' : 'Carte de la table'}</p>
+          <div className="flex gap-2">
+            {[game.table, game.table2].filter(Boolean).map((t) => (
+              <div key={t as string} className="w-20 h-28 rounded-xl border-2 border-white flex items-center justify-center font-heading font-black text-lg shadow-xl" style={{ backgroundColor: FACE[t as string].bg, color: FACE[t as string].fg }}>
+                {TABLE_LABEL[t as string]}
+              </div>
+            ))}
           </div>
         </div>
         {game.lastPlay && (
@@ -330,6 +359,7 @@ export default function LiarsBar() {
       <p className="text-sm font-bold" aria-live="polite">
         {rv ? 'Vérification des cartes…' : myTurn ? '👉 À toi de jouer !' : `Tour de ${turnName}`}
       </p>
+      {!rv && <TurnClock deadline={l.deadline} now={now} />}
     </div>
   );
 
@@ -344,7 +374,7 @@ export default function LiarsBar() {
         <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
           {!forced && (
             <button onClick={doPlay} disabled={!sel.length} className="tag-dark whitespace-nowrap px-5 py-2.5 disabled:opacity-40 active:scale-95 cursor-pointer">
-              Poser {sel.length || ''} carte{sel.length > 1 ? 's' : ''} · « {TABLE_LABEL[game.table]} »
+              Poser {sel.length || ''} carte{sel.length > 1 ? 's' : ''} · « {TABLE_LABEL[game.table]}{game.table2 ? ` / ${TABLE_LABEL[game.table2]}` : ''} »
             </button>
           )}
           {game.lastPlay && (
@@ -365,7 +395,7 @@ export default function LiarsBar() {
         <p className="font-heading text-xl">
           {nameOf(rv.caller)} traite {nameOf(rv.liar)} de menteur !
         </p>
-        <p className="text-xs text-gray-400 mt-1">Carte de la table : <b>{CARD_NAME[game.table]}</b></p>
+        <p className="text-xs text-gray-400 mt-1">Table : <b>{CARD_NAME[game.table]}{game.table2 ? ` ou ${CARD_NAME[game.table2]}` : ''}</b></p>
         <div className="flex justify-center gap-2 my-5">
           {rv.cards.map((c, i) => (
             <div key={i} style={{ opacity: 0, animation: `fadein 0.35s ease ${0.5 + i * 0.4}s forwards` }}>

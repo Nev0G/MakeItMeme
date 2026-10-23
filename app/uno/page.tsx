@@ -4,17 +4,20 @@ import React, { useState, useEffect, useRef } from 'react';
 import { RotateCcw, Settings, Crown, Hand, ArrowRightLeft } from 'lucide-react';
 import { makeId, PlayerDot, playSfx, useSoundAndClickFx, fireConfetti, RoomOptions, KickButton, toast, useRefState } from '@/lib/shared';
 import { useGameRoom, GameHome, GameShell, RoomCodeBlock, RulesDialog, WaitingForHost } from '@/lib/gameroom';
-import { deal, playCard, drawOne, passTurn, forfeitPlayer, canPlay, isWild, shuffled, COLORS, COLOR_NAME, type UnoState } from '@/lib/uno';
+import { deal, playCard, drawOne, passTurn, forfeitPlayer, canPlay, canPlayNow, autoStep, isWild, shuffled, COLORS, COLOR_NAME, type UnoState } from '@/lib/uno';
+import { ChoiceRow, VariantsPanel, TimerRow, TurnClock, nextDeadline, timerOf } from '@/lib/variants';
 import { GameArt } from '@/lib/art';
 
 const GAME_ID = 'uno';
 
-const DEFAULT_SETTINGS = { visibility: 'private', roomName: '', chatEnabled: true };
+const DEFAULT_SETTINGS = { visibility: 'private', roomName: '', chatEnabled: true, hand: 7, stack: false, swap: false, drawUntil: false, timer: 0 };
 const INITIAL_U: any = {
   phase: 'lobby', // 'lobby' | 'play' | 'over'
   gameId: null,
   game: null as UnoState | null,
   wins: {},
+  timer: 0, // temps par tour (secondes, 0 = illimité)
+  deadline: null as number | null,
 };
 
 const BG: Record<string, string> = { R: '#dc2626', Y: '#eab308', G: '#16a34a', B: '#2563eb', W: '#1f2937' };
@@ -27,6 +30,7 @@ const RULES_STEPS = [
   { title: 'Cartes spéciales', text: '⊘ fait passer le tour du suivant, ⇄ inverse le sens (à 2 joueurs, tu rejoues), +2 et +4 font piocher le suivant qui passe son tour. Les jokers ★ et +4 te laissent choisir la couleur.' },
   { title: 'Rien à jouer ?', text: 'Pioche une carte : si elle se joue, tu peux la poser tout de suite, sinon tu passes ton tour.' },
   { title: 'Dernière carte', text: 'Quand il ne te reste qu’une carte, « UNO ! » est annoncé automatiquement à tout le salon.' },
+  { title: 'Variantes', text: 'Le host peut changer le nombre de cartes de départ, autoriser le cumul des +2 / +4, activer la règle 7-0 (échange et rotation des mains), piocher jusqu’à pouvoir jouer, et fixer un temps par tour.' },
 ];
 
 const UnoCard = ({ card, playable = false, onClick, small = false, hidden = false }: { card?: string; playable?: boolean; onClick?: () => void; small?: boolean; hidden?: boolean }) => {
@@ -53,6 +57,7 @@ const UnoCard = ({ card, playable = false, onClick, small = false, hidden = fals
 export default function Uno() {
   const [u, setU, uRef] = useRefState(INITIAL_U);
   const [picking, setPicking] = useState<number | null>(null); // carte joker en attente d'une couleur
+  const [swapFor, setSwapFor] = useState<number | null>(null); // carte 7 en attente d'un joueur avec qui échanger
   const [showRules, setShowRules] = useState(false);
   const cbRef = useRef<any>({});
   const absentRef = useRef(0);
@@ -67,6 +72,8 @@ export default function Uno() {
 
   const commitU = (patch: any) => {
     const next = { ...uRef.current, ...patch };
+    // Chaque action relance le chronomètre
+    next.deadline = next.phase === 'play' && next.game && !next.game.winner ? nextDeadline(next.timer) : null;
     setU(next);
     broadcast('uno', { u: next });
   };
@@ -92,11 +99,13 @@ export default function Uno() {
     }
     g.broadcast('roster', { known: g.knownRef.current });
     absentRef.current = 0;
-    commitU({ phase: 'play', gameId: makeId('g'), game: deal(shuffled(ids)), wins: uRef.current.wins });
+    const st = g.settingsRef.current;
+    const opts = { hand: Math.min(10, Math.max(3, Number(st.hand) || 7)), stack: !!st.stack, swap: !!st.swap, drawUntil: !!st.drawUntil };
+    commitU({ phase: 'play', gameId: makeId('g'), game: deal(shuffled(ids), opts), wins: uRef.current.wins, timer: timerOf(st) });
   };
   const backToLobby = () => commitU({ phase: 'lobby', game: null, gameId: null });
 
-  const onPlay = (id: string, index: number, color?: string) => uRef.current.phase === 'play' && applyGame(playCard(uRef.current.game, id, index, color));
+  const onPlay = (id: string, index: number, color?: string, target?: string) => uRef.current.phase === 'play' && applyGame(playCard(uRef.current.game, id, index, color, target));
   const onDraw = (id: string) => uRef.current.phase === 'play' && applyGame(drawOne(uRef.current.game, id));
   const onPass = (id: string) => uRef.current.phase === 'play' && applyGame(passTurn(uRef.current.game, id));
   const forfeit = (id: string) => uRef.current.phase === 'play' && applyGame(forfeitPlayer(uRef.current.game, id));
@@ -106,6 +115,11 @@ export default function Uno() {
     if (!isHostRef.current) return;
     const b = uRef.current;
     if (b.phase !== 'play' || !b.game) return;
+    // Temps écoulé : coup automatique
+    if (b.deadline && Date.now() > b.deadline) {
+      toast(`${nameOf(b.game.turn)} a été trop lent : coup automatique.`);
+      return applyGame(autoStep(b.game));
+    }
     const t = Date.now();
     const turn = b.game.turn;
     if (g.playersRef.current.length > 0 && !presentIds().has(turn)) {
@@ -125,7 +139,7 @@ export default function Uno() {
   cbRef.current = {
     attach: (ch: any) => {
       ch.on('broadcast', { event: 'uno' }, ({ payload }: any) => setU(payload.u));
-      ch.on('broadcast', { event: 'uno_play' }, ({ payload }: any) => isHostRef.current && onPlay(payload?.id, payload?.index, payload?.color));
+      ch.on('broadcast', { event: 'uno_play' }, ({ payload }: any) => isHostRef.current && onPlay(payload?.id, payload?.index, payload?.color, payload?.target));
       ch.on('broadcast', { event: 'uno_draw' }, ({ payload }: any) => isHostRef.current && onDraw(payload?.id));
       ch.on('broadcast', { event: 'uno_pass' }, ({ payload }: any) => isHostRef.current && onPass(payload?.id));
       ch.on('broadcast', { event: 'uno_quit' }, ({ payload }: any) => isHostRef.current && forfeit(payload?.id));
@@ -134,6 +148,7 @@ export default function Uno() {
     reset: () => {
       setU(INITIAL_U);
       setPicking(null);
+      setSwapFor(null);
       absentRef.current = 0;
     },
   };
@@ -149,15 +164,17 @@ export default function Uno() {
   const inGame = !!game && game.order.includes(player.id) && !game.out.includes(player.id);
   const myTurn = u.phase === 'play' && !!game && game.turn === player.id;
 
-  const play = (index: number, color?: string) => {
-    send('uno_play', () => onPlay(player.id, index, color), { index, color });
+  const play = (index: number, color?: string, target?: string) => {
+    send('uno_play', () => onPlay(player.id, index, color, target), { index, color, target });
     setPicking(null);
+    setSwapFor(null);
   };
   const clickCard = (index: number) => {
     if (!myTurn || !game) return;
     const card = myHand[index];
-    if (!canPlay(card, top, game.color)) return;
+    if (!canPlayNow(game, card)) return;
     if (isWild(card)) setPicking(index);
+    else if (game.opts.swap && card[1] === '7' && myHand.length > 1) setSwapFor(index);
     else play(index);
   };
   const leaveGame = () => {
@@ -249,6 +266,13 @@ export default function Uno() {
           <h3 className="flex items-center gap-2 text-gray-400 font-bold mb-3 uppercase text-sm"><Settings size={16} /> Paramètres du salon</h3>
           <RoomOptions settings={g.settings} updateSettings={g.updateSettings} isHost={isHost} />
         </div>
+        <VariantsPanel isHost={isHost}>
+          <ChoiceRow label="Cartes au départ" value={g.settings.hand ?? 7} options={[{ value: 3, label: '3 (express)' }, { value: 5, label: '5' }, { value: 7, label: '7' }, { value: 10, label: '10' }]} onChange={(v) => g.updateSettings({ hand: Number(v) })} disabled={!isHost} />
+          <ChoiceRow label="Cumul des +2 / +4" hint="Face à un +2, on peut répondre par un +2 (ou +4) : la pénalité grossit jusqu’à celui qui ne peut plus répondre." value={g.settings.stack ? 'on' : 'off'} options={[{ value: 'off', label: 'Non' }, { value: 'on', label: 'Oui' }]} onChange={(v) => g.updateSettings({ stack: v === 'on' })} disabled={!isHost} />
+          <ChoiceRow label="Règle 7-0" hint="Un 7 échange ta main avec un joueur de ton choix, un 0 fait tourner toutes les mains." value={g.settings.swap ? 'on' : 'off'} options={[{ value: 'off', label: 'Non' }, { value: 'on', label: 'Oui' }]} onChange={(v) => g.updateSettings({ swap: v === 'on' })} disabled={!isHost} />
+          <ChoiceRow label="Pioche" hint="« Jusqu’à pouvoir jouer » : tu pioches tant que la carte ne se joue pas." value={g.settings.drawUntil ? 'on' : 'off'} options={[{ value: 'off', label: 'Une carte' }, { value: 'on', label: 'Jusqu’à pouvoir jouer' }]} onChange={(v) => g.updateSettings({ drawUntil: v === 'on' })} disabled={!isHost} />
+          <TimerRow value={timerOf(g.settings)} onChange={(v) => g.updateSettings({ timer: v })} disabled={!isHost} />
+        </VariantsPanel>
         {isHost ? (
           <button onClick={startGame} disabled={!ready} className="w-full bg-purple-300 hover:bg-purple-200 !text-gray-950 shadow-md disabled:opacity-50 active:scale-95 font-black py-4 px-6 rounded-lg text-lg transition">
             {ready ? 'Lancer la partie !' : 'Il faut 2 joueurs minimum…'}
@@ -299,14 +323,16 @@ export default function Uno() {
             <ArrowRightLeft size={16} className={`text-gray-400 ${game.dir === -1 ? '-scale-x-100' : ''}`} aria-label="Sens du jeu" />
           </div>
         </div>
-        <p className="text-sm font-bold h-5">
+        <p className="text-sm font-bold min-h-5 flex flex-wrap items-center justify-center gap-2">
+          <TurnClock deadline={u.deadline} now={now} />
           {myTurn ? '👉 À toi de jouer !' : `Tour de ${nameOf(game.turn)}`}
           {game.log ? <span className="text-gray-400 font-normal"> · {game.log}</span> : null}
         </p>
         {myTurn && game.drew && (
           <button onClick={() => send('uno_pass', () => onPass(player.id), {})} className="flex items-center gap-2 rounded-full border border-gray-600 px-4 py-1.5 text-sm font-bold hover:bg-white/10 active:scale-95 transition cursor-pointer"><Hand size={15} /> Passer mon tour</button>
         )}
-        {canDrawNow && !myHand.some((c) => canPlay(c, top, game.color)) && <p className="text-xs text-gray-400">Aucune carte jouable : pioche !</p>}
+        {canDrawNow && game.pending > 0 && <p className="text-xs text-red-400 font-bold">Pénalité de {game.pending} cartes : relance avec un {game.pendingKind === 'F' ? '+4' : '+2 ou +4'}, ou pioche.</p>}
+        {canDrawNow && game.pending === 0 && !myHand.some((c) => canPlayNow(game, c)) && <p className="text-xs text-gray-400">Aucune carte jouable : pioche !</p>}
       </div>
 
       {/* Ma main */}
@@ -315,12 +341,29 @@ export default function Uno() {
           <p className="eyebrow mb-3 text-center">Ta main · {myHand.length} carte{myHand.length > 1 ? 's' : ''}</p>
           <div className="flex flex-wrap justify-center gap-2 sm:gap-2.5">
             {sorted.map(({ card, i }) => (
-              <UnoCard key={`${card}-${i}`} card={card} onClick={() => clickCard(i)} playable={myTurn && canPlay(card, top, game.color)} />
+              <UnoCard key={`${card}-${i}`} card={card} onClick={() => clickCard(i)} playable={myTurn && canPlayNow(game, card)} />
             ))}
           </div>
         </div>
       ) : (
         <p className="text-center text-sm text-gray-400">Tu regardes la partie 👀</p>
+      )}
+
+      {swapFor !== null && game && (
+        <div className="fixed inset-0 z-[950] bg-black/70 flex items-center justify-center p-4" onClick={() => setSwapFor(null)}>
+          <div onClick={(e) => e.stopPropagation()} className="paper p-6 text-center animate-rise w-full max-w-xs">
+            <p className="font-heading text-xl mb-1">7 : échange de mains</p>
+            <p className="text-xs text-gray-400 mb-4">Avec qui veux-tu échanger ta main ?</p>
+            <div className="flex flex-col gap-2">
+              {game.order.filter((id) => id !== player.id && !game.out.includes(id)).map((id) => (
+                <button key={id} data-sfx="off" onClick={() => play(swapFor, undefined, id)} className="flex items-center gap-2 rounded-xl border border-gray-700 px-3 py-2 hover:bg-white/10 active:scale-95 transition cursor-pointer">
+                  <PlayerDot id={id} avatar={avatarOf(id)} /> <span className="font-bold flex-1 text-left truncate">{nameOf(id)}</span>
+                  <span className="text-xs text-gray-300">🃏 {game.hands[id]?.length ?? 0}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
 
       {picking !== null && (

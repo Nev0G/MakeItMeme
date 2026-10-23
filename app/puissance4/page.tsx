@@ -4,12 +4,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { RotateCcw, Settings, Crown } from 'lucide-react';
 import { makeId, shuffle, PlayerDot, playSfx, useSoundAndClickFx, fireConfetti, RoomOptions, KickButton, toast, useRefState } from '@/lib/shared';
 import { useGameRoom, GameHome, GameShell, RoomCodeBlock, RulesDialog, WaitingForHost } from '@/lib/gameroom';
-import { COLS, ROWS, emptyBoard, dropRow, winLine, isFull } from '@/lib/connect4';
+import { SIZES, dimsOf, emptyBoard, dropRow, winLine, winAny, isFull, popOut, autoColumn } from '@/lib/connect4';
+import { ChoiceRow, VariantsPanel, TimerRow, TurnClock, nextDeadline, timerOf } from '@/lib/variants';
 import { GameArt } from '@/lib/art';
 
 const GAME_ID = 'puissance4';
 
-const DEFAULT_SETTINGS = { visibility: 'private', roomName: '', chatEnabled: true };
+const DEFAULT_SETTINGS = { visibility: 'private', roomName: '', chatEnabled: true, size: 'classic', pop: false, timer: 0 };
 const INITIAL_C: any = {
   phase: 'lobby', // 'lobby' | 'play' | 'over'
   gameId: null,
@@ -22,6 +23,8 @@ const INITIAL_C: any = {
   last: -1, // dernière case jouée
   wins: {},
   started: 0, // nombre de parties jouées (alterne le joueur qui commence)
+  opts: { size: 'classic', pop: false, timer: 0 }, // variantes de la partie en cours
+  deadline: null, // fin du tour (si chronomètre)
 };
 
 const DISC = ['', '#ef4444', '#fbbf24'];
@@ -32,6 +35,7 @@ const RULES_STEPS = [
   { title: 'Fais tomber un jeton', text: 'À ton tour, clique sur une colonne : le jeton tombe tout en bas, ou sur le dernier jeton posé.' },
   { title: 'Aligne quatre jetons', text: 'Le premier qui aligne 4 jetons de sa couleur (horizontalement, verticalement ou en diagonale) gagne.' },
   { title: 'Match nul', text: 'Si la grille est pleine sans alignement, personne ne gagne.' },
+  { title: 'Variantes', text: 'Le host peut choisir la taille de la grille (et le nombre de jetons à aligner), activer le Pop-out (retirer un de tes jetons de la rangée du bas, les autres descendent) et fixer un temps par tour.' },
 ];
 
 export default function Puissance4() {
@@ -51,6 +55,8 @@ export default function Puissance4() {
 
   const commitC = (patch: any) => {
     const next = { ...cRef.current, ...patch };
+    // Chaque coup relance le chronomètre
+    next.deadline = next.phase === 'play' && next.turn ? nextDeadline(next.opts?.timer) : null;
     setC(next);
     broadcast('c4', { c: next });
   };
@@ -77,22 +83,40 @@ export default function Puissance4() {
     if (b.gameId && keep.length === 2) order = [order[1], order[0]];
     g.broadcast('roster', { known: g.knownRef.current });
     absentRef.current = 0;
-    commitC({ ...INITIAL_C, phase: 'play', gameId: makeId('g'), order, board: emptyBoard(), turn: order[0], wins: b.wins });
+    const st = g.settingsRef.current;
+    const opts = { size: SIZES[st.size] ? st.size : 'classic', pop: !!st.pop, timer: timerOf(st) };
+    commitC({ ...INITIAL_C, phase: 'play', gameId: makeId('g'), order, board: emptyBoard(dimsOf(opts.size)), turn: order[0], wins: b.wins, opts });
   };
   const backToLobby = () => commitC({ ...INITIAL_C, wins: cRef.current.wins });
 
   const handleDrop = (id: string, col: number) => {
     const b = cRef.current;
     if (b.phase !== 'play' || b.turn !== id) return;
-    const row = dropRow(b.board, col);
+    const d = dimsOf(b.opts.size);
+    const row = dropRow(b.board, col, d);
     if (row < 0) return;
     const me = b.order.indexOf(id) + 1;
     const board = [...b.board];
-    board[row * COLS + col] = me;
-    const extra = { board, last: row * COLS + col };
-    const line = winLine(board, row, col);
+    board[row * d.cols + col] = me;
+    const extra = { board, last: row * d.cols + col };
+    const line = winLine(board, row, col, d);
     if (line) return endGame(id, 'four', { ...extra, line });
     if (isFull(board)) return endGame(null, 'draw', extra);
+    commitC({ ...extra, turn: b.order[me % 2] });
+  };
+  // Pop-out : retire son propre jeton de la rangée du bas
+  const handlePop = (id: string, col: number) => {
+    const b = cRef.current;
+    if (b.phase !== 'play' || b.turn !== id || !b.opts.pop) return;
+    const d = dimsOf(b.opts.size);
+    const me = b.order.indexOf(id) + 1;
+    const board = popOut(b.board, col, me, d);
+    if (!board) return;
+    const extra = { board, last: -1 };
+    const mine = winAny(board, me, d);
+    const theirs = winAny(board, 3 - me, d);
+    if (mine) return endGame(id, 'four', { ...extra, line: mine });
+    if (theirs) return endGame(b.order[2 - me], 'four', { ...extra, line: theirs });
     commitC({ ...extra, turn: b.order[me % 2] });
   };
   const forfeit = (id: string) => {
@@ -106,6 +130,14 @@ export default function Puissance4() {
     if (!isHostRef.current) return;
     const b = cRef.current;
     if (b.phase !== 'play' || !b.turn) return;
+    // Temps écoulé : coup automatique
+    if (b.deadline && Date.now() > b.deadline) {
+      const col = autoColumn(b.board, dimsOf(b.opts.size));
+      if (col >= 0) {
+        toast(`${nameOf(b.turn)} a été trop lent : coup automatique.`);
+        return handleDrop(b.turn, col);
+      }
+    }
     const t = Date.now();
     if (g.playersRef.current.length > 0 && !presentIds().has(b.turn)) {
       absentRef.current = absentRef.current || t;
@@ -125,6 +157,7 @@ export default function Puissance4() {
     attach: (ch: any) => {
       ch.on('broadcast', { event: 'c4' }, ({ payload }: any) => setC(payload.c));
       ch.on('broadcast', { event: 'c4_drop' }, ({ payload }: any) => isHostRef.current && handleDrop(payload?.id, payload?.col));
+      ch.on('broadcast', { event: 'c4_pop' }, ({ payload }: any) => isHostRef.current && handlePop(payload?.id, payload?.col));
       ch.on('broadcast', { event: 'c4_quit' }, ({ payload }: any) => isHostRef.current && forfeit(payload?.id));
     },
     hostSync: (ch: any) => ch.send({ type: 'broadcast', event: 'c4', payload: { c: cRef.current } }),
@@ -142,11 +175,17 @@ export default function Puissance4() {
   const phase = room ? c.phase : 'home';
   const myTurn = c.phase === 'play' && c.turn === player.id;
   const myIdx = c.order.indexOf(player.id);
-  const board: number[] = c.board.length ? c.board : emptyBoard();
+  const opts = c.phase === 'lobby' ? { size: g.settings.size, pop: !!g.settings.pop, timer: timerOf(g.settings) } : c.opts;
+  const dims = dimsOf(opts.size);
+  const board: number[] = c.board.length ? c.board : emptyBoard(dims);
 
   const clickCol = (col: number) => {
-    if (!myTurn || dropRow(board, col) < 0) return;
+    if (!myTurn || dropRow(board, col, dims) < 0) return;
     send('c4_drop', () => handleDrop(player.id, col), { col });
+  };
+  const clickPop = (col: number) => {
+    if (!myTurn) return;
+    send('c4_pop', () => handlePop(player.id, col), { col });
   };
   const leaveGame = () => {
     if (c.phase === 'play' && myIdx >= 0) send('c4_quit', () => forfeit(player.id), {});
@@ -225,6 +264,11 @@ export default function Puissance4() {
           <h3 className="flex items-center gap-2 text-gray-400 font-bold mb-3 uppercase text-sm"><Settings size={16} /> Paramètres du salon</h3>
           <RoomOptions settings={g.settings} updateSettings={g.updateSettings} isHost={isHost} />
         </div>
+        <VariantsPanel isHost={isHost}>
+          <ChoiceRow label="Grille" hint="Plus la grille est grande, plus il faut aligner de jetons." value={g.settings.size || 'classic'} options={Object.entries(SIZES).map(([value, v]) => ({ value, label: v.label }))} onChange={(v) => g.updateSettings({ size: v })} disabled={!isHost} />
+          <ChoiceRow label="Mode Pop-out" hint="Tu peux retirer un de tes jetons de la rangée du bas : les autres descendent d’un cran." value={g.settings.pop ? 'on' : 'off'} options={[{ value: 'off', label: 'Non' }, { value: 'on', label: 'Oui' }]} onChange={(v) => g.updateSettings({ pop: v === 'on' })} disabled={!isHost} />
+          <TimerRow value={timerOf(g.settings)} onChange={(v) => g.updateSettings({ timer: v })} disabled={!isHost} />
+        </VariantsPanel>
         {isHost ? (
           <button onClick={startGame} disabled={!ready} className="w-full bg-purple-300 hover:bg-purple-200 !text-gray-950 shadow-md disabled:opacity-50 active:scale-95 font-black py-4 px-6 rounded-lg text-lg transition">
             {ready ? 'Lancer la partie !' : 'Il faut 2 joueurs…'}
@@ -239,23 +283,25 @@ export default function Puissance4() {
 
   // ----- Plateau -----
   const winSet = new Set<number>(c.line);
+  const colsStyle = { gridTemplateColumns: `repeat(${dims.cols}, minmax(0, 1fr))` };
+  const bottomOf = (col: number) => board[(dims.rows - 1) * dims.cols + col];
   const grid = (
-    <div className="w-full max-w-[34rem] mx-auto select-none" onMouseLeave={() => setHoverCol(null)}>
+    <div className="w-full mx-auto select-none" style={{ maxWidth: `${Math.min(40, 4.9 * dims.cols)}rem` }} onMouseLeave={() => setHoverCol(null)}>
       {/* Jeton « fantôme » au-dessus de la colonne survolée */}
-      <div className="grid grid-cols-7 gap-1.5 sm:gap-2 px-2 h-9 sm:h-11 mb-1" aria-hidden="true">
-        {Array.from({ length: COLS }, (_, col) => (
+      <div className="grid gap-1.5 sm:gap-2 px-2 h-9 sm:h-11 mb-1" style={colsStyle} aria-hidden="true">
+        {Array.from({ length: dims.cols }, (_, col) => (
           <div key={col} className="flex items-center justify-center">
-            {myTurn && hoverCol === col && dropRow(board, col) >= 0 && (
-              <span className="w-8 h-8 sm:w-10 sm:h-10 rounded-full opacity-80" style={{ backgroundColor: DISC[myIdx + 1] }} />
+            {myTurn && hoverCol === col && dropRow(board, col, dims) >= 0 && (
+              <span className="w-[70%] aspect-square rounded-full opacity-80" style={{ backgroundColor: DISC[myIdx + 1] }} />
             )}
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-1.5 sm:gap-2 p-2 rounded-2xl bg-blue-600 shadow-xl ring-4 ring-blue-800/60">
-        {Array.from({ length: COLS * ROWS }, (_, k) => {
-          const col = k % COLS;
+      <div className="grid gap-1.5 sm:gap-2 p-2 rounded-2xl bg-blue-600 shadow-xl ring-4 ring-blue-800/60" style={colsStyle}>
+        {Array.from({ length: dims.cols * dims.rows }, (_, k) => {
+          const col = k % dims.cols;
           const v = board[k];
-          const full = dropRow(board, col) < 0;
+          const full = dropRow(board, col, dims) < 0;
           return (
             <button
               key={k}
@@ -270,13 +316,25 @@ export default function Puissance4() {
               {v > 0 && (
                 <span
                   className={`absolute inset-[6%] rounded-full shadow-md ${k === c.last ? 'c4-drop' : ''} ${winSet.has(k) ? 'ring-4 ring-white animate-pulse' : ''}`}
-                  style={{ backgroundColor: DISC[v], ['--drop' as any]: `${(Math.floor(k / COLS) + 1) * 105}%` }}
+                  style={{ backgroundColor: DISC[v], ['--drop' as any]: `${(Math.floor(k / dims.cols) + 1) * 105}%` }}
                 />
               )}
             </button>
           );
         })}
       </div>
+      {/* Pop-out : retirer un de ses jetons du bas */}
+      {opts.pop && c.phase === 'play' && (
+        <div className="grid gap-1.5 sm:gap-2 px-2 mt-1.5" style={colsStyle}>
+          {Array.from({ length: dims.cols }, (_, col) => {
+            const can = myTurn && bottomOf(col) === myIdx + 1;
+            return (
+              <button key={col} type="button" data-sfx="off" disabled={!can} onClick={() => clickPop(col)} aria-label={`Retirer mon jeton de la colonne ${col + 1}`}
+                className={`h-7 rounded-lg text-xs font-bold transition ${can ? 'bg-white/15 hover:bg-white/30 cursor-pointer active:scale-95' : 'opacity-20 cursor-default'}`}>⬇</button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 
@@ -286,7 +344,7 @@ export default function Puissance4() {
       <div className="flex-1 min-h-0 md:overflow-y-auto w-full max-w-3xl mx-auto">
         <div className="rounded-xl px-4 py-2.5 mb-3 flex items-center justify-between gap-3 flex-wrap text-gray-950 font-bold" style={{ backgroundColor: DISC[turnIdx + 1] }}>
           <span className="font-heading text-lg">{myTurn ? '👉 À toi de jouer !' : `Tour de ${nameOf(c.turn)}`}</span>
-          <span className="text-sm">{myIdx >= 0 ? `Tu joues les jetons ${DISC_NAME[myIdx + 1].toLowerCase()}s` : 'Tu regardes la partie 👀'}</span>
+          <span className="text-sm flex items-center gap-2">{myIdx >= 0 ? `Tu joues les jetons ${DISC_NAME[myIdx + 1].toLowerCase()}s` : 'Tu regardes la partie 👀'}<TurnClock deadline={c.deadline} now={now} /></span>
         </div>
         {grid}
       </div>
@@ -298,7 +356,7 @@ export default function Puissance4() {
     <div className="flex-1 min-h-0 md:overflow-y-auto w-full max-w-3xl mx-auto animate-fadein">
       <div className="rounded-xl px-5 py-4 mb-3 text-center text-gray-950" style={{ backgroundColor: w ? DISC[c.order.indexOf(w) + 1] : '#cbd5e1' }}>
         <p className="font-heading text-3xl flex items-center justify-center gap-2">{w ? <><Crown /> {nameOf(w)} gagne !</> : 'Match nul'}</p>
-        <p className="text-sm opacity-80 mt-1 font-semibold">{c.reason === 'forfeit' ? 'Son adversaire a abandonné.' : c.reason === 'draw' ? 'La grille est pleine.' : 'Quatre jetons alignés !'}</p>
+        <p className="text-sm opacity-80 mt-1 font-semibold">{c.reason === 'forfeit' ? 'Son adversaire a abandonné.' : c.reason === 'draw' ? 'La grille est pleine.' : `${dims.need} jetons alignés !`}</p>
       </div>
       {grid}
       <div className="mt-4 flex flex-wrap items-center justify-center gap-3">

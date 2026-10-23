@@ -4,12 +4,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { RotateCcw, Settings, Crown } from 'lucide-react';
 import { makeId, shuffle, PlayerDot, playSfx, useSoundAndClickFx, fireConfetti, RoomOptions, KickButton, toast, useRefState } from '@/lib/shared';
 import { useGameRoom, GameHome, GameShell, RoomCodeBlock, RulesDialog, WaitingForHost } from '@/lib/gameroom';
-import { STARTS, N, goalReached, legalMoves, canPlaceWall, type Wall, type Pos } from '@/lib/quoridor';
+import { STARTS, N, goalReached, legalMoves, canPlaceWall, autoMove, type Wall, type Pos } from '@/lib/quoridor';
+import { ChoiceRow, VariantsPanel, TimerRow, TurnClock, nextDeadline, timerOf } from '@/lib/variants';
 import { GameArt } from '@/lib/art';
 
 const GAME_ID = 'quoridor';
 
-const DEFAULT_SETTINGS = { visibility: 'private', roomName: '', chatEnabled: true };
+const DEFAULT_SETTINGS = { visibility: 'private', roomName: '', chatEnabled: true, walls: 'auto', obstacles: 0, timer: 0 };
 const INITIAL_Q = {
   phase: 'lobby', // 'lobby' | 'play' | 'over'
   gameId: null,
@@ -22,6 +23,8 @@ const INITIAL_Q = {
   winner: null as any,
   reason: null as any,
   wins: {} as Record<string, number>,
+  opts: { walls: 'auto', obstacles: 0, timer: 0 } as any, // variantes de la partie en cours
+  deadline: null as any, // fin du tour (si chronomètre)
 };
 
 const COLORS = ['#fbbf24', '#2dd4bf', '#f43f5e', '#a78bfa'];
@@ -52,6 +55,8 @@ export default function Quoridor() {
 
   const commitQ = (patch: any) => {
     const next = { ...qRef.current, ...patch };
+    // Chaque coup relance le chronomètre
+    next.deadline = next.phase === 'play' && next.turn ? nextDeadline(next.opts?.timer) : null;
     setQ(next);
     broadcast('q', { q: next });
   };
@@ -83,13 +88,24 @@ export default function Quoridor() {
     const order = shuffle(present.slice(0, present.length >= 4 ? 4 : 2));
     const pawns: Record<string, Pos> = {};
     const left: Record<string, number> = {};
+    const st = g.settingsRef.current;
+    const opts = { walls: st.walls || 'auto', obstacles: Number(st.obstacles) || 0, timer: timerOf(st) };
+    const perPlayer = opts.walls === 'auto' ? (order.length === 2 ? 10 : 5) : Number(opts.walls);
     order.forEach((id, i) => {
       pawns[id] = STARTS[i];
-      left[id] = order.length === 2 ? 10 : 5;
+      left[id] = perPlayer;
     });
+    // Obstacles : quelques murs posés au hasard avant le début (le chemin vers le but reste toujours ouvert)
+    const walls: Wall[] = [];
+    const pawnArr = order.map((id) => pawns[id]);
+    const all = order.map((_, i) => i);
+    for (let tries = 0; walls.length < opts.obstacles && tries < 400; tries++) {
+      const w: Wall = [Math.floor(Math.random() * (N - 1)), Math.floor(Math.random() * (N - 1)), Math.random() < 0.5 ? 'h' : 'v'];
+      if (canPlaceWall(walls, pawnArr, all, w)) walls.push(w);
+    }
     g.broadcast('roster', { known: g.knownRef.current });
     absentRef.current = 0;
-    commitQ({ ...INITIAL_Q, phase: 'play', gameId: makeId('g'), order, pawns, left, turn: order[0], wins: qRef.current.wins });
+    commitQ({ ...INITIAL_Q, phase: 'play', gameId: makeId('g'), order, pawns, left, walls, opts, turn: order[0], wins: qRef.current.wins });
   };
   const backToLobby = () => commitQ({ ...INITIAL_Q, wins: qRef.current.wins });
 
@@ -122,6 +138,15 @@ export default function Quoridor() {
     if (!isHostRef.current) return;
     const b = qRef.current;
     if (b.phase !== 'play' || !b.turn) return;
+    // Temps écoulé : le pion avance d'une case vers son but
+    if (b.deadline && Date.now() > b.deadline) {
+      const me = b.order.indexOf(b.turn);
+      const m = autoMove(b.walls, pawnList(b), me);
+      if (m) {
+        toast(`${nameOf(b.turn)} a été trop lent : coup automatique.`);
+        return handleMove(b.turn, m[0], m[1]);
+      }
+    }
     const t = Date.now();
     if (g.playersRef.current.length > 0 && !presentIds().has(b.turn)) {
       absentRef.current = absentRef.current || t;
@@ -253,12 +278,17 @@ export default function Quoridor() {
         )}
         <p className="text-gray-400 text-sm mb-5">
           {ready ? `${playing} joueurs vont s’affronter${players.length > playing ? ` (les autres regardent)` : ''}.` : 'En attente d’au moins un adversaire…'} <br />
-          <span className="text-xs">2 joueurs : 10 murs chacun · 4 joueurs : 5 murs chacun.</span>
+          <span className="text-xs">Murs et obstacles : voir les variantes ci-dessous.</span>
         </p>
         <div className="text-left mb-5 bg-gray-950/70 border border-gray-800 rounded-xl p-4">
           <h3 className="flex items-center gap-2 text-gray-400 font-bold mb-3 uppercase text-sm"><Settings size={16} /> Paramètres du salon</h3>
           <RoomOptions settings={g.settings} updateSettings={g.updateSettings} isHost={isHost} />
         </div>
+        <VariantsPanel isHost={isHost}>
+          <ChoiceRow label="Murs par joueur" hint="Auto : 10 murs à 2 joueurs, 5 à 4 joueurs." value={g.settings.walls ?? 'auto'} options={[{ value: 'auto', label: 'Auto' }, { value: 5, label: '5' }, { value: 10, label: '10' }, { value: 15, label: '15' }, { value: 20, label: '20' }]} onChange={(v) => g.updateSettings({ walls: v })} disabled={!isHost} />
+          <ChoiceRow label="Obstacles au départ" hint="Des murs posés au hasard avant la première action (il reste toujours un chemin)." value={g.settings.obstacles ?? 0} options={[{ value: 0, label: 'Aucun' }, { value: 4, label: 'Quelques-uns' }, { value: 8, label: 'Beaucoup' }, { value: 12, label: 'Labyrinthe' }]} onChange={(v) => g.updateSettings({ obstacles: Number(v) })} disabled={!isHost} />
+          <TimerRow value={timerOf(g.settings)} onChange={(v) => g.updateSettings({ timer: v })} disabled={!isHost} hint="Si le temps est écoulé, le pion avance automatiquement d’une case." />
+        </VariantsPanel>
         {isHost ? (
           <button onClick={startGame} disabled={!ready} className="w-full bg-purple-300 hover:bg-purple-200 !text-gray-950 shadow-md disabled:opacity-50 active:scale-95 font-black py-4 px-6 rounded-lg text-lg transition">
             {ready ? 'Lancer la partie !' : 'Il faut 2 joueurs minimum…'}
@@ -336,7 +366,7 @@ export default function Quoridor() {
       <div className="flex-1 min-h-0 md:overflow-y-auto w-full max-w-3xl mx-auto">
         <div className="rounded-xl px-4 py-2.5 mb-3 flex items-center justify-between gap-3 flex-wrap text-white" style={{ backgroundColor: q.turn ? `${colorOf(q.turn)}cc` : '#444' }}>
           <span className="font-heading text-lg">{myTurn ? '👉 À toi de jouer !' : `Tour de ${turnName}`}</span>
-          {myIdx >= 0 && <span className="text-sm font-bold">Ton but : le bord {GOAL_LABEL[myIdx]} · 🧱 {q.left[player.id] ?? 0}</span>}
+          {myIdx >= 0 && <span className="text-sm font-bold flex items-center gap-2">Ton but : le bord {GOAL_LABEL[myIdx]} · 🧱 {q.left[player.id] ?? 0}<TurnClock deadline={q.deadline} now={now} /></span>}
           {myIdx < 0 && <span className="text-sm font-bold">Tu regardes la partie 👀</span>}
         </div>
         {myTurn && <p className="text-xs text-gray-400 text-center mb-2">Clique une case verte pour avancer, ou une rainure entre les cases pour poser un mur{canWall ? '' : ' (plus de murs !)'}.</p>}

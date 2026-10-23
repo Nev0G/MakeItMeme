@@ -51,3 +51,7 @@ pour Caption Battle, au stockage des fichiers (bucket public `game-media`).
 - `lib/press.ts` : contenus de presse (date, météo, horoscope, gros titres)
 - `tailwind.config.js` : palette « papier/encre » (les échelles de couleurs de Tailwind y sont inversées)
 - `app/globals.css` : papier, trame, filets, lettrine, tampon
+
+## Variantes de jeu
+
+Quoridor, Pipopipette, Puissance 4, Uno, Scrabble et Liar's Bar proposent des variantes configurables par le host dans le salon (encadré « Variantes ») : chronomètre par tour avec coup automatique, taille de grille, murs et obstacles, carrés en or, Pop-out, cumul des +2/+4, règle 7-0, objectif de points, cases bonus aléatoires, balles/jokers/cartes en main.

@@ -28,6 +28,17 @@ put('W2', [[1, 1], [2, 2], [3, 3], [4, 4], [10, 10], [11, 11], [12, 12], [13, 13
 put('L3', [[1, 5], [1, 9], [5, 1], [5, 5], [5, 9], [5, 13], [9, 1], [9, 5], [9, 9], [9, 13], [13, 5], [13, 9]]);
 put('L2', [[0, 3], [0, 11], [2, 6], [2, 8], [3, 0], [3, 7], [3, 14], [6, 2], [6, 6], [6, 8], [6, 12], [7, 3], [7, 11], [8, 2], [8, 6], [8, 8], [8, 12], [11, 0], [11, 7], [11, 14], [12, 6], [12, 8], [14, 3], [14, 11]]);
 export const bonusAt = (idx: number) => BONUS[idx] || '';
+export const classicBonus = () => Array.from({ length: SIZE * SIZE }, (_, k) => BONUS[k] || '');
+// Variante : les cases bonus changent de place (la case centrale reste fixe)
+export const randomBonus = (rnd: () => number = Math.random) => {
+  const cells = Array.from({ length: SIZE * SIZE }, (_, k) => k).filter((k) => k !== CENTER);
+  const kinds = cells.map((k) => BONUS[k] || '');
+  const mixed = shuffled(kinds, rnd);
+  const out = Array(SIZE * SIZE).fill('') as string[];
+  cells.forEach((k, i) => (out[k] = mixed[i]));
+  out[CENTER] = 'W2';
+  return out;
+};
 
 // Plateau : tableau de 225 chaînes — '' vide, 'A' lettre, 'a' joker représentant A (vaut 0 point)
 export const emptyBoard = () => Array(SIZE * SIZE).fill('') as string[];
@@ -49,7 +60,8 @@ export const rackAllows = (rack: string[], tiles: Tile[]) => {
 };
 
 // Vérifie la géométrie d'un coup et calcule les mots formés et le score (sans vérifier le dictionnaire)
-export const evaluateMove = (board: string[], tiles: Tile[]): MoveResult => {
+export const evaluateMove = (board: string[], tiles: Tile[], opts: { bonus?: string[]; rack?: number } = {}): MoveResult => {
+  const bonusOf = (k: number) => (opts.bonus && opts.bonus.length ? opts.bonus[k] : bonusAt(k));
   if (!tiles.length) return { ok: false, error: 'Pose au moins une lettre.' };
   const seen = new Set<number>();
   for (const t of tiles) {
@@ -104,7 +116,7 @@ export const evaluateMove = (board: string[], tiles: Tile[]): MoveResult => {
     for (const k of idx) {
       let v = letterPoints(cells[k]);
       if (fresh.has(k)) {
-        const b = bonusAt(k);
+        const b = bonusOf(k);
         if (b === 'L2') v *= 2;
         else if (b === 'L3') v *= 3;
         else if (b === 'W2') mult *= 2;
@@ -131,7 +143,7 @@ export const evaluateMove = (board: string[], tiles: Tile[]): MoveResult => {
     if (v.length > 1) words.push(score(v));
   }
   if (!words.length) return { ok: false, error: 'Aucun mot formé.' };
-  const bingo = tiles.length === 7;
+  const bingo = tiles.length === (opts.rack || 7);
   return { ok: true, words, total: words.reduce((n, w) => n + w.pts, 0) + (bingo ? 50 : 0), bingo };
 };
 

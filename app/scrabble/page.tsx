@@ -4,12 +4,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { RotateCcw, Settings, Crown, Check, Undo2, SkipForward, Repeat } from 'lucide-react';
 import { makeId, PlayerDot, playSfx, useSoundAndClickFx, fireConfetti, RoomOptions, KickButton, ToggleRow, toast, useRefState } from '@/lib/shared';
 import { useGameRoom, GameHome, GameShell, RoomCodeBlock, RulesDialog, WaitingForHost } from '@/lib/gameroom';
-import { SIZE, POINTS, buildBag, shuffled, emptyBoard, bonusAt, evaluateMove, rackAllows, loadDictionary, type Tile } from '@/lib/scrabble';
+import { SIZE, POINTS, buildBag, shuffled, emptyBoard, classicBonus, randomBonus, evaluateMove, rackAllows, loadDictionary, type Tile } from '@/lib/scrabble';
+import { ChoiceRow, VariantsPanel, TimerRow, TurnClock, nextDeadline, timerOf } from '@/lib/variants';
 import { GameArt } from '@/lib/art';
 
 const GAME_ID = 'scrabble';
 
-const DEFAULT_SETTINGS = { visibility: 'private', roomName: '', chatEnabled: true, dictionary: true };
+const DEFAULT_SETTINGS = { visibility: 'private', roomName: '', chatEnabled: true, dictionary: true, rack: 7, goal: 0, randomBonus: false, timer: 0 };
 const INITIAL_S: any = {
   phase: 'lobby', // 'lobby' | 'play' | 'over'
   gameId: null,
@@ -25,6 +26,9 @@ const INITIAL_S: any = {
   winners: [] as string[],
   reason: null as any,
   wins: {} as Record<string, number>,
+  opts: { rack: 7, goal: 0, randomBonus: false, timer: 0 } as any, // variantes de la partie en cours
+  bonus: [] as string[], // cases bonus de la partie (vide = classiques)
+  deadline: null as any, // fin du tour (si chronomètre)
 };
 
 const BONUS_STYLE: Record<string, { cls: string; label: string }> = {
@@ -35,11 +39,12 @@ const BONUS_STYLE: Record<string, { cls: string; label: string }> = {
 };
 
 const RULES_STEPS = [
-  { title: 'Pose tes lettres', text: 'Tu as 7 lettres. Clique une lettre de ton chevalet, puis une case du plateau. Le premier mot doit passer par la case centrale ★.' },
+  { title: 'Pose tes lettres', text: 'Tu as 7 lettres (réglable). Clique une lettre de ton chevalet, puis une case du plateau. Le premier mot doit passer par la case centrale ★.' },
   { title: 'Forme de vrais mots', text: 'Tes lettres doivent être sur une même ligne ou colonne, former un mot et toucher une lettre déjà posée. Tous les mots formés doivent exister dans le dictionnaire.' },
   { title: 'Cases bonus', text: 'MD / MT : le mot compte double / triple. LD / LT : la lettre compte double / triple. Les bonus ne servent qu’une fois, quand la lettre est posée.' },
   { title: 'Jokers', text: 'Un joker (?) remplace n’importe quelle lettre mais vaut 0 point. Poser les 7 lettres d’un coup rapporte 50 points de bonus.' },
   { title: 'Passer ou échanger', text: 'Pas d’inspiration ? Passe ton tour, ou échange des lettres avec le sac (s’il reste au moins 7 lettres).' },
+  { title: 'Variantes', text: 'Le host peut fixer un objectif de points pour finir plus vite, mélanger les cases bonus, changer la taille du chevalet (5, 7 ou 9) et limiter le temps par tour.' },
   { title: 'Fin de partie', text: 'La partie s’arrête quand le sac est vide et qu’un joueur n’a plus de lettres (ou après 2 tours de passes). Les lettres restantes sont retirées du score.' },
 ];
 
@@ -87,6 +92,8 @@ export default function Scrabble() {
 
   const commitS = (patch: any) => {
     const next = { ...sRef.current, ...patch };
+    // Chaque action relance le chronomètre
+    next.deadline = next.phase === 'play' && next.turn ? nextDeadline(next.opts?.timer) : null;
     setS(next);
     broadcast('sc', { s: next });
   };
@@ -105,7 +112,7 @@ export default function Scrabble() {
     return from;
   };
   const refill = (rack: string[], bag: string[]) => {
-    const take = Math.max(0, Math.min(7 - rack.length, bag.length));
+    const take = Math.max(0, Math.min((sRef.current.opts?.rack || 7) - rack.length, bag.length));
     return { rack: [...rack, ...bag.slice(0, take)], bag: bag.slice(take) };
   };
   const rackValue = (rack: string[]) => rack.reduce((n, l) => n + (POINTS[l] ?? 0), 0);
@@ -139,18 +146,20 @@ export default function Scrabble() {
       toast('Il faut au moins 2 joueurs.');
       return;
     }
+    const st = g.settingsRef.current;
+    const opts = { rack: [5, 7, 9].includes(Number(st.rack)) ? Number(st.rack) : 7, goal: Number(st.goal) || 0, randomBonus: !!st.randomBonus, timer: timerOf(st) };
     let bag = shuffled(buildBag());
     const racks: Record<string, string[]> = {};
     const scores: Record<string, number> = {};
     const order = shuffled(ids);
     order.forEach((id) => {
-      racks[id] = bag.slice(0, 7);
-      bag = bag.slice(7);
+      racks[id] = bag.slice(0, opts.rack);
+      bag = bag.slice(opts.rack);
       scores[id] = 0;
     });
     g.broadcast('roster', { known: g.knownRef.current });
     absentRef.current = 0;
-    commitS({ ...INITIAL_S, phase: 'play', gameId: makeId('g'), order, board: emptyBoard(), racks, bag, scores, turn: order[0], wins: sRef.current.wins });
+    commitS({ ...INITIAL_S, phase: 'play', gameId: makeId('g'), order, board: emptyBoard(), racks, bag, scores, turn: order[0], wins: sRef.current.wins, opts, bonus: opts.randomBonus ? randomBonus() : [] });
   };
   const backToLobby = () => commitS({ ...INITIAL_S, wins: sRef.current.wins });
 
@@ -159,7 +168,7 @@ export default function Scrabble() {
     if (b.phase !== 'play' || b.turn !== id || !Array.isArray(tiles)) return;
     const clean: Tile[] = tiles.map((t) => ({ r: Number(t.r), c: Number(t.c), ch: String(t.ch).toUpperCase().slice(0, 1), blank: !!t.blank }));
     if (!rackAllows(b.racks[id], clean)) return rejectTo(id, 'Ces lettres ne sont pas dans ton chevalet.');
-    const res = evaluateMove(b.board, clean);
+    const res = evaluateMove(b.board, clean, { bonus: b.bonus, rack: b.opts.rack });
     if (!res.ok) return rejectTo(id, res.error);
     if (sRef.current.phase === 'play' && g.settingsRef.current.dictionary !== false) {
       const d = await loadDictionary();
@@ -180,6 +189,14 @@ export default function Scrabble() {
     const last = { id, kind: 'play', words: res.words, total: res.total, bingo: res.bingo };
     const next = { ...cur, board, racks, bag, scores };
     setBusy(false);
+    // Objectif de points atteint : fin immédiate, sans retrait des lettres restantes
+    if (cur.opts.goal > 0 && scores[id] >= cur.opts.goal) {
+      const best = Math.max(...activeIds(cur).map((pid: string) => scores[pid]));
+      const winners = activeIds(cur).filter((pid: string) => scores[pid] === best);
+      const wins = { ...cur.wins };
+      winners.forEach((pid: string) => (wins[pid] = (wins[pid] || 0) + 1));
+      return commitS({ board, racks, bag, scores, last, passes: 0, phase: 'over', winners, reason: 'goal', turn: null, wins });
+    }
     if (!rack.length && !bag.length) return finish(next, 'out', id, { board, racks, bag, scores, last, passes: 0 });
     commitS({ board, racks, bag, scores, last, passes: 0, turn: nextTurn(cur, id) });
   };
@@ -194,7 +211,7 @@ export default function Scrabble() {
   const handleSwap = (id: string, letters: string[]) => {
     const b = sRef.current;
     if (b.phase !== 'play' || b.turn !== id || !Array.isArray(letters) || !letters.length) return;
-    if (b.bag.length < 7) return rejectTo(id, 'Il reste moins de 7 lettres dans le sac : échange impossible.');
+    if (b.bag.length < b.opts.rack) return rejectTo(id, `Il reste moins de ${b.opts.rack} lettres dans le sac : échange impossible.`);
     const rack = [...b.racks[id]];
     for (const l of letters) {
       const k = rack.indexOf(l);
@@ -225,6 +242,11 @@ export default function Scrabble() {
     if (!isHostRef.current) return;
     const b = sRef.current;
     if (b.phase !== 'play' || !b.turn) return;
+    // Temps écoulé : le tour est passé
+    if (b.deadline && Date.now() > b.deadline) {
+      toast(`${nameOf(b.turn)} a été trop lent : tour passé.`);
+      return handlePass(b.turn);
+    }
     const t = Date.now();
     if (g.playersRef.current.length > 0 && !presentIds().has(b.turn)) {
       absentRef.current = absentRef.current || t;
@@ -278,7 +300,9 @@ export default function Scrabble() {
   const board: string[] = s.board.length ? s.board : emptyBoard();
   const stagedRack = new Set(Object.values(staged).map((x) => x.rackIdx));
   const stagedTiles: Tile[] = Object.entries(staged).map(([cell, x]) => ({ r: Math.floor(Number(cell) / SIZE), c: Number(cell) % SIZE, ch: x.ch, blank: x.blank }));
-  const preview = stagedTiles.length ? evaluateMove(board, stagedTiles) : null;
+  const bonusMap: string[] = s.bonus?.length ? s.bonus : classicBonus();
+  const rackSize: number = s.phase === 'lobby' ? Number(g.settings.rack) || 7 : s.opts.rack;
+  const preview = stagedTiles.length ? evaluateMove(board, stagedTiles, { bonus: s.bonus, rack: rackSize }) : null;
   const badWords = preview && preview.ok && dict && s.phase === 'play' && settingsOn() ? preview.words.filter((w) => !dict.has(w.text)).map((w) => w.text) : [];
   function settingsOn() {
     return g.settings.dictionary !== false;
@@ -424,6 +448,12 @@ export default function Scrabble() {
             />
           </div>
         </div>
+        <VariantsPanel isHost={isHost}>
+          <ChoiceRow label="Fin de la partie" hint="Au premier à atteindre l’objectif, la partie s’arrête tout de suite." value={g.settings.goal ?? 0} options={[{ value: 0, label: 'Sac vide (classique)' }, { value: 100, label: '100 pts' }, { value: 200, label: '200 pts' }, { value: 300, label: '300 pts' }]} onChange={(v) => g.updateSettings({ goal: Number(v) })} disabled={!isHost} />
+          <ChoiceRow label="Cases bonus" hint="Aléatoires : les cases bonus changent de place à chaque partie." value={g.settings.randomBonus ? 'rand' : 'classic'} options={[{ value: 'classic', label: 'Classiques' }, { value: 'rand', label: 'Aléatoires' }]} onChange={(v) => g.updateSettings({ randomBonus: v === 'rand' })} disabled={!isHost} />
+          <ChoiceRow label="Lettres au chevalet" hint="Poser tout son chevalet d’un coup rapporte 50 points de bonus." value={g.settings.rack ?? 7} options={[{ value: 5, label: '5' }, { value: 7, label: '7 (classique)' }, { value: 9, label: '9' }]} onChange={(v) => g.updateSettings({ rack: Number(v) })} disabled={!isHost} />
+          <TimerRow value={timerOf(g.settings)} onChange={(v) => g.updateSettings({ timer: v })} disabled={!isHost} hint="Si le temps est écoulé, ton tour est passé." />
+        </VariantsPanel>
         {isHost ? (
           <button onClick={startGame} disabled={!ready} className="w-full bg-purple-300 hover:bg-purple-200 !text-gray-950 shadow-md disabled:opacity-50 active:scale-95 font-black py-4 px-6 rounded-lg text-lg transition">
             {ready ? 'Lancer la partie !' : 'Il faut 2 joueurs minimum…'}
@@ -441,7 +471,7 @@ export default function Scrabble() {
     <div className="grid gap-[2px] p-1.5 sm:p-2 rounded-xl bg-emerald-900 w-full max-w-[42rem] mx-auto select-none" style={{ gridTemplateColumns: `repeat(${SIZE}, minmax(0, 1fr))` }}>
       {board.map((cell, k) => {
         const st = staged[k];
-        const bonus = bonusAt(k);
+        const bonus = bonusMap[k];
         const empty = !cell && !st;
         const style = BONUS_STYLE[bonus];
         return (
@@ -482,7 +512,7 @@ export default function Scrabble() {
       <div className="flex-1 min-h-0 md:overflow-y-auto w-full max-w-3xl mx-auto flex flex-col gap-3">
         <div className="rounded-xl px-4 py-2.5 flex items-center justify-between gap-3 flex-wrap bg-purple-300 text-gray-950 font-bold">
           <span className="font-heading text-lg">{myTurn ? '👉 À toi de jouer !' : `Tour de ${nameOf(s.turn)}`}</span>
-          <span className="text-sm">🎒 {s.bag.length} lettre{s.bag.length > 1 ? 's' : ''} dans le sac</span>
+          <span className="text-sm flex items-center gap-2">🎒 {s.bag.length} dans le sac{s.opts.goal > 0 ? ` · objectif ${s.opts.goal} pts` : ''}<TurnClock deadline={s.deadline} now={now} className="!bg-black/20" /></span>
         </div>
         <p className="text-xs text-gray-400 text-center" aria-live="polite">{lastMsg}</p>
         {boardView}
@@ -522,7 +552,7 @@ export default function Scrabble() {
                     <>
                       <button onClick={submit} disabled={!preview || !preview.ok || busy || badWords.length > 0} className="tag-dark whitespace-nowrap px-5 py-2 flex items-center gap-1.5 disabled:opacity-40 active:scale-95 cursor-pointer"><Check size={16} /> {busy ? 'Vérification…' : 'Valider'}</button>
                       <button onClick={() => { setStaged({}); setSelected(null); }} disabled={!stagedTiles.length} className="rounded-xl border border-gray-600 px-3 py-2 text-sm font-bold hover:bg-white/10 disabled:opacity-40 transition flex items-center gap-1.5 cursor-pointer"><Undo2 size={15} /> Reprendre</button>
-                      <button onClick={() => { setSwapMode(true); setStaged({}); setSelected(null); }} disabled={s.bag.length < 7} title={s.bag.length < 7 ? 'Il faut au moins 7 lettres dans le sac' : ''} className="rounded-xl border border-gray-600 px-3 py-2 text-sm font-bold hover:bg-white/10 disabled:opacity-40 transition flex items-center gap-1.5 cursor-pointer"><Repeat size={15} /> Échanger</button>
+                      <button onClick={() => { setSwapMode(true); setStaged({}); setSelected(null); }} disabled={s.bag.length < rackSize} title={s.bag.length < rackSize ? `Il faut au moins ${rackSize} lettres dans le sac` : ''} className="rounded-xl border border-gray-600 px-3 py-2 text-sm font-bold hover:bg-white/10 disabled:opacity-40 transition flex items-center gap-1.5 cursor-pointer"><Repeat size={15} /> Échanger</button>
                       <button onClick={doPass} className="rounded-xl border border-gray-600 px-3 py-2 text-sm font-bold hover:bg-white/10 transition flex items-center gap-1.5 cursor-pointer"><SkipForward size={15} /> Passer</button>
                     </>
                   )}
@@ -555,7 +585,7 @@ export default function Scrabble() {
     <div className="flex-1 min-h-0 md:overflow-y-auto w-full max-w-3xl mx-auto animate-fadein flex flex-col gap-3">
       <div className="rounded-xl px-5 py-4 text-center bg-purple-300 text-gray-950">
         <p className="font-heading text-3xl flex items-center justify-center gap-2"><Crown /> {s.winners.length > 1 ? `Égalité : ${s.winners.map((id: string) => nameOf(id)).join(' & ')}` : `${nameOf(s.winners[0])} gagne !`}</p>
-        <p className="text-sm font-semibold mt-1">{s.reason === 'forfeit' ? 'Les autres joueurs ont abandonné.' : s.reason === 'passes' ? 'Tout le monde a passé : la partie est terminée.' : 'Le sac est vide et un joueur a posé toutes ses lettres.'}</p>
+        <p className="text-sm font-semibold mt-1">{s.reason === 'forfeit' ? 'Les autres joueurs ont abandonné.' : s.reason === 'passes' ? 'Tout le monde a passé : la partie est terminée.' : s.reason === 'goal' ? `Objectif de ${s.opts.goal} points atteint !` : 'Le sac est vide et un joueur a posé toutes ses lettres.'}</p>
       </div>
       <div className="paper p-4">
         <p className="eyebrow mb-2">Classement final</p>
