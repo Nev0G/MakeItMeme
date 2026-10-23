@@ -17,6 +17,7 @@ Des jeux entre potes, jouables dans le navigateur, avec un habillage « vieux jo
 - `/uno` : jeu de cartes Uno de 2 à 6 joueurs
 - `/scrabble` : Scrabble en français de 2 à 4 joueurs (mots vérifiés via le Wiktionnaire)
 - `/liars-bar` : jeu de bluff aux cartes (Rois, Dames, As) avec roulette russe, de 2 à 4 joueurs
+- `/spyfall` : un lieu secret et un espion qui l'ignore, on s'interroge à tour de rôle pour le démasquer (3 à 12 joueurs)
 
 Chaque jeu a des salons **fermés** (code) ou **ouverts** (listés sur l'accueil), un chat écrit, et le host peut expulser un joueur.
 **Changer de jeu sans nouveau lien** : dans un salon, le host clique sur un autre jeu dans la barre de gauche ; tout le salon le suit avec le même code.
